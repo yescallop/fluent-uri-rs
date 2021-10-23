@@ -1,0 +1,24 @@
+[package]
+name = "fluent-uri"
+version = "0.1.0"
+authors = ["Scallop Ye <yescallop@gmail.com>"]
+edition = "2021"
+
+[dependencies]
+# thiserror = "1.0"
+memchr = "2.4.1"
+
+[profile.test]
+overflow-checks = false
+
+[profile.release]
+panic = "abort"
+lto = true
+codegen-units = 1
+
+[[bench]]
+name = "bench"
+harness = false
+
+[dev-dependencies]
+criterion = "0.3"
