@@ -1,7 +1,48 @@
-use super::{chr, table::Table};
+use super::{
+    chr,
+    table::{Table, HEXDIG},
+};
 use std::{borrow::Cow, ptr, str};
 
 pub(crate) type RawResult<T> = Result<T, *const u8>;
+
+const fn gen_octet_table(hi: bool) -> [u8; 256] {
+    let mut out = [0xFF; 256];
+    let shift = (hi as u8) * 4;
+
+    let mut i = 0;
+    while i < 10 {
+        out[(i + b'0') as usize] = i << shift;
+        i += 1;
+    }
+    while i < 16 {
+        out[(i - 10 + b'A') as usize] = i << shift;
+        out[(i - 10 + b'a') as usize] = i << shift;
+        i += 1;
+    }
+    out
+}
+
+static OCTET_HI: &[u8; 256] = &gen_octet_table(true);
+static OCTET_LO: &[u8; 256] = &gen_octet_table(false);
+
+/// Decodes a percent-encoded octet assuming validity.
+#[inline]
+fn decode_octet_unchecked(hi: u8, lo: u8) -> u8 {
+    OCTET_HI[hi as usize] | OCTET_LO[lo as usize]
+}
+
+/// Decodes a percent-encoded octet.
+#[inline]
+fn decode_octet(mut hi: u8, mut lo: u8) -> Option<u8> {
+    hi = OCTET_HI[hi as usize];
+    lo = OCTET_LO[lo as usize];
+    if hi != 0xFF && lo != 0xFF {
+        Some(hi | lo)
+    } else {
+        None
+    }
+}
 
 /// Copies the first `i` bytes from `s` into a `Vec` and returns it.
 ///
@@ -64,16 +105,6 @@ unsafe fn push_pct_encoded(v: &mut Vec<u8>, x: u8) {
     v.set_len(len + 3);
 }
 
-/// Parses a hexadecimal digit.
-fn parse_hexdig(x: u8) -> Option<u8> {
-    match x {
-        b'0'..=b'9' => Some(x - b'0'),
-        b'A'..=b'F' => Some(x - b'A' + 10),
-        b'a'..=b'f' => Some(x - b'a' + 10),
-        _ => None,
-    }
-}
-
 /// Encodes any characters in a byte sequence that are not allowed by the given mask.
 pub fn encode<'a, S: AsRef<[u8]> + ?Sized>(s: &'a S, table: &Table) -> Cow<'a, str> {
     assert!(table.allow_enc(), "mask not for encoding");
@@ -105,15 +136,6 @@ pub fn encode<'a, S: AsRef<[u8]> + ?Sized>(s: &'a S, table: &Table) -> Cow<'a, s
     Cow::Owned(unsafe { String::from_utf8_unchecked(res) })
 }
 
-/// Parses a hexadecimal digit assuming validity.
-#[inline]
-unsafe fn parse_hexdig_unchecked(x: u8) -> u8 {
-    // 00110000 0  00111001 9
-    // 01000001 A  01000110 F
-    // 01100001 a  01100110 f
-    (x & 0b1111) + if x & 0b1000000 != 0 { 9 } else { 0 }
-}
-
 /// Decodes a percent-encoded string assuming validity.
 ///
 /// # Safety
@@ -136,8 +158,7 @@ pub unsafe fn decode_unchecked(s: &[u8]) -> Cow<'_, [u8]> {
         if x == b'%' {
             let (hi, lo) = (*ptr.add(i + 1), *ptr.add(i + 2));
 
-            let (hi, lo) = (parse_hexdig_unchecked(hi), parse_hexdig_unchecked(lo));
-            let octet = (hi << 4) | lo;
+            let octet = decode_octet_unchecked(hi, lo);
 
             push(v, octet);
             i += 2;
@@ -172,10 +193,7 @@ pub(super) fn decode(s: &str) -> RawResult<Cow<'_, [u8]>> {
             // SAFETY: Dereferencing is safe since `i + 1 < i + 2 < s.len()`.
             let (hi, lo) = unsafe { (*ptr.add(i + 1), *ptr.add(i + 2)) };
 
-            let octet = match (parse_hexdig(hi), parse_hexdig(lo)) {
-                (Some(hi), Some(lo)) => (hi << 4) | lo,
-                _ => return Err(cur),
-            };
+            let octet = decode_octet(hi, lo).ok_or(cur)?;
 
             // SAFETY: The output will never be longer than the input.
             unsafe { push(v, octet) }
@@ -212,7 +230,7 @@ pub(crate) fn validate(s: &[u8], table: &Table) -> RawResult<()> {
             // SAFETY: Dereferencing is safe since `i + 1 < i + 2 < s.len()`.
             let (hi, lo) = unsafe { (*ptr.add(i + 1), *ptr.add(i + 2)) };
 
-            if !hi.is_ascii_hexdigit() || !lo.is_ascii_hexdigit() {
+            if !HEXDIG.contains(hi) || !HEXDIG.contains(lo) {
                 return Err(cur);
             }
         } else if !table.contains(x) {

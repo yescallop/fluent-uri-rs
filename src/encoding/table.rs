@@ -17,8 +17,8 @@ impl Table {
         self
     }
 
+    /// Returns `true` if the byte is allowed by the table.
     #[inline]
-    /// Returns `true` if a byte is contained in the table.
     pub fn contains(&self, x: u8) -> bool {
         self.0[x as usize]
     }

@@ -17,11 +17,9 @@ pub struct ParseError(pub(crate) usize);
 impl ParseError {
     /// Creates a `ParseError` from a raw pointer.
     ///
-    /// # Safety
-    ///
     /// The pointer must be within the given string,
     /// otherwise the result would be invalid.
-    pub(crate) unsafe fn from_raw(ptr: *const u8, s: &str) -> ParseError {
+    pub(crate) fn from_raw(ptr: *const u8, s: &str) -> ParseError {
         let offset = (ptr as usize).wrapping_sub(s.as_ptr() as usize);
         debug_assert!(offset <= s.len());
         ParseError(offset)
@@ -58,7 +56,7 @@ impl<'a> UriRef<'a> {
     /// Parses a URI reference from a string into a `UriRef`.
     #[inline]
     pub fn parse(s: &str) -> Result<UriRef<'_>, ParseError> {
-        parsing::parse(s.as_bytes()).map_err(|ptr| unsafe { ParseError::from_raw(ptr, s) })
+        parsing::parse(s.as_bytes()).map_err(|ptr| ParseError::from_raw(ptr, s))
     }
 
     /// An empty URI reference ("").

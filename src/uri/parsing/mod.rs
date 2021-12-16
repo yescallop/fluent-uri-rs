@@ -118,7 +118,7 @@ fn parse_ip_literal(mut s: &[u8]) -> RawResult<Host<'_>> {
         s = &s[1..];
 
         let ver = match take!(head, s, b'.') {
-            Some(x) if !x.is_empty() => validate!(x, u8::is_ascii_hexdigit),
+            Some(x) if !x.is_empty() => validate!(x, HEXDIG),
             _ => err!(s, 0),
         };
 

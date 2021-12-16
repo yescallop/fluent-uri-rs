@@ -18,7 +18,7 @@ criterion_main!(benches);
 fn bench_is_allowed(c: &mut Criterion) {
     c.bench_function("is_allowed", |b| {
         b.iter(|| {
-            for x in 0..=u8::MAX {
+            for x in 0..128 {
                 let _ = black_box(QUERY_FRAGMENT.contains(black_box(x)));
             }
         })

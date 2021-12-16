@@ -18,7 +18,7 @@ macro_rules! take_byte {
 //           / "2" %x30-34 DIGIT ; 200-249
 //           / "25" %x30-35      ; 250-255
 macro_rules! take_dec_octet {
-    ($s:ident, $end:pat) => {{
+    ($s:ident, $end:pat) => {
         match take_byte!($s) {
             Some(b'0') => match take_byte!($s) {
                 $end => Some(0),
@@ -70,10 +70,13 @@ macro_rules! take_dec_octet {
             },
             _ => None,
         }
-    }};
+    };
 }
 
-// `Ipv4Addr::from_str` allows leading zeros, which doesn't adhere to RFC 3986.
+// `Ipv4Addr::from_str` now rejects octal zeros, but still
+// we can't use it here as there are backward compatibility issues.
+// Also it isn't fast enough.
+// 
 // See: https://github.com/rust-lang/rust/pull/86984
 pub(crate) fn parse_v4(mut s: &[u8]) -> Option<Ipv4Addr> {
     if !matches!(s.len(), 7..=15) {

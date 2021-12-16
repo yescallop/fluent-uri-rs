@@ -19,32 +19,32 @@ pub use raw::{decode_unchecked, encode};
 /// Decodes a percent-encoded string.
 #[inline]
 pub fn decode(s: &str) -> Result<Cow<'_, [u8]>, ParseError> {
-    raw::decode(s).map_err(|ptr| unsafe { ParseError::from_raw(ptr, s) })
+    raw::decode(s).map_err(|ptr| ParseError::from_raw(ptr, s))
 }
 
-/// Checks if all characters in the string are in the given table.
+/// Checks if all characters in a string are allowed by the given table.
 #[inline]
 pub fn validate(s: &str, table: &Table) -> Result<(), ParseError> {
-    raw::validate(s.as_bytes(), table).map_err(|ptr| unsafe { ParseError::from_raw(ptr, s) })
+    raw::validate(s.as_bytes(), table).map_err(|ptr| ParseError::from_raw(ptr, s))
 }
 
 /// Percent-encoded string slices.
 #[derive(Debug, PartialEq, Eq)]
 pub struct EStr {
-    inner: [u8],
+    inner: str,
 }
 
 impl AsRef<str> for EStr {
     #[inline]
     fn as_ref(&self) -> &str {
-        self.as_str()
+        &self.inner
     }
 }
 
 impl PartialEq<str> for EStr {
     #[inline]
     fn eq(&self, other: &str) -> bool {
-        &self.inner == other.as_bytes()
+        self.inner == *other
     }
 }
 
@@ -71,9 +71,7 @@ impl EStr {
     /// Yields the underlying string slice.
     #[inline]
     pub fn as_str(&self) -> &str {
-        // SAFETY: An `EStr` may only be created through `new_unchecked`,
-        // of which the caller must guarantee that the string is properly encoded.
-        unsafe { str::from_utf8_unchecked(&self.inner) }
+        &self.inner
     }
 
     /// Decodes the `EStr` as bytes.
@@ -81,7 +79,7 @@ impl EStr {
     pub fn decode(&self) -> Cow<'_, [u8]> {
         // SAFETY: An `EStr` may only be created through `new_unchecked`,
         // of which the caller must guarantee that the string is properly encoded.
-        unsafe { decode_unchecked(&self.inner) }
+        unsafe { decode_unchecked(self.inner.as_bytes()) }
     }
 
     /// Decodes the `EStr` and converts the decoded bytes to a string.
@@ -119,7 +117,7 @@ impl EStr {
         );
 
         Split {
-            s: &self.inner,
+            s: self.inner.as_bytes(),
             delim: delim as u8,
             finished: false,
         }
@@ -139,9 +137,10 @@ impl EStr {
             delim.is_ascii() && table::RESERVED.contains(delim as u8),
             "splitting with non-reserved character"
         );
+        let bytes = self.inner.as_bytes();
 
-        let i = chr(&self.inner, delim as u8)?;
-        let (head, tail) = (&self.inner[..i], &self.inner[i + 1..]);
+        let i = chr(bytes, delim as u8)?;
+        let (head, tail) = (&bytes[..i], &bytes[i + 1..]);
         // SAFETY: Splitting at an ASCII character leaves valid UTF-8.
         unsafe { Some((EStr::from_bytes(head), EStr::from_bytes(tail))) }
     }
@@ -247,19 +246,19 @@ impl<'a> DoubleEndedIterator for Split<'a> {
 // Memchr wrappers with unreachable hints.
 // A bunch of unsafe blocks can be avoided in this way.
 //
-// FIXME: Due to some unknown reason, unreachable hints here would actually
-// cause regression in performance.
+// FIXME: Due to some unknown reason, the unreachable hints here
+// would sometimes cause a regression in performance.
 
-// use std::hint;
+use std::hint;
 
 use self::table::Table;
 
 #[inline]
 pub(crate) fn chr(s: &[u8], b: u8) -> Option<usize> {
     memchr::memchr(b, s).map(|i| {
-        // if i >= s.len() {
-        //     unsafe { hint::unreachable_unchecked() }
-        // }
+        if i >= s.len() {
+            unsafe { hint::unreachable_unchecked() }
+        }
         i
     })
 }
@@ -267,9 +266,9 @@ pub(crate) fn chr(s: &[u8], b: u8) -> Option<usize> {
 #[inline]
 pub(crate) fn rchr(s: &[u8], b: u8) -> Option<usize> {
     memchr::memrchr(b, s).map(|i| {
-        // if i >= s.len() {
-        //     unsafe { hint::unreachable_unchecked() }
-        // }
+        if i >= s.len() {
+            unsafe { hint::unreachable_unchecked() }
+        }
         i
     })
 }
@@ -277,9 +276,9 @@ pub(crate) fn rchr(s: &[u8], b: u8) -> Option<usize> {
 #[inline]
 pub(crate) fn chr_until(s: &[u8], b: u8, end: u8) -> Option<usize> {
     memchr::memchr2(b, end, s).and_then(|i| {
-        // if i >= s.len() {
-        //     unsafe { hint::unreachable_unchecked() }
-        // }
+        if i >= s.len() {
+            unsafe { hint::unreachable_unchecked() }
+        }
         if s[i] == b {
             Some(i)
         } else {
