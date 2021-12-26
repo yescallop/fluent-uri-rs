@@ -130,7 +130,7 @@ fn parse_ip_literal(mut s: &[u8]) -> RawResult<Host<'_>> {
     } else {
         let zone_id = if let Some(x) = take!(tail, s, b'%') {
             // Zone ID must not be empty.
-            if x.len() < 3 || !s.starts_with(b"25") {
+            if x.len() < 3 || !x.starts_with(b"25") {
                 err!(x, 0);
             }
             Some(validate!(&x[2..], ZONE_ID))

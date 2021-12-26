@@ -24,7 +24,7 @@ const fn gen_octet_table(hi: bool) -> [u8; 256] {
 }
 
 static OCTET_HI: &[u8; 256] = &gen_octet_table(true);
-static OCTET_LO: &[u8; 256] = &gen_octet_table(false);
+pub(crate) static OCTET_LO: &[u8; 256] = &gen_octet_table(false);
 
 /// Decodes a percent-encoded octet assuming validity.
 #[inline]
