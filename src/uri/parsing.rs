@@ -1,5 +1,3 @@
-mod ip;
-
 use super::*;
 use crate::encoding::{chr, macros::*, raw::*, table::*};
 
@@ -138,15 +136,19 @@ fn parse_ip_literal(mut s: &[u8]) -> RawResult<Host<'_>> {
             None
         };
 
-        match ip::parse_v6(s) {
-            Some(addr) => Ok(Host::Ipv6 { addr, zone_id }),
+        match crate::ip::parse_v6(s) {
+            Some(addr) => Ok(Host::Ipv6 {
+                addr,
+                // SAFETY: We have done the validation.
+                zone_id: zone_id.map(|s| unsafe { EStr::new_unchecked(s) }),
+            }),
             None => err!(s, 0),
         }
     }
 }
 
 fn parse_non_ip_literal(s: &[u8]) -> RawResult<Host<'_>> {
-    Ok(match ip::parse_v4(s) {
+    Ok(match crate::ip::parse_v4(s) {
         Some(addr) => Host::Ipv4(addr),
         None => Host::RegName(validate!(s, REG_NAME)),
     })

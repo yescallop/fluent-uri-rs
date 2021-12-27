@@ -7,13 +7,13 @@ edition = "2021"
 [dependencies]
 # thiserror = "1.0"
 memchr = "2.4.1"
+beef = "0.5.1"
 
 [profile.test]
 overflow-checks = false
 
 [profile.release]
 panic = "abort"
-lto = true
 
 [[bench]]
 name = "bench"

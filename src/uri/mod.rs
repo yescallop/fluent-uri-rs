@@ -1,4 +1,4 @@
-/// Path utilities.
+/// Module for working with paths.
 pub mod path;
 
 mod parsing;
@@ -97,6 +97,7 @@ impl<'a> UriRef<'a> {
     /// [query]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.4
     #[inline]
     pub fn query(&self) -> Option<&EStr> {
+        // SAFETY: We have done the validation.
         self.query.map(|s| unsafe { EStr::new_unchecked(s) })
     }
 
@@ -105,6 +106,7 @@ impl<'a> UriRef<'a> {
     /// [fragment]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.5
     #[inline]
     pub fn fragment(&self) -> Option<&EStr> {
+        // SAFETY: We have done the validation.
         self.fragment.map(|s| unsafe { EStr::new_unchecked(s) })
     }
 
@@ -138,13 +140,13 @@ impl<'a> UriRef<'a> {
 pub struct Scheme<'a>(&'a str);
 
 impl<'a> Scheme<'a> {
-    /// Returns the scheme as string in the raw form.
+    /// Returns the scheme as a string slice in the raw form.
     #[inline]
     pub fn as_str(self) -> &'a str {
         self.0
     }
 
-    /// Returns the scheme as string in the normalized (lowercase) form.
+    /// Returns the scheme as a string in the normalized (lowercase) form.
     #[inline]
     pub fn normalize(self) -> String {
         self.0.to_ascii_lowercase()
@@ -187,6 +189,7 @@ impl<'a> Authority<'a> {
     /// [userinfo]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.1
     #[inline]
     pub fn userinfo(&self) -> Option<&EStr> {
+        // SAFETY: We have done the validation.
         self.userinfo.map(|s| unsafe { EStr::new_unchecked(s) })
     }
 
@@ -206,11 +209,11 @@ impl<'a> Authority<'a> {
         self.port
     }
 
-    /// Returns the [port] subcomponent as `u16`.
+    /// Parses the [port] subcomponent as `u16`.
     ///
     /// An empty port is interpreted as `None`.
     ///
-    /// If the raw port overflows a `u16`, an `Err` containing the raw port will be returned.
+    /// If the raw port overflows a `u16`, a `Some(Err)` containing the raw port will be returned.
     ///
     /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
     #[inline]
@@ -233,7 +236,7 @@ pub enum Host<'a> {
         /// The address.
         addr: Ipv6Addr,
         /// The zone ID.
-        zone_id: Option<&'a str>,
+        zone_id: Option<&'a EStr>,
     },
     /// An IP address of future version.
     IpvFuture {
@@ -243,6 +246,7 @@ pub enum Host<'a> {
         addr: &'a str,
     },
     /// A registered name.
+    // FIXME: Use `EStr` here after the feature `const_raw_ptr_deref` gets stabilized.
     RegName(&'a str),
 }
 

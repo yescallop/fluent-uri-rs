@@ -5,7 +5,7 @@
 pub struct Path<'a>(pub(crate) &'a str);
 
 impl<'a> Path<'a> {
-    /// Returns the path as string.
+    /// Returns the path as a string slice.
     #[inline]
     pub fn as_str(self) -> &'a str {
         self.0

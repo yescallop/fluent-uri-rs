@@ -156,7 +156,7 @@ fn parse() {
             authority: Some(Authority {
                 host: Host::Ipv6 {
                     addr: Ipv6Addr::new(0xfe80, 0, 0, 0, 0x520f, 0xf5ff, 0xfe51, 0xcf0),
-                    zone_id: Some("17"),
+                    zone_id: Some(unsafe { EStr::new_unchecked("17") }),
                 },
                 ..Authority::EMPTY
             }),
@@ -172,6 +172,10 @@ fn parse() {
     let u = UriRef::parse("http://127.0.0.1:8080/").unwrap();
     let auth = u.authority().unwrap();
     assert_eq!(auth.port(), Some(Ok(8080)));
+
+    let u = UriRef::parse("http://127.0.0.1:80808/").unwrap();
+    let auth = u.authority().unwrap();
+    assert_eq!(auth.port(), Some(Err("80808")));
 }
 
 #[test]

@@ -73,29 +73,33 @@ macro_rules! take_dec_octet {
     };
 }
 
-// `Ipv4Addr::from_str` now rejects octal zeros, but still
-// we can't use it here as there are backward compatibility issues.
-// Also it isn't fast enough.
-//
-// See: https://github.com/rust-lang/rust/pull/86984
-pub(crate) fn parse_v4(s: &[u8]) -> Option<Ipv4Addr> {
-    if s.len() < 7 {
-        return None;
-    }
+/// Parses an IPv4 address from a string slice.
+#[inline]
+pub fn parse_v4(s: &[u8]) -> Option<Ipv4Addr> {
+    // `Ipv4Addr::from_str` now rejects octal zeros, but still
+    // we can't use it here as there are backward compatibility issues.
+    // Also it isn't fast enough.
+    //
+    // See: https://github.com/rust-lang/rust/pull/86984
     parse_v4_bytes(s).map(Ipv4Addr::from)
 }
 
 fn parse_v4_bytes(mut s: &[u8]) -> Option<[u8; 4]> {
-    Some([
-        take_dec_octet!(s, Some(b'.'))?,
-        take_dec_octet!(s, Some(b'.'))?,
-        take_dec_octet!(s, Some(b'.'))?,
-        #[allow(unused_assignments)]
-        take_dec_octet!(s, None)?,
-    ])
+    if s.len() < 7 {
+        None
+    } else {
+        Some([
+            take_dec_octet!(s, Some(b'.'))?,
+            take_dec_octet!(s, Some(b'.'))?,
+            take_dec_octet!(s, Some(b'.'))?,
+            #[allow(unused_assignments)]
+            take_dec_octet!(s, None)?,
+        ])
+    }
 }
 
-pub(crate) fn parse_v6(mut s: &[u8]) -> Option<Ipv6Addr> {
+/// Parses an IPv6 address from a string slice.
+pub fn parse_v6(mut s: &[u8]) -> Option<Ipv6Addr> {
     if s.len() < 2 {
         return None;
     }

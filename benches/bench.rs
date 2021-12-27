@@ -1,3 +1,5 @@
+use std::net::{Ipv4Addr, Ipv6Addr};
+
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use fluent_uri::{
     encoding::{table::*, *},
@@ -11,7 +13,11 @@ criterion_group!(
     bench_dec,
     bench_dec_unchecked,
     bench_validate,
-    bench_parse
+    bench_parse,
+    bench_parse_v4,
+    bench_parse_v4_std,
+    bench_parse_v6,
+    bench_parse_v6_std
 );
 criterion_main!(benches);
 
@@ -66,6 +72,42 @@ fn bench_parse(c: &mut Criterion) {
         b.iter(|| {
             let s = "https://user@example.com/search?q=%E6%B5%8B%E8%AF%95#fragment";
             let _ = black_box(UriRef::parse(black_box(s)));
+        })
+    });
+}
+
+fn bench_parse_v4(c: &mut Criterion) {
+    c.bench_function("parse_v4", |b| {
+        b.iter(|| {
+            let s = "192.168.131.252";
+            let _ = black_box(ip::parse_v4(black_box(s.as_bytes())));
+        })
+    });
+}
+
+fn bench_parse_v4_std(c: &mut Criterion) {
+    c.bench_function("parse_v4_std", |b| {
+        b.iter(|| {
+            let s = "192.168.131.252";
+            let _: Option<Ipv4Addr> = black_box(black_box(s).parse().ok());
+        })
+    });
+}
+
+fn bench_parse_v6(c: &mut Criterion) {
+    c.bench_function("parse_v6", |b| {
+        b.iter(|| {
+            let s = "2a02:6b8::11:11";
+            let _ = black_box(ip::parse_v6(black_box(s.as_bytes())));
+        })
+    });
+}
+
+fn bench_parse_v6_std(c: &mut Criterion) {
+    c.bench_function("parse_v6_std", |b| {
+        b.iter(|| {
+            let s = "2a02:6b8::11:11";
+            let _: Option<Ipv6Addr> = black_box(black_box(s).parse().ok());
         })
     });
 }

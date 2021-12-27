@@ -7,14 +7,26 @@ pub(crate) mod macros;
 pub(crate) mod raw;
 
 use crate::ParseError;
+use beef::Cow;
 use std::{
-    borrow::Cow,
+    borrow,
     error::Error,
-    fmt,
+    fmt, hash,
     str::{self, Utf8Error},
 };
 
-pub use raw::{decode_unchecked, encode};
+pub use raw::decode_unchecked;
+
+/// Encodes any characters in a byte sequence that are not allowed by the given mask.
+///
+/// # Panics
+///
+/// Panics if the table is not for encoding.
+#[inline]
+pub fn encode<'a, S: AsRef<[u8]> + ?Sized>(s: &'a S, table: &Table) -> Cow<'a, str> {
+    assert!(table.allow_enc(), "table not for encoding");
+    raw::encode(s.as_ref(), table)
+}
 
 /// Decodes a percent-encoded string.
 #[inline]
@@ -30,6 +42,7 @@ pub fn validate(s: &str, table: &Table) -> Result<(), ParseError> {
 
 /// Percent-encoded string slices.
 #[derive(Debug, PartialEq, Eq)]
+#[repr(transparent)]
 pub struct EStr {
     inner: str,
 }
@@ -49,23 +62,47 @@ impl PartialEq<str> for EStr {
 }
 
 impl<'a> fmt::Display for EStr {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
     }
 }
 
+impl Default for &EStr {
+    #[inline]
+    fn default() -> Self {
+        // SAFETY: A empty str is valid as `EStr`.
+        unsafe { EStr::new_unchecked("") }
+    }
+}
+
+impl hash::Hash for EStr {
+    #[inline]
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        self.inner.hash(state)
+    }
+}
+
+impl borrow::Borrow<str> for &EStr {
+    #[inline]
+    fn borrow(&self) -> &str {
+        self.as_str()
+    }
+}
+
 impl EStr {
-    /// Converts a string slice to an `EStr` without checking that all
-    /// percent-encoded octets in the string are valid.
+    /// Converts a string slice to an `EStr` without checking that the string is properly encoded.
     ///
     /// # Safety
     ///
     /// The `decode` function assumes that the string is properly encoded,
     /// and parses the encoded octets without checking bounds or validating them.
     /// Any invalid encoded octet in the string will result in undefined behavior.
+    // FIXME: Make this const after the feature `const_raw_ptr_deref` gets stabilized.
     #[inline]
     pub unsafe fn new_unchecked(s: &str) -> &EStr {
-        &*(s as *const str as *const EStr)
+        // SAFETY: The caller must ensure that the string is properly encoded.
+        unsafe { &*(s as *const str as *const EStr) }
     }
 
     /// Yields the underlying string slice.
@@ -83,22 +120,28 @@ impl EStr {
     }
 
     /// Decodes the `EStr` and converts the decoded bytes to a string.
-    #[inline]
+    ///
+    /// An error is returned if the `EStr` contains any encoded sequence that is not valid UTF-8.
     pub fn decode_utf8(&self) -> Result<Cow<'_, str>, DecodeUtf8Error<'_>> {
         // FIXME: A (maybe) more efficient approach: only validating encoded sequences.
         let bytes = self.decode();
-        match bytes {
-            Cow::Borrowed(v) => match str::from_utf8(v) {
-                Ok(s) => Ok(Cow::Borrowed(s)),
-                Err(error) => Err(DecodeUtf8Error { bytes, error }),
-            },
-            Cow::Owned(v) => match String::from_utf8(v) {
-                Ok(s) => Ok(Cow::Owned(s)),
+        if bytes.is_borrowed() {
+            let bytes = bytes.unwrap_borrowed();
+            match str::from_utf8(bytes) {
+                Ok(s) => Ok(Cow::borrowed(s)),
+                Err(e) => Err(DecodeUtf8Error {
+                    bytes: Cow::borrowed(bytes),
+                    error: e,
+                }),
+            }
+        } else {
+            match String::from_utf8(bytes.into_owned()) {
+                Ok(s) => Ok(Cow::owned(s)),
                 Err(e) => Err(DecodeUtf8Error {
                     error: e.utf8_error(),
-                    bytes: Cow::Owned(e.into_bytes()),
+                    bytes: Cow::owned(e.into_bytes()),
                 }),
-            },
+            }
         }
     }
 
@@ -109,6 +152,22 @@ impl EStr {
     /// Panics if the delimiter is not a [reserved] character.
     ///
     /// [reserved]: https://datatracker.ietf.org/doc/html/rfc3986/#section-2.2
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::collections::HashMap;
+    /// use fluent_uri::encoding::EStr;
+    ///
+    /// let s = "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9!";
+    /// let map: HashMap<_, _> = unsafe { EStr::new_unchecked(s) }
+    ///     .split('&')
+    ///     .filter_map(|s| s.split_once('='))
+    ///     .filter_map(|p| p.decode_utf8())
+    ///     .collect();
+    /// assert_eq!(map["name"], "张三");
+    /// assert_eq!(map["speech"], "¡Olé!");
+    /// ```
     #[inline]
     pub fn split(&self, delim: char) -> Split<'_> {
         assert!(
@@ -132,7 +191,7 @@ impl EStr {
     ///
     /// [reserved]: https://datatracker.ietf.org/doc/html/rfc3986/#section-2.2
     #[inline]
-    pub fn split_once(&self, delim: char) -> Option<(&EStr, &EStr)> {
+    pub fn split_once(&self, delim: char) -> Option<EStrPair<'_>> {
         assert!(
             delim.is_ascii() && table::RESERVED.contains(delim as u8),
             "splitting with non-reserved character"
@@ -141,20 +200,43 @@ impl EStr {
 
         let i = chr(bytes, delim as u8)?;
         let (head, tail) = (&bytes[..i], &bytes[i + 1..]);
-        // SAFETY: Splitting at an ASCII character leaves valid UTF-8.
-        unsafe { Some((EStr::from_bytes(head), EStr::from_bytes(tail))) }
+        // SAFETY: Splitting at a reserved character leaves valid percent-encoded UTF-8.
+        unsafe { Some(EStrPair(EStr::from_bytes(head), EStr::from_bytes(tail))) }
     }
 
-    #[inline]
+    /// Converts a byte slice into an `EStr` assuming validity.
     unsafe fn from_bytes(s: &[u8]) -> &EStr {
-        &*(s as *const [u8] as *const EStr)
+        // SAFETY: The caller must ensure that the byte slice is valid percent-encoded UTF-8.
+        unsafe { &*(s as *const [u8] as *const EStr) }
     }
 }
 
-/// An error returned when attempting to call [`decode_utf8`] on an `EStr`
-/// that contains any encoded sequence that is not valid UTF-8.
-///
-/// [`decode_utf8`]: EStr::decode_utf8
+/// A pair of `EStr`s.
+#[derive(Debug, Clone, Copy)]
+pub struct EStrPair<'a>(pub &'a EStr, pub &'a EStr);
+
+impl<'a> EStrPair<'a> {
+    /// Yields the underlying pair of string slices.
+    #[inline]
+    pub fn as_strs(self) -> (&'a str, &'a str) {
+        (self.0.as_str(), self.1.as_str())
+    }
+
+    /// Decodes the `EStr` pair as bytes.
+    #[inline]
+    pub fn decode(self) -> (Cow<'a, [u8]>, Cow<'a, [u8]>) {
+        (self.0.decode(), self.1.decode())
+    }
+
+    /// Decodes the `EStr` and converts the decoded bytes to strings.
+    ///
+    /// `None` is returned if either `EStr` contains any encoded sequence that is not valid UTF-8.
+    pub fn decode_utf8(self) -> Option<(Cow<'a, str>, Cow<'a, str>)> {
+        self.0.decode_utf8().ok().zip(self.1.decode_utf8().ok())
+    }
+}
+
+/// An error returned by [`EStr::decode_utf8`].
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct DecodeUtf8Error<'a> {
     bytes: Cow<'a, [u8]>,
@@ -211,7 +293,7 @@ impl<'a> Iterator for Split<'a> {
                 self.s
             }
         };
-        // SAFETY: Splitting at an ASCII character leaves valid UTF-8.
+        // SAFETY: Splitting at a reserved character leaves valid percent-encoded UTF-8.
         Some(unsafe { EStr::from_bytes(res) })
     }
 
@@ -238,22 +320,18 @@ impl<'a> DoubleEndedIterator for Split<'a> {
                 self.s
             }
         };
-        // SAFETY: Splitting at an ASCII character leaves valid UTF-8.
+        // SAFETY: Splitting at a reserved character leaves valid percent-encoded UTF-8.
         Some(unsafe { EStr::from_bytes(res) })
     }
 }
 
 // Memchr wrappers with unreachable hints.
 // A bunch of unsafe blocks can be avoided in this way.
-//
-// FIXME: Due to some unknown reason, the unreachable hints here
-// would sometimes cause a regression in performance.
 
 use std::hint;
 
 use self::table::Table;
 
-#[inline]
 pub(crate) fn chr(s: &[u8], b: u8) -> Option<usize> {
     memchr::memchr(b, s).map(|i| {
         if i >= s.len() {
@@ -263,7 +341,6 @@ pub(crate) fn chr(s: &[u8], b: u8) -> Option<usize> {
     })
 }
 
-#[inline]
 pub(crate) fn rchr(s: &[u8], b: u8) -> Option<usize> {
     memchr::memrchr(b, s).map(|i| {
         if i >= s.len() {
@@ -273,7 +350,6 @@ pub(crate) fn rchr(s: &[u8], b: u8) -> Option<usize> {
     })
 }
 
-#[inline]
 pub(crate) fn chr_until(s: &[u8], b: u8, end: u8) -> Option<usize> {
     memchr::memchr2(b, end, s).and_then(|i| {
         if i >= s.len() {
@@ -321,7 +397,7 @@ mod tests {
         assert_eq!(it.decode(), b"id=3" as &[u8]);
         assert_eq!(it.decode_utf8().as_deref(), Ok("id=3"));
 
-        let (k, v) = it.split_once('=').unwrap();
+        let EStrPair(k, v) = it.split_once('=').unwrap();
         assert_eq!(k, "id");
         assert_eq!(v, "3");
 
@@ -329,7 +405,7 @@ mod tests {
         assert_eq!(it, "name=%E5%BC%A0%E4%B8%89");
         assert_eq!(it.decode_utf8().unwrap(), "name=张三");
 
-        let (k, v) = it.split_once('=').unwrap();
+        let EStrPair(k, v) = it.split_once('=').unwrap();
         assert_eq!(k.decode_utf8().unwrap(), "name");
         assert_eq!(v.decode_utf8().unwrap(), "张三");
     }

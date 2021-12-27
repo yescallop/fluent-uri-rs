@@ -1,7 +1,7 @@
 /// Returns immediately with an offset raw error.
 macro_rules! err {
     ($s:expr, $offset:expr) => {
-        return Err(unsafe { $s.as_ptr().add($offset) })
+        return Err($s.as_ptr().wrapping_add($offset))
     };
 }
 
@@ -45,11 +45,13 @@ macro_rules! validate {
     ($s:expr, $v:expr) => {{
         let s = $s;
         Validator::validate($v, s)?;
+        // SAFETY: The caller must ensure that the validator doesn't allow invalid UTF-8.
         unsafe { std::str::from_utf8_unchecked(s) }
     }};
     ($s:expr, $v:expr, offset = $offset:expr) => {{
         let s = $s;
         Validator::validate($v, &s[$offset..])?;
+        // SAFETY: The caller must ensure that the validator doesn't allow invalid UTF-8.
         unsafe { std::str::from_utf8_unchecked(s) }
     }};
 }
