@@ -111,8 +111,10 @@ pub fn parse_v6(mut s: &[u8]) -> Option<Ipv6Addr> {
     while i < 8 {
         match take_segment(&mut s) {
             Some(Seg::Normal(seg)) => {
-                if i == 7 {
+                if s.is_empty() || i == 7 {
                     // Trailing colon or too long
+                    // Examples: "1::1:"
+                    // "1:2:3:4:5:6:7:8:9"
                     return None;
                 }
                 segs[i] = seg;
@@ -344,8 +346,10 @@ mod tests {
         assert!(parse_v6(b"1:2:3:4:5:6:7:8::").is_none());
         // preceding colon
         assert!(parse_v6(b":1:2:3:4:5:6:7:8").is_none());
+        assert!(parse_v6(b":1::1").is_none());
         // trailing colon
         assert!(parse_v6(b"1:2:3:4:5:6:7:8:").is_none());
+        assert!(parse_v6(b"1::1:").is_none());
     }
 
     #[test]

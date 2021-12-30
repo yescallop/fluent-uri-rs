@@ -1,7 +1,7 @@
-use super::*;
+use super::{*, ParseErrorKind::*};
 
 #[test]
-fn parse() {
+fn parse_absolute() {
     assert_eq!(
         UriRef::parse("file:///etc/hosts"),
         Ok(UriRef {
@@ -205,6 +205,119 @@ fn parse_relative() {
             ..UriRef::EMPTY
         })
     );
+
+    assert_eq!(
+        UriRef::parse("//example.com"),
+        Ok(UriRef {
+            authority: Some(Authority {
+                host: Host::RegName("example.com"),
+                ..Authority::EMPTY
+            }),
+            ..UriRef::EMPTY
+        })
+    );
+
+    assert_eq!(
+        UriRef::parse("?query"),
+        Ok(UriRef {
+            query: Some("query"),
+            ..UriRef::EMPTY
+        })
+    );
+
+    assert_eq!(
+        UriRef::parse("#fragment"),
+        Ok(UriRef {
+            fragment: Some("fragment"),
+            ..UriRef::EMPTY
+        })
+    );
+}
+
+#[test]
+fn parse_error() {
+    // Empty scheme
+    let e = UriRef::parse(":hello").unwrap_err();
+    assert_eq!(e.index(), 0);
+    assert_eq!(e.kind(), UnexpectedChar);
+
+    // Scheme starts with non-letter
+    let e = UriRef::parse("3ttp://a.com").unwrap_err();
+    assert_eq!(e.index(), 0);
+    assert_eq!(e.kind(), UnexpectedChar);
+
+    // Unexpected char in scheme
+    let e = UriRef::parse("exam=ple:foo").unwrap_err();
+    assert_eq!(e.index(), 4);
+    assert_eq!(e.kind(), UnexpectedChar);
+
+    // Unexpected char in path
+    let e = UriRef::parse("foo\\bar").unwrap_err();
+    assert_eq!(e.index(), 3);
+    assert_eq!(e.kind(), UnexpectedChar);
+
+    // Non-hexadecimal percent-encoded octet
+    let e = UriRef::parse("foo%xxd").unwrap_err();
+    assert_eq!(e.index(), 3);
+    assert_eq!(e.kind(), InvalidOctet);
+
+    // Incomplete percent-encoded octet
+    let e = UriRef::parse("text%a").unwrap_err();
+    assert_eq!(e.index(), 4);
+    assert_eq!(e.kind(), InvalidOctet);
+
+    // Unclosed bracket
+    let e = UriRef::parse("https://[::1/").unwrap_err();
+    assert_eq!(e.index(), 8);
+    assert_eq!(e.kind(), UnclosedBracket);
+
+    // Not port after IP literal
+    let e = UriRef::parse("https://[::1]wrong").unwrap_err();
+    assert_eq!(e.index(), 13);
+    assert_eq!(e.kind(), UnexpectedChar);
+
+    // Non-decimal port
+    let e = UriRef::parse("http://127.0.0.1:abcd").unwrap_err();
+    assert_eq!(e.index(), 17);
+    assert_eq!(e.kind(), UnexpectedChar);
+
+    // IP literal too short
+    let e = UriRef::parse("http://[:]").unwrap_err();
+    assert_eq!(e.index(), 8);
+    assert_eq!(e.kind(), UnexpectedChar);
+    let e = UriRef::parse("http://[]").unwrap_err();
+    assert_eq!(e.index(), 8);
+    assert_eq!(e.kind(), UnexpectedChar);
+
+    // Non-hexadecimal version in IPvFuture
+    let e = UriRef::parse("http://[vG.addr]").unwrap_err();
+    assert_eq!(e.index(), 9);
+    assert_eq!(e.kind(), UnexpectedChar);
+
+    // Empty version in IPvFuture
+    let e = UriRef::parse("http://[v.addr]").unwrap_err();
+    assert_eq!(e.index(), 8);
+    assert_eq!(e.kind(), InvalidIpvFuture);
+
+    // Empty address in IPvFuture
+    let e = UriRef::parse("ftp://[vF.]").unwrap_err();
+    assert_eq!(e.index(), 7);
+    assert_eq!(e.kind(), InvalidIpvFuture);
+
+    // Ill-preceded Zone ID
+    let e = UriRef::parse("ftp://[::1%240]").unwrap_err();
+    assert_eq!(e.index(), 10);
+    assert_eq!(e.kind(), IllPrecededOrEmptyZoneID);
+
+    // Empty Zone ID
+    let e = UriRef::parse("ftp://[::1%25]").unwrap_err();
+    assert_eq!(e.index(), 10);
+    assert_eq!(e.kind(), IllPrecededOrEmptyZoneID);
+
+    // Invalid IPv6 address
+    let e = UriRef::parse("example://[44:55::66::77]").unwrap_err();
+    assert_eq!(e.index(), 11);
+    assert_eq!(e.kind(), InvalidIpv6);
 }
 
 #[test]
@@ -225,6 +338,6 @@ fn strict_ip_addr() {
     assert!(UriRef::parse("//[::ffff:1.1.1.1]").is_ok());
     assert!(UriRef::parse("//[0000:0000:0000:0000:0000:0000:255.255.255.255]").is_ok());
 
-    assert!(UriRef::parse("//[::01.1.1.1]").is_err());
-    assert!(UriRef::parse("//[::00.1.1.1]").is_err());
+    assert_eq!(UriRef::parse("//[::01.1.1.1]").unwrap_err().kind(), InvalidIpv6);
+    assert_eq!(UriRef::parse("//[::00.1.1.1]").unwrap_err().kind(), InvalidIpv6);
 }
