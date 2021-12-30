@@ -1,7 +1,10 @@
-/// Returns immediately with an offset raw error.
+/// Returns immediately with a raw error.
 macro_rules! err {
-    ($s:expr, $offset:expr) => {
-        return Err($s.as_ptr().wrapping_add($offset))
+    ($ptr:ident, $kind:expr) => {
+        return Err(($ptr, $kind))
+    };
+    ($str:ident[$offset:expr], $kind:expr) => {
+        return Err(($str.as_ptr().wrapping_add($offset), $kind))
     };
 }
 
@@ -32,15 +35,17 @@ macro_rules! take {
     ($n:ident, $s:expr, $b:literal until $end:literal) => {
         crate::encoding::chr_until($s, $b, $end).map(|i| $n!($s, i))
     };
-    (r, $n:ident, $s:expr, $b:expr) => {
+    (rev, $n:ident, $s:expr, $b:expr) => {
         crate::encoding::rchr($s, $b).map(|i| $n!($s, i))
     };
 }
 
 /// Validates the slice with a validator and converts it to a string.
 ///
-/// Make sure that the validator doesn't allow invalid UTF-8,
-/// otherwise there'd be undefined behavior.
+/// # Safety
+///
+/// Make sure that the validator doesn't allow invalid UTF-8 and that the bytes
+/// before the offset are validated, otherwise there'd be undefined behavior.
 macro_rules! validate {
     ($s:expr, $v:expr) => {{
         let s = $s;
@@ -51,7 +56,8 @@ macro_rules! validate {
     ($s:expr, $v:expr, offset = $offset:expr) => {{
         let s = $s;
         Validator::validate($v, &s[$offset..])?;
-        // SAFETY: The caller must ensure that the validator doesn't allow invalid UTF-8.
+        // SAFETY: The caller must ensure that the validator doesn't allow invalid UTF-8
+        // and that the bytes before the offset are validated.
         unsafe { std::str::from_utf8_unchecked(s) }
     }};
 }

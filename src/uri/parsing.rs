@@ -1,5 +1,6 @@
 use super::*;
 use crate::encoding::{chr, macros::*, raw::*, table::*};
+use crate::ParseErrorKind::*;
 
 pub(crate) fn parse(mut s: &[u8]) -> RawResult<UriRef<'_>> {
     if s.is_empty() {
@@ -20,7 +21,7 @@ pub(crate) fn parse(mut s: &[u8]) -> RawResult<UriRef<'_>> {
         Some(x) => {
             // Scheme starts with a letter.
             if x.is_empty() || !x[0].is_ascii_alphabetic() {
-                err!(x, 0);
+                err!(x[0], UnexpectedChar);
             }
             Some(validate!(x, SCHEME, offset = 1))
         }
@@ -67,15 +68,17 @@ fn parse_authority(mut s: &[u8]) -> RawResult<Authority<'_>> {
     // Note that the port subcomponent can be empty.
     let mut has_port = false;
     let host = if !s.is_empty() && s[0] == b'[' {
+        let ptr_bracket = s.as_ptr();
+
         s = &s[1..];
-        let host = match take!(r, head, s, b']') {
+        let host = match take!(rev, head, s, b']') {
             Some(x) => x,
-            _ => err!(s, 0),
+            _ => err!(ptr_bracket, UnclosedBracket),
         };
 
         if !s.is_empty() {
             if s[0] != b':' {
-                err!(s, 0);
+                err!(s[0], UnexpectedChar);
             }
             s = &s[1..];
             has_port = true;
@@ -108,20 +111,21 @@ fn parse_authority(mut s: &[u8]) -> RawResult<Authority<'_>> {
 
 fn parse_ip_literal(mut s: &[u8]) -> RawResult<Host<'_>> {
     if s.len() < 2 {
-        err!(s, 0);
+        err!(s[0], UnexpectedChar);
     }
     // IPvFuture = "v" 1*HEXDIG "." 1*( unreserved / sub-delims / ":" )
     // RFC 2234, Section 2.3: ABNF strings are case-insensitive.
     if matches!(s[0], b'v' | b'V') {
+        let ptr_v = s.as_ptr();
         s = &s[1..];
 
         let ver = match take!(head, s, b'.') {
             Some(x) if !x.is_empty() => validate!(x, HEXDIG),
-            _ => err!(s, 0),
+            _ => err!(ptr_v, InvalidIpvFuture),
         };
 
         if s.is_empty() {
-            err!(s, 0);
+            err!(ptr_v, InvalidIpvFuture);
         }
         let addr = validate!(s, IPV_FUTURE);
         Ok(Host::IpvFuture { ver, addr })
@@ -129,7 +133,7 @@ fn parse_ip_literal(mut s: &[u8]) -> RawResult<Host<'_>> {
         let zone_id = if let Some(x) = take!(tail, s, b'%') {
             // Zone ID must not be empty.
             if x.len() < 3 || !x.starts_with(b"25") {
-                err!(x, 0);
+                err!(s[s.len()], IllPrecededOrEmptyZoneID);
             }
             Some(validate!(&x[2..], ZONE_ID))
         } else {
@@ -142,7 +146,7 @@ fn parse_ip_literal(mut s: &[u8]) -> RawResult<Host<'_>> {
                 // SAFETY: We have done the validation.
                 zone_id: zone_id.map(|s| unsafe { EStr::new_unchecked(s) }),
             }),
-            None => err!(s, 0),
+            None => err!(s[0], InvalidIpv6),
         }
     }
 }

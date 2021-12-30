@@ -154,16 +154,14 @@ pub fn parse_v6(mut s: &[u8]) -> Option<Ipv6Addr> {
             // Too short
             return None;
         }
+    } else if i == 8 {
+        // Eliding nothing
+        return None;
     } else {
-        if i == 8 {
-            // Eliding nothing
-            return None;
-        } else {
-            // Shift the segments after the ellipsis to the right.
-            for j in (ellipsis_i..i).rev() {
-                segs[8 - (i - j)] = segs[j];
-                segs[j] = 0;
-            }
+        // Shift the segments after the ellipsis to the right.
+        for j in (ellipsis_i..i).rev() {
+            segs[8 - (i - j)] = segs[j];
+            segs[j] = 0;
         }
     }
 

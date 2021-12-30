@@ -10,25 +10,64 @@ use std::{
     net::{Ipv4Addr, Ipv6Addr},
 };
 
-/// An error occurred when parsing strings.
+/// Detailed cause of a [`ParseError`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ParseError(pub(crate) usize);
+pub enum ParseErrorKind {
+    /// Invalid percent-encoded octet that is either non-hexadecimal or incomplete.
+    ///
+    /// The error index points to the percent character "%" of the octet.
+    InvalidOctet,
+    /// Unexpected character that is not allowed by the URI syntax.
+    ///
+    /// The error index points to the character.
+    UnexpectedChar,
+    /// Unclosed bracket in IP literal.
+    ///
+    /// The error index points to the preceding left square bracket "[".
+    UnclosedBracket,
+    /// Invalid IPvFuture address.
+    ///
+    /// The error index points to the preceding character "v" (case-insensitive).
+    InvalidIpvFuture,
+    /// Invalid Zone ID that either is not preceded by "%25" or is empty.
+    ///
+    /// The error index points to the preceding percent character "%".
+    IllPrecededOrEmptyZoneID,
+    /// Invalid IPv6 address.
+    ///
+    /// The error index points to the first character of the address.
+    InvalidIpv6,
+}
+
+/// An error occurred when parsing or validating strings.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ParseError {
+    index: usize,
+    kind: ParseErrorKind,
+}
 
 impl ParseError {
     /// Creates a `ParseError` from a raw pointer.
     ///
-    /// The pointer must be within the given string,
-    /// otherwise the result would be invalid.
-    pub(crate) fn from_raw(ptr: *const u8, s: &str) -> ParseError {
-        let offset = (ptr as usize).wrapping_sub(s.as_ptr() as usize);
-        debug_assert!(offset <= s.len());
-        ParseError(offset)
+    /// The pointer must be within the given string, or the result would be invalid.
+    // This function should be inlined since it is called by inlined public functions.
+    #[inline]
+    pub(crate) fn from_raw(s: &str, ptr: *const u8, kind: ParseErrorKind) -> ParseError {
+        let index = (ptr as usize).wrapping_sub(s.as_ptr() as usize);
+        debug_assert!(index <= s.len());
+        ParseError { index, kind }
     }
 
     /// Returns the index where the error occurred in the input string.
     #[inline]
     pub fn index(self) -> usize {
-        self.0
+        self.index
+    }
+
+    /// Returns the detailed cause of the error.
+    #[inline]
+    pub fn kind(self) -> ParseErrorKind {
+        self.kind
     }
 }
 
@@ -36,7 +75,15 @@ impl std::error::Error for ParseError {}
 
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid character at index {}", self.0)
+        let msg = match self.kind {
+            ParseErrorKind::InvalidOctet => "invalid percent-encoded octet at index ",
+            ParseErrorKind::UnexpectedChar => "unexpected character at index ",
+            ParseErrorKind::UnclosedBracket => "unclosed bracket in IP literal at index ",
+            ParseErrorKind::InvalidIpvFuture => "invalid IPvFuture address at index ",
+            ParseErrorKind::IllPrecededOrEmptyZoneID => "ill-preceded or empty zone ID at index ",
+            ParseErrorKind::InvalidIpv6 => "invalid IPv6 address at index ",
+        };
+        write!(f, "{}{}", msg, self.index)
     }
 }
 
@@ -56,7 +103,7 @@ impl<'a> UriRef<'a> {
     /// Parses a URI reference from a string into a `UriRef`.
     #[inline]
     pub fn parse(s: &str) -> Result<UriRef<'_>, ParseError> {
-        parsing::parse(s.as_bytes()).map_err(|ptr| ParseError::from_raw(ptr, s))
+        parsing::parse(s.as_bytes()).map_err(|(ptr, kind)| ParseError::from_raw(s, ptr, kind))
     }
 
     /// An empty URI reference ("").

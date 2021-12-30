@@ -1,3 +1,5 @@
+use crate::ParseErrorKind::{self, *};
+
 use super::{
     chr,
     table::{Table, HEXDIG},
@@ -5,7 +7,7 @@ use super::{
 use beef::Cow;
 use std::{ptr, str};
 
-pub(crate) type RawResult<T> = Result<T, *const u8>;
+pub(crate) type RawResult<T> = Result<T, (*const u8, ParseErrorKind)>;
 
 const fn gen_octet_table(hi: bool) -> [u8; 256] {
     let mut out = [0xFF; 256];
@@ -193,12 +195,15 @@ pub(super) fn decode(s: &str) -> RawResult<Cow<'_, [u8]>> {
         let x = unsafe { *cur };
         if x == b'%' {
             if i + 2 >= s.len() {
-                return Err(cur);
+                err!(cur, InvalidOctet);
             }
             // SAFETY: Dereferencing is safe since `i + 1 < i + 2 < s.len()`.
             let (hi, lo) = unsafe { (*ptr.add(i + 1), *ptr.add(i + 2)) };
 
-            let octet = decode_octet(hi, lo).ok_or(cur)?;
+            let octet = match decode_octet(hi, lo) {
+                Some(o) => o,
+                None => err!(cur, InvalidOctet),
+            };
 
             // SAFETY: The output will never be longer than the input.
             unsafe { push(&mut res, octet) }
@@ -230,16 +235,16 @@ pub(crate) fn validate(s: &[u8], table: &Table) -> RawResult<()> {
         let x = unsafe { *cur };
         if x == b'%' {
             if i + 2 >= s.len() {
-                return Err(cur);
+                err!(cur, InvalidOctet);
             }
             // SAFETY: Dereferencing is safe since `i + 1 < i + 2 < s.len()`.
             let (hi, lo) = unsafe { (*ptr.add(i + 1), *ptr.add(i + 2)) };
 
             if !HEXDIG.contains(hi) || !HEXDIG.contains(lo) {
-                return Err(cur);
+                err!(cur, InvalidOctet);
             }
         } else if !table.contains(x) {
-            return Err(cur);
+            err!(cur, UnexpectedChar);
         }
         i += 1;
     }
@@ -248,7 +253,7 @@ pub(crate) fn validate(s: &[u8], table: &Table) -> RawResult<()> {
 
 fn validate_by(s: &[u8], pred: impl Fn(&u8) -> bool) -> RawResult<()> {
     match s.iter().position(|b| !pred(b)) {
-        Some(i) => err!(s, i),
+        Some(i) => err!(s[i], UnexpectedChar),
         None => Ok(()),
     }
 }
@@ -260,7 +265,7 @@ pub(crate) trait Validator {
 impl Validator for &Table {
     #[inline]
     fn validate(self, s: &[u8]) -> RawResult<()> {
-        validate(s, &self)
+        validate(s, self)
     }
 }
 

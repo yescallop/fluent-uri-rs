@@ -1,42 +1,56 @@
 /// A table determining which bytes are allowed.
 #[derive(Clone, Copy)]
-pub struct Table([bool; 256]);
+pub struct Table {
+    arr: [bool; 256],
+    allow_enc: bool,
+}
 
 impl Table {
-    const fn enc(mut self) -> Table {
-        self.0[0] = true;
+    /// Marks this table as allowing percent-encoded octets.
+    pub const fn enc(mut self) -> Table {
+        self.allow_enc = true;
         self
     }
 
-    const fn or(mut self, t: &Table) -> Table {
+    /// Combines two tables into one.
+    pub const fn or(mut self, t: &Table) -> Table {
         let mut i = 0;
-        while i < 256 {
-            self.0[i] = self.0[i] || t.0[i];
+        while i < 128 {
+            self.arr[i] = self.arr[i] || t.arr[i];
             i += 1;
         }
         self
     }
 
-    /// Returns `true` if the byte is allowed by the table.
+    /// Returns `true` if a byte is allowed by the table.
     #[inline]
-    pub fn contains(&self, x: u8) -> bool {
-        self.0[x as usize]
+    pub const fn contains(&self, x: u8) -> bool {
+        self.arr[x as usize]
     }
 
     /// Returns `true` if percent-encoded octets are allowed by the table.
     #[inline]
-    pub fn allow_enc(&self) -> bool {
-        self.0[0]
+    pub const fn allow_enc(&self) -> bool {
+        self.allow_enc
     }
 }
 
-const fn gen(mut chars: &[u8]) -> Table {
-    let mut out = [false; 256];
-    while let [cur, rem @ ..] = chars {
-        out[*cur as usize] = true;
-        chars = rem;
+/// Generates a table that only allows the given bytes.
+///
+/// # Panics
+///
+/// Panics if any of the bytes is not ASCII.
+pub const fn gen(mut bytes: &[u8]) -> Table {
+    let mut arr = [false; 256];
+    while let [cur, rem @ ..] = bytes {
+        assert!(cur.is_ascii(), "non-ASCII byte");
+        arr[*cur as usize] = true;
+        bytes = rem;
     }
-    Table(out)
+    Table {
+        arr,
+        allow_enc: false,
+    }
 }
 
 /// ALPHA = A-Z / a-z
