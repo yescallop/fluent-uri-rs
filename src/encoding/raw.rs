@@ -1,4 +1,4 @@
-use crate::ParseErrorKind::{self, *};
+use crate::SyntaxErrorKind::{self, *};
 
 use super::{
     chr,
@@ -7,7 +7,7 @@ use super::{
 use beef::Cow;
 use std::{ptr, str};
 
-pub(crate) type RawResult<T> = Result<T, (*const u8, ParseErrorKind)>;
+pub(crate) type RawResult<T> = Result<T, (*const u8, SyntaxErrorKind)>;
 
 const fn gen_octet_table(hi: bool) -> [u8; 256] {
     let mut out = [0xFF; 256];

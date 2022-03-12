@@ -6,7 +6,7 @@ pub(crate) mod macros;
 
 pub(crate) mod raw;
 
-use crate::ParseError;
+use crate::SyntaxError;
 use beef::Cow;
 use std::{
     borrow::{self, Cow::*},
@@ -16,7 +16,7 @@ use std::{
 
 pub use raw::decode_unchecked;
 
-/// Encodes any characters in a byte sequence that are not allowed by the given mask.
+/// Percent-encodes any characters in a byte sequence that are not allowed by the given table.
 ///
 /// # Panics
 ///
@@ -29,14 +29,14 @@ pub fn encode<'a, S: AsRef<[u8]> + ?Sized>(s: &'a S, table: &Table) -> Cow<'a, s
 
 /// Decodes a percent-encoded string.
 #[inline]
-pub fn decode(s: &str) -> Result<Cow<'_, [u8]>, ParseError> {
-    raw::decode(s).map_err(|(ptr, kind)| ParseError::from_raw(s, ptr, kind))
+pub fn decode(s: &str) -> Result<Cow<'_, [u8]>, SyntaxError> {
+    raw::decode(s).map_err(|(ptr, kind)| SyntaxError::from_raw(s, ptr, kind))
 }
 
 /// Checks if all characters in a string are allowed by the given table.
 #[inline]
-pub fn validate(s: &str, table: &Table) -> Result<(), ParseError> {
-    raw::validate(s.as_bytes(), table).map_err(|(ptr, kind)| ParseError::from_raw(s, ptr, kind))
+pub fn validate(s: &str, table: &Table) -> Result<(), SyntaxError> {
+    raw::validate(s.as_bytes(), table).map_err(|(ptr, kind)| SyntaxError::from_raw(s, ptr, kind))
 }
 
 /// Percent-encoded string slices.
@@ -220,7 +220,11 @@ impl EStr {
     }
 }
 
-/// A wrapper for decoded bytes.
+/// A wrapper of percent-decoded bytes.
+/// 
+/// This struct is created by calling [`decode`] on an `EStr`.
+/// 
+/// [`decode`]: EStr::decode
 pub struct Decode<'a>(Cow<'a, [u8]>);
 
 impl<'a> Decode<'a> {

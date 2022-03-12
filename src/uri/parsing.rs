@@ -1,10 +1,10 @@
 use super::*;
 use crate::encoding::{chr, macros::*, raw::*, table::*};
-use crate::ParseErrorKind::*;
+use crate::SyntaxErrorKind::*;
 
-pub(crate) fn parse(mut s: &[u8]) -> RawResult<UriRef<'_>> {
+pub(crate) fn parse(mut s: &[u8]) -> RawResult<Uri<'_>> {
     if s.is_empty() {
-        return Ok(UriRef::EMPTY);
+        return Ok(Uri::EMPTY);
     }
 
     let fragment = match take!(tail, s, b'#') {
@@ -30,7 +30,7 @@ pub(crate) fn parse(mut s: &[u8]) -> RawResult<UriRef<'_>> {
 
     let (authority, path) = parse_hier_part(s)?;
 
-    Ok(UriRef {
+    Ok(Uri {
         scheme,
         authority,
         path,

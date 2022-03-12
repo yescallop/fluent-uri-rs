@@ -1,6 +1,6 @@
 use std::io;
 
-use fluent_uri::UriRef;
+use fluent_uri::Uri;
 
 fn main() {
     let mut buf = String::new();
@@ -16,7 +16,7 @@ fn main() {
             }
         }
 
-        match UriRef::parse(&buf) {
+        match Uri::parse(&buf) {
             Ok(u) => println!("{u:#?}"),
             Err(e) => println!("Error: {e}"),
         };

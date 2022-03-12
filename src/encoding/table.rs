@@ -1,4 +1,4 @@
-/// A table determining which bytes are allowed.
+/// A table determining which bytes are allowed in a string.
 #[derive(Clone, Copy)]
 pub struct Table {
     arr: [bool; 256],

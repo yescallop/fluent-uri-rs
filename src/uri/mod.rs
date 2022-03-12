@@ -10,9 +10,9 @@ use std::{
     net::{Ipv4Addr, Ipv6Addr},
 };
 
-/// Detailed cause of a [`ParseError`].
+/// Detailed cause of a [`SyntaxError`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ParseErrorKind {
+pub enum SyntaxErrorKind {
     /// Invalid percent-encoded octet that is either non-hexadecimal or incomplete.
     ///
     /// The error index points to the percent character "%" of the octet.
@@ -39,23 +39,23 @@ pub enum ParseErrorKind {
     InvalidIpv6,
 }
 
-/// An error occurred when parsing or validating strings.
+/// A syntax error occurred when parsing or validating strings.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ParseError {
+pub struct SyntaxError {
     index: usize,
-    kind: ParseErrorKind,
+    kind: SyntaxErrorKind,
 }
 
-impl ParseError {
-    /// Creates a `ParseError` from a raw pointer.
+impl SyntaxError {
+    /// Creates a `SyntaxError` from a raw pointer.
     ///
     /// The pointer must be within the given string, otherwise the result would be invalid.
     // This function should be inlined since it is called by inlined public functions.
     #[inline]
-    pub(crate) fn from_raw(s: &str, ptr: *const u8, kind: ParseErrorKind) -> ParseError {
+    pub(crate) fn from_raw(s: &str, ptr: *const u8, kind: SyntaxErrorKind) -> SyntaxError {
         let index = (ptr as usize).wrapping_sub(s.as_ptr() as usize);
         debug_assert!(index < s.len());
-        ParseError { index, kind }
+        SyntaxError { index, kind }
     }
 
     /// Returns the index where the error occurred in the input string.
@@ -66,22 +66,22 @@ impl ParseError {
 
     /// Returns the detailed cause of the error.
     #[inline]
-    pub fn kind(self) -> ParseErrorKind {
+    pub fn kind(self) -> SyntaxErrorKind {
         self.kind
     }
 }
 
-impl std::error::Error for ParseError {}
+impl std::error::Error for SyntaxError {}
 
-impl fmt::Display for ParseError {
+impl fmt::Display for SyntaxError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let msg = match self.kind {
-            ParseErrorKind::InvalidOctet => "invalid percent-encoded octet at index ",
-            ParseErrorKind::UnexpectedChar => "unexpected character at index ",
-            ParseErrorKind::UnclosedBracket => "unclosed bracket in IP literal at index ",
-            ParseErrorKind::InvalidIpvFuture => "invalid IPvFuture address at index ",
-            ParseErrorKind::IllPrecededOrEmptyZoneID => "ill-preceded or empty zone ID at index ",
-            ParseErrorKind::InvalidIpv6 => "invalid IPv6 address at index ",
+            SyntaxErrorKind::InvalidOctet => "invalid percent-encoded octet at index ",
+            SyntaxErrorKind::UnexpectedChar => "unexpected character at index ",
+            SyntaxErrorKind::UnclosedBracket => "unclosed bracket in IP literal at index ",
+            SyntaxErrorKind::InvalidIpvFuture => "invalid IPvFuture address at index ",
+            SyntaxErrorKind::IllPrecededOrEmptyZoneID => "ill-preceded or empty zone ID at index ",
+            SyntaxErrorKind::InvalidIpv6 => "invalid IPv6 address at index ",
         };
         write!(f, "{}{}", msg, self.index)
     }
@@ -91,7 +91,7 @@ impl fmt::Display for ParseError {
 ///
 /// [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UriRef<'a> {
+pub struct Uri<'a> {
     scheme: Option<&'a str>,
     authority: Option<Authority<'a>>,
     path: &'a str,
@@ -99,15 +99,15 @@ pub struct UriRef<'a> {
     fragment: Option<&'a str>,
 }
 
-impl<'a> UriRef<'a> {
-    /// Parses a URI reference from a string into a `UriRef`.
+impl<'a> Uri<'a> {
+    /// Parses a URI reference from a string into a `Uri`.
     #[inline]
-    pub fn parse(s: &str) -> Result<UriRef<'_>, ParseError> {
-        parsing::parse(s.as_bytes()).map_err(|(ptr, kind)| ParseError::from_raw(s, ptr, kind))
+    pub fn parse(s: &str) -> Result<Uri<'_>, SyntaxError> {
+        parsing::parse(s.as_bytes()).map_err(|(ptr, kind)| SyntaxError::from_raw(s, ptr, kind))
     }
 
     /// An empty URI reference ("").
-    pub const EMPTY: UriRef<'static> = UriRef {
+    pub const EMPTY: Uri<'static> = Uri {
         scheme: None,
         authority: None,
         path: "",

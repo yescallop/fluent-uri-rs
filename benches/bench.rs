@@ -73,7 +73,7 @@ fn bench_parse(c: &mut Criterion) {
     c.bench_function("parse", |b| {
         b.iter(|| {
             let s = "https://user@example.com/search?q=%E6%B5%8B%E8%AF%95#fragment";
-            let _ = black_box(UriRef::parse(black_box(s)));
+            let _ = black_box(Uri::parse(black_box(s)));
         })
     });
 }

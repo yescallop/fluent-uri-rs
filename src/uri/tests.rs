@@ -1,46 +1,46 @@
-use super::{ParseErrorKind::*, *};
+use super::{SyntaxErrorKind::*, *};
 
 #[test]
 fn parse_absolute() {
     assert_eq!(
-        UriRef::parse("file:///etc/hosts"),
-        Ok(UriRef {
+        Uri::parse("file:///etc/hosts"),
+        Ok(Uri {
             scheme: Some("file"),
             authority: Some(Authority::EMPTY),
             path: "/etc/hosts",
-            ..UriRef::EMPTY
+            ..Uri::EMPTY
         })
     );
 
     assert_eq!(
-        UriRef::parse("ftp://ftp.is.co.za/rfc/rfc1808.txt"),
-        Ok(UriRef {
+        Uri::parse("ftp://ftp.is.co.za/rfc/rfc1808.txt"),
+        Ok(Uri {
             scheme: Some("ftp"),
             authority: Some(Authority {
                 host: Host::RegName(EStr::new("ftp.is.co.za")),
                 ..Authority::EMPTY
             }),
             path: "/rfc/rfc1808.txt",
-            ..UriRef::EMPTY
+            ..Uri::EMPTY
         })
     );
 
     assert_eq!(
-        UriRef::parse("http://www.ietf.org/rfc/rfc2396.txt"),
-        Ok(UriRef {
+        Uri::parse("http://www.ietf.org/rfc/rfc2396.txt"),
+        Ok(Uri {
             scheme: Some("http"),
             authority: Some(Authority {
                 host: Host::RegName(EStr::new("www.ietf.org")),
                 ..Authority::EMPTY
             }),
             path: "/rfc/rfc2396.txt",
-            ..UriRef::EMPTY
+            ..Uri::EMPTY
         })
     );
 
     assert_eq!(
-        UriRef::parse("ldap://[2001:db8::7]/c=GB?objectClass?one"),
-        Ok(UriRef {
+        Uri::parse("ldap://[2001:db8::7]/c=GB?objectClass?one"),
+        Ok(Uri {
             scheme: Some("ldap"),
             authority: Some(Authority {
                 host: Host::Ipv6 {
@@ -56,35 +56,35 @@ fn parse_absolute() {
     );
 
     assert_eq!(
-        UriRef::parse("mailto:John.Doe@example.com"),
-        Ok(UriRef {
+        Uri::parse("mailto:John.Doe@example.com"),
+        Ok(Uri {
             scheme: Some("mailto"),
             path: "John.Doe@example.com",
-            ..UriRef::EMPTY
+            ..Uri::EMPTY
         })
     );
 
     assert_eq!(
-        UriRef::parse("news:comp.infosystems.www.servers.unix"),
-        Ok(UriRef {
+        Uri::parse("news:comp.infosystems.www.servers.unix"),
+        Ok(Uri {
             scheme: Some("news"),
             path: "comp.infosystems.www.servers.unix",
-            ..UriRef::EMPTY
+            ..Uri::EMPTY
         })
     );
 
     assert_eq!(
-        UriRef::parse("tel:+1-816-555-1212"),
-        Ok(UriRef {
+        Uri::parse("tel:+1-816-555-1212"),
+        Ok(Uri {
             scheme: Some("tel"),
             path: "+1-816-555-1212",
-            ..UriRef::EMPTY
+            ..Uri::EMPTY
         })
     );
 
     assert_eq!(
-        UriRef::parse("telnet://192.0.2.16:80/"),
-        Ok(UriRef {
+        Uri::parse("telnet://192.0.2.16:80/"),
+        Ok(Uri {
             scheme: Some("telnet"),
             authority: Some(Authority {
                 host: Host::Ipv4(Ipv4Addr::new(192, 0, 2, 16)),
@@ -92,22 +92,22 @@ fn parse_absolute() {
                 userinfo: None,
             }),
             path: "/",
-            ..UriRef::EMPTY
+            ..Uri::EMPTY
         })
     );
 
     assert_eq!(
-        UriRef::parse("urn:oasis:names:specification:docbook:dtd:xml:4.1.2"),
-        Ok(UriRef {
+        Uri::parse("urn:oasis:names:specification:docbook:dtd:xml:4.1.2"),
+        Ok(Uri {
             scheme: Some("urn"),
             path: "oasis:names:specification:docbook:dtd:xml:4.1.2",
-            ..UriRef::EMPTY
+            ..Uri::EMPTY
         })
     );
 
     assert_eq!(
-        UriRef::parse("foo://example.com:8042/over/there?name=ferret#nose"),
-        Ok(UriRef {
+        Uri::parse("foo://example.com:8042/over/there?name=ferret#nose"),
+        Ok(Uri {
             scheme: Some("foo"),
             authority: Some(Authority {
                 host: Host::RegName(EStr::new("example.com")),
@@ -121,8 +121,8 @@ fn parse_absolute() {
     );
 
     assert_eq!(
-        UriRef::parse("ftp://cnn.example.com&story=breaking_news@10.0.0.1/top_story.htm"),
-        Ok(UriRef {
+        Uri::parse("ftp://cnn.example.com&story=breaking_news@10.0.0.1/top_story.htm"),
+        Ok(Uri {
             scheme: Some("ftp"),
             authority: Some(Authority {
                 host: Host::Ipv4(Ipv4Addr::new(10, 0, 0, 1)),
@@ -130,13 +130,13 @@ fn parse_absolute() {
                 userinfo: Some("cnn.example.com&story=breaking_news"),
             }),
             path: "/top_story.htm",
-            ..UriRef::EMPTY
+            ..Uri::EMPTY
         })
     );
 
     assert_eq!(
-        UriRef::parse("http://[vFe.foo.bar]"),
-        Ok(UriRef {
+        Uri::parse("http://[vFe.foo.bar]"),
+        Ok(Uri {
             scheme: Some("http"),
             authority: Some(Authority {
                 host: Host::IpvFuture {
@@ -145,13 +145,13 @@ fn parse_absolute() {
                 },
                 ..Authority::EMPTY
             }),
-            ..UriRef::EMPTY
+            ..Uri::EMPTY
         })
     );
 
     assert_eq!(
-        UriRef::parse("http://[fe80::520f:f5ff:fe51:cf0%2517]"),
-        Ok(UriRef {
+        Uri::parse("http://[fe80::520f:f5ff:fe51:cf0%2517]"),
+        Ok(Uri {
             scheme: Some("http"),
             authority: Some(Authority {
                 host: Host::Ipv6 {
@@ -160,76 +160,76 @@ fn parse_absolute() {
                 },
                 ..Authority::EMPTY
             }),
-            ..UriRef::EMPTY
+            ..Uri::EMPTY
         })
     );
 
-    let u = UriRef::parse("http://127.0.0.1:/").unwrap();
+    let u = Uri::parse("http://127.0.0.1:/").unwrap();
     let auth = u.authority().unwrap();
     assert_eq!(auth.port_raw(), Some(""));
     assert_eq!(auth.port(), None);
 
-    let u = UriRef::parse("http://127.0.0.1:8080/").unwrap();
+    let u = Uri::parse("http://127.0.0.1:8080/").unwrap();
     let auth = u.authority().unwrap();
     assert_eq!(auth.port(), Some(Ok(8080)));
 
-    let u = UriRef::parse("http://127.0.0.1:80808/").unwrap();
+    let u = Uri::parse("http://127.0.0.1:80808/").unwrap();
     let auth = u.authority().unwrap();
     assert_eq!(auth.port(), Some(Err("80808")));
 }
 
 #[test]
 fn parse_relative() {
-    assert_eq!(UriRef::parse(""), Ok(UriRef::EMPTY));
+    assert_eq!(Uri::parse(""), Ok(Uri::EMPTY));
 
     assert_eq!(
-        UriRef::parse("foo.txt"),
-        Ok(UriRef {
+        Uri::parse("foo.txt"),
+        Ok(Uri {
             path: "foo.txt",
-            ..UriRef::EMPTY
+            ..Uri::EMPTY
         })
     );
 
     assert_eq!(
-        UriRef::parse("."),
-        Ok(UriRef {
+        Uri::parse("."),
+        Ok(Uri {
             path: ".",
-            ..UriRef::EMPTY
+            ..Uri::EMPTY
         })
     );
 
     assert_eq!(
-        UriRef::parse("./this:that"),
-        Ok(UriRef {
+        Uri::parse("./this:that"),
+        Ok(Uri {
             path: "./this:that",
-            ..UriRef::EMPTY
+            ..Uri::EMPTY
         })
     );
 
     assert_eq!(
-        UriRef::parse("//example.com"),
-        Ok(UriRef {
+        Uri::parse("//example.com"),
+        Ok(Uri {
             authority: Some(Authority {
                 host: Host::RegName(EStr::new("example.com")),
                 ..Authority::EMPTY
             }),
-            ..UriRef::EMPTY
+            ..Uri::EMPTY
         })
     );
 
     assert_eq!(
-        UriRef::parse("?query"),
-        Ok(UriRef {
+        Uri::parse("?query"),
+        Ok(Uri {
             query: Some("query"),
-            ..UriRef::EMPTY
+            ..Uri::EMPTY
         })
     );
 
     assert_eq!(
-        UriRef::parse("#fragment"),
-        Ok(UriRef {
+        Uri::parse("#fragment"),
+        Ok(Uri {
             fragment: Some("fragment"),
-            ..UriRef::EMPTY
+            ..Uri::EMPTY
         })
     );
 }
@@ -237,123 +237,123 @@ fn parse_relative() {
 #[test]
 fn parse_error() {
     // Empty scheme
-    let e = UriRef::parse(":hello").unwrap_err();
+    let e = Uri::parse(":hello").unwrap_err();
     assert_eq!(e.index(), 0);
     assert_eq!(e.kind(), UnexpectedChar);
 
     // Scheme starts with non-letter
-    let e = UriRef::parse("3ttp://a.com").unwrap_err();
+    let e = Uri::parse("3ttp://a.com").unwrap_err();
     assert_eq!(e.index(), 0);
     assert_eq!(e.kind(), UnexpectedChar);
 
     // Unexpected char in scheme
-    let e = UriRef::parse("exam=ple:foo").unwrap_err();
+    let e = Uri::parse("exam=ple:foo").unwrap_err();
     assert_eq!(e.index(), 4);
     assert_eq!(e.kind(), UnexpectedChar);
 
     // Percent-encoded scheme
-    let e = UriRef::parse("a%20:foo").unwrap_err();
+    let e = Uri::parse("a%20:foo").unwrap_err();
     assert_eq!(e.index(), 1);
     assert_eq!(e.kind(), UnexpectedChar);
 
     // Unexpected char in path
-    let e = UriRef::parse("foo\\bar").unwrap_err();
+    let e = Uri::parse("foo\\bar").unwrap_err();
     assert_eq!(e.index(), 3);
     assert_eq!(e.kind(), UnexpectedChar);
 
     // Non-hexadecimal percent-encoded octet
-    let e = UriRef::parse("foo%xxd").unwrap_err();
+    let e = Uri::parse("foo%xxd").unwrap_err();
     assert_eq!(e.index(), 3);
     assert_eq!(e.kind(), InvalidOctet);
 
     // Incomplete percent-encoded octet
-    let e = UriRef::parse("text%a").unwrap_err();
+    let e = Uri::parse("text%a").unwrap_err();
     assert_eq!(e.index(), 4);
     assert_eq!(e.kind(), InvalidOctet);
 
     // Unclosed bracket
-    let e = UriRef::parse("https://[::1/").unwrap_err();
+    let e = Uri::parse("https://[::1/").unwrap_err();
     assert_eq!(e.index(), 8);
     assert_eq!(e.kind(), UnclosedBracket);
 
     // Not port after IP literal
-    let e = UriRef::parse("https://[::1]wrong").unwrap_err();
+    let e = Uri::parse("https://[::1]wrong").unwrap_err();
     assert_eq!(e.index(), 13);
     assert_eq!(e.kind(), UnexpectedChar);
 
     // Non-decimal port
-    let e = UriRef::parse("http://127.0.0.1:abcd").unwrap_err();
+    let e = Uri::parse("http://127.0.0.1:abcd").unwrap_err();
     assert_eq!(e.index(), 17);
     assert_eq!(e.kind(), UnexpectedChar);
 
     // IP literal too short
-    let e = UriRef::parse("http://[:]").unwrap_err();
+    let e = Uri::parse("http://[:]").unwrap_err();
     assert_eq!(e.index(), 8);
     assert_eq!(e.kind(), UnexpectedChar);
-    let e = UriRef::parse("http://[]").unwrap_err();
+    let e = Uri::parse("http://[]").unwrap_err();
     assert_eq!(e.index(), 8);
     assert_eq!(e.kind(), UnexpectedChar);
 
     // Non-hexadecimal version in IPvFuture
-    let e = UriRef::parse("http://[vG.addr]").unwrap_err();
+    let e = Uri::parse("http://[vG.addr]").unwrap_err();
     assert_eq!(e.index(), 9);
     assert_eq!(e.kind(), UnexpectedChar);
 
     // Empty version in IPvFuture
-    let e = UriRef::parse("http://[v.addr]").unwrap_err();
+    let e = Uri::parse("http://[v.addr]").unwrap_err();
     assert_eq!(e.index(), 8);
     assert_eq!(e.kind(), InvalidIpvFuture);
 
     // Empty address in IPvFuture
-    let e = UriRef::parse("ftp://[vF.]").unwrap_err();
+    let e = Uri::parse("ftp://[vF.]").unwrap_err();
     assert_eq!(e.index(), 7);
     assert_eq!(e.kind(), InvalidIpvFuture);
 
     // Percent-encoded address in IPvFuture
-    let e = UriRef::parse("ftp://[vF.%20]").unwrap_err();
+    let e = Uri::parse("ftp://[vF.%20]").unwrap_err();
     assert_eq!(e.index(), 10);
     assert_eq!(e.kind(), UnexpectedChar);
 
     // Ill-preceded Zone ID
-    let e = UriRef::parse("ftp://[::1%240]").unwrap_err();
+    let e = Uri::parse("ftp://[::1%240]").unwrap_err();
     assert_eq!(e.index(), 10);
     assert_eq!(e.kind(), IllPrecededOrEmptyZoneID);
 
     // Empty Zone ID
-    let e = UriRef::parse("ftp://[::1%25]").unwrap_err();
+    let e = Uri::parse("ftp://[::1%25]").unwrap_err();
     assert_eq!(e.index(), 10);
     assert_eq!(e.kind(), IllPrecededOrEmptyZoneID);
 
     // Invalid IPv6 address
-    let e = UriRef::parse("example://[44:55::66::77]").unwrap_err();
+    let e = Uri::parse("example://[44:55::66::77]").unwrap_err();
     assert_eq!(e.index(), 11);
     assert_eq!(e.kind(), InvalidIpv6);
 }
 
 #[test]
 fn strict_ip_addr() {
-    let u = UriRef::parse("//127.0.0.001").unwrap();
+    let u = Uri::parse("//127.0.0.001").unwrap();
     let host = u.authority().unwrap().host();
     assert!(matches!(host, Host::RegName(_)));
 
-    let u = UriRef::parse("//127.1").unwrap();
+    let u = Uri::parse("//127.1").unwrap();
     let host = u.authority().unwrap().host();
     assert!(matches!(host, Host::RegName(_)));
 
-    let u = UriRef::parse("//127.00.00.1").unwrap();
+    let u = Uri::parse("//127.00.00.1").unwrap();
     let host = u.authority().unwrap().host();
     assert!(matches!(host, Host::RegName(_)));
 
-    assert!(UriRef::parse("//[::1.1.1.1]").is_ok());
-    assert!(UriRef::parse("//[::ffff:1.1.1.1]").is_ok());
-    assert!(UriRef::parse("//[0000:0000:0000:0000:0000:0000:255.255.255.255]").is_ok());
+    assert!(Uri::parse("//[::1.1.1.1]").is_ok());
+    assert!(Uri::parse("//[::ffff:1.1.1.1]").is_ok());
+    assert!(Uri::parse("//[0000:0000:0000:0000:0000:0000:255.255.255.255]").is_ok());
 
     assert_eq!(
-        UriRef::parse("//[::01.1.1.1]").unwrap_err().kind(),
+        Uri::parse("//[::01.1.1.1]").unwrap_err().kind(),
         InvalidIpv6
     );
     assert_eq!(
-        UriRef::parse("//[::00.1.1.1]").unwrap_err().kind(),
+        Uri::parse("//[::00.1.1.1]").unwrap_err().kind(),
         InvalidIpv6
     );
 }

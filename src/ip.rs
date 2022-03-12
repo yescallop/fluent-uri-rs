@@ -73,7 +73,7 @@ macro_rules! take_dec_octet {
     };
 }
 
-/// Parses an IPv4 address from a string slice.
+/// Parses an IPv4 address from a byte sequence.
 #[inline]
 pub fn parse_v4(s: &[u8]) -> Option<Ipv4Addr> {
     // `Ipv4Addr::from_str` now rejects octal zeros, but still
@@ -98,7 +98,7 @@ fn parse_v4_bytes(mut s: &[u8]) -> Option<[u8; 4]> {
     }
 }
 
-/// Parses an IPv6 address from a string slice.
+/// Parses an IPv6 address from a byte sequence.
 pub fn parse_v6(mut s: &[u8]) -> Option<Ipv6Addr> {
     if s.len() < 2 {
         return None;
