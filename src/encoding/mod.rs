@@ -85,8 +85,7 @@ impl fmt::Display for EStr {
 impl Default for &EStr {
     #[inline]
     fn default() -> Self {
-        // SAFETY: A empty str is valid as `EStr`.
-        unsafe { EStr::new_unchecked("") }
+        EStr::EMPTY
     }
 }
 
@@ -105,6 +104,26 @@ impl borrow::Borrow<str> for &EStr {
 }
 
 impl EStr {
+    /// An empty `EStr`.
+    pub const EMPTY: &'static EStr = unsafe {
+        // SAFETY: A empty str is valid as `EStr`.
+        EStr::new_unchecked("")
+    };
+
+    /// Converts a string slice to an `EStr`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the string is not properly encoded.
+    pub const fn new(s: &str) -> &EStr {
+        if raw::validate_const(s.as_bytes()).is_ok() {
+            // SAFETY: We have done the validation.
+            unsafe { EStr::new_unchecked(s) }
+        } else {
+            panic!("invalid percent-encoded string");
+        }
+    }
+
     /// Converts a string slice to an `EStr` without checking that the string is properly encoded.
     ///
     /// # Safety
@@ -112,9 +131,8 @@ impl EStr {
     /// The `decode` function assumes that the string is properly encoded,
     /// and parses the encoded octets without checking bounds or validating them.
     /// Any invalid encoded octet in the string will result in undefined behavior.
-    // FIXME: Make this const after the feature `const_raw_ptr_deref` gets stabilized.
     #[inline]
-    pub unsafe fn new_unchecked(s: &str) -> &EStr {
+    pub const unsafe fn new_unchecked(s: &str) -> &EStr {
         // SAFETY: The caller must ensure that the string is properly encoded.
         unsafe { &*(s as *const str as *const EStr) }
     }
@@ -156,7 +174,7 @@ impl EStr {
     /// use fluent_uri::encoding::EStr;
     ///
     /// let s = "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21";
-    /// let map: HashMap<_, _> = unsafe { EStr::new_unchecked(s) }
+    /// let map: HashMap<_, _> = EStr::new(s)
     ///     .split('&')
     ///     .filter_map(|s| s.split_once('='))
     ///     .map(|(k, v)| (k.decode(), v.decode()))
@@ -394,8 +412,7 @@ mod tests {
 
     #[test]
     fn split() {
-        let s = "id=3&name=%E5%BC%A0%E4%B8%89";
-        let s = unsafe { EStr::new_unchecked(s) };
+        let s = EStr::new("id=3&name=%E5%BC%A0%E4%B8%89");
         let mut split = s.split('&');
 
         let it = split.next().unwrap();

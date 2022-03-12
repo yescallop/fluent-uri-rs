@@ -251,6 +251,30 @@ pub(crate) fn validate(s: &[u8], table: &Table) -> RawResult<()> {
     Ok(())
 }
 
+pub(crate) const fn validate_const(s: &[u8]) -> Result<(), usize> {
+    if s.is_empty() {
+        return Ok(());
+    }
+
+    let mut i = 0;
+
+    while i < s.len() {
+        let x = s[i];
+        if x == b'%' {
+            if i + 2 >= s.len() {
+                return Err(i);
+            }
+            let (hi, lo) = (s[i + 1], s[i + 2]);
+
+            if !hi.is_ascii_hexdigit() || !lo.is_ascii_hexdigit() {
+                return Err(i);
+            }
+        }
+        i += 1;
+    }
+    Ok(())
+}
+
 fn validate_by(s: &[u8], pred: impl Fn(&u8) -> bool) -> RawResult<()> {
     match s.iter().position(|b| !pred(b)) {
         Some(i) => err!(s[i], UnexpectedChar),

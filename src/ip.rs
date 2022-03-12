@@ -27,9 +27,9 @@ macro_rules! take_dec_octet {
             Some(b'1') => match take_byte!($s) {
                 $end => Some(1),
                 Some(y @ b'0'..=b'9') => match take_byte!($s) {
-                    $end => Some(10 + y - b'0'),
+                    $end => Some(10 + (y - b'0')),
                     Some(z @ b'0'..=b'9') => match take_byte!($s) {
-                        $end => Some(100 + (y - b'0') * 10 + z - b'0'),
+                        $end => Some(100 + (y - b'0') * 10 + (z - b'0')),
                         _ => None,
                     },
                     _ => None,
@@ -39,9 +39,9 @@ macro_rules! take_dec_octet {
             Some(b'2') => match take_byte!($s) {
                 $end => Some(2),
                 Some(y @ b'0'..=b'4') => match take_byte!($s) {
-                    $end => Some(20 + y - b'0'),
+                    $end => Some(20 + (y - b'0')),
                     Some(z @ b'0'..=b'9') => match take_byte!($s) {
-                        $end => Some(200 + (y - b'0') * 10 + z - b'0'),
+                        $end => Some(200 + (y - b'0') * 10 + (z - b'0')),
                         _ => None,
                     },
                     _ => None,
@@ -49,13 +49,13 @@ macro_rules! take_dec_octet {
                 Some(b'5') => match take_byte!($s) {
                     $end => Some(25),
                     Some(z @ b'0'..=b'5') => match take_byte!($s) {
-                        $end => Some(250 + z - b'0'),
+                        $end => Some(250 + (z - b'0')),
                         _ => None,
                     },
                     _ => None,
                 },
                 Some(y @ b'6'..=b'9') => match take_byte!($s) {
-                    $end => Some(20 + y - b'0'),
+                    $end => Some(20 + (y - b'0')),
                     _ => None,
                 },
                 _ => None,
@@ -63,7 +63,7 @@ macro_rules! take_dec_octet {
             Some(x @ b'3'..=b'9') => match take_byte!($s) {
                 $end => Some(x - b'0'),
                 Some(y @ b'0'..=b'9') => match take_byte!($s) {
-                    $end => Some((x - b'0') * 10 + y - b'0'),
+                    $end => Some((x - b'0') * 10 + (y - b'0')),
                     _ => None,
                 },
                 _ => None,

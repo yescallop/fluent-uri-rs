@@ -16,13 +16,9 @@ fn main() {
             }
         }
 
-        let uri = match UriRef::parse(&buf) {
-            Ok(u) => u,
-            Err(e) => {
-                println!("Error: {}", e);
-                continue;
-            }
+        match UriRef::parse(&buf) {
+            Ok(u) => println!("{u:#?}"),
+            Err(e) => println!("Error: {e}"),
         };
-        println!("{:#?}", uri);
     }
 }

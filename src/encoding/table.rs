@@ -16,9 +16,10 @@ impl Table {
     pub const fn or(mut self, t: &Table) -> Table {
         let mut i = 0;
         while i < 128 {
-            self.arr[i] = self.arr[i] || t.arr[i];
+            self.arr[i] |= t.arr[i];
             i += 1;
         }
+        self.allow_enc |= t.allow_enc;
         self
     }
 
@@ -80,13 +81,13 @@ pub static UNRESERVED: &Table = &ALPHA.or(DIGIT).or(&gen(b"-._~"));
 pub static PCHAR: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b":@")).enc();
 
 /// scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
-pub static SCHEME: &Table = &ALPHA.or(DIGIT).or(&gen(b"+-.")).enc();
+pub static SCHEME: &Table = &ALPHA.or(DIGIT).or(&gen(b"+-."));
 
 /// userinfo = *( unreserved / pct-encoded / sub-delims / ":" )
 pub static USERINFO: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b":")).enc();
 
 /// IPvFuture = "v" 1\*HEXDIG "." 1\*( unreserved / sub-delims / ":" )
-pub static IPV_FUTURE: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b":")).enc();
+pub static IPV_FUTURE: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b":"));
 
 /// reg-name = *( unreserved / pct-encoded / sub-delims )
 pub static REG_NAME: &Table = &UNRESERVED.or(SUB_DELIMS).enc();

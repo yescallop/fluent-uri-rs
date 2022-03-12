@@ -49,12 +49,12 @@ pub struct ParseError {
 impl ParseError {
     /// Creates a `ParseError` from a raw pointer.
     ///
-    /// The pointer must be within the given string, or the result would be invalid.
+    /// The pointer must be within the given string, otherwise the result would be invalid.
     // This function should be inlined since it is called by inlined public functions.
     #[inline]
     pub(crate) fn from_raw(s: &str, ptr: *const u8, kind: ParseErrorKind) -> ParseError {
         let index = (ptr as usize).wrapping_sub(s.as_ptr() as usize);
-        debug_assert!(index <= s.len());
+        debug_assert!(index < s.len());
         ParseError { index, kind }
     }
 
@@ -293,13 +293,12 @@ pub enum Host<'a> {
         addr: &'a str,
     },
     /// A registered name.
-    // FIXME: Use `EStr` here after the feature `const_raw_ptr_deref` gets stabilized.
-    RegName(&'a str),
+    RegName(&'a EStr),
 }
 
 impl<'a> Host<'a> {
     /// An empty host subcomponent.
-    pub const EMPTY: Host<'static> = Host::RegName("");
+    pub const EMPTY: Host<'static> = Host::RegName(EStr::EMPTY);
 }
 
 #[cfg(test)]

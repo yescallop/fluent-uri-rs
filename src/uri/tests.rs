@@ -1,4 +1,4 @@
-use super::{*, ParseErrorKind::*};
+use super::{ParseErrorKind::*, *};
 
 #[test]
 fn parse_absolute() {
@@ -17,7 +17,7 @@ fn parse_absolute() {
         Ok(UriRef {
             scheme: Some("ftp"),
             authority: Some(Authority {
-                host: Host::RegName("ftp.is.co.za"),
+                host: Host::RegName(EStr::new("ftp.is.co.za")),
                 ..Authority::EMPTY
             }),
             path: "/rfc/rfc1808.txt",
@@ -30,7 +30,7 @@ fn parse_absolute() {
         Ok(UriRef {
             scheme: Some("http"),
             authority: Some(Authority {
-                host: Host::RegName("www.ietf.org"),
+                host: Host::RegName(EStr::new("www.ietf.org")),
                 ..Authority::EMPTY
             }),
             path: "/rfc/rfc2396.txt",
@@ -110,7 +110,7 @@ fn parse_absolute() {
         Ok(UriRef {
             scheme: Some("foo"),
             authority: Some(Authority {
-                host: Host::RegName("example.com"),
+                host: Host::RegName(EStr::new("example.com")),
                 port: Some("8042"),
                 userinfo: None,
             }),
@@ -156,7 +156,7 @@ fn parse_absolute() {
             authority: Some(Authority {
                 host: Host::Ipv6 {
                     addr: Ipv6Addr::new(0xfe80, 0, 0, 0, 0x520f, 0xf5ff, 0xfe51, 0xcf0),
-                    zone_id: Some(unsafe { EStr::new_unchecked("17") }),
+                    zone_id: Some(EStr::new("17")),
                 },
                 ..Authority::EMPTY
             }),
@@ -210,7 +210,7 @@ fn parse_relative() {
         UriRef::parse("//example.com"),
         Ok(UriRef {
             authority: Some(Authority {
-                host: Host::RegName("example.com"),
+                host: Host::RegName(EStr::new("example.com")),
                 ..Authority::EMPTY
             }),
             ..UriRef::EMPTY
@@ -249,6 +249,11 @@ fn parse_error() {
     // Unexpected char in scheme
     let e = UriRef::parse("exam=ple:foo").unwrap_err();
     assert_eq!(e.index(), 4);
+    assert_eq!(e.kind(), UnexpectedChar);
+
+    // Percent-encoded scheme
+    let e = UriRef::parse("a%20:foo").unwrap_err();
+    assert_eq!(e.index(), 1);
     assert_eq!(e.kind(), UnexpectedChar);
 
     // Unexpected char in path
@@ -304,6 +309,11 @@ fn parse_error() {
     assert_eq!(e.index(), 7);
     assert_eq!(e.kind(), InvalidIpvFuture);
 
+    // Percent-encoded address in IPvFuture
+    let e = UriRef::parse("ftp://[vF.%20]").unwrap_err();
+    assert_eq!(e.index(), 10);
+    assert_eq!(e.kind(), UnexpectedChar);
+
     // Ill-preceded Zone ID
     let e = UriRef::parse("ftp://[::1%240]").unwrap_err();
     assert_eq!(e.index(), 10);
@@ -338,6 +348,12 @@ fn strict_ip_addr() {
     assert!(UriRef::parse("//[::ffff:1.1.1.1]").is_ok());
     assert!(UriRef::parse("//[0000:0000:0000:0000:0000:0000:255.255.255.255]").is_ok());
 
-    assert_eq!(UriRef::parse("//[::01.1.1.1]").unwrap_err().kind(), InvalidIpv6);
-    assert_eq!(UriRef::parse("//[::00.1.1.1]").unwrap_err().kind(), InvalidIpv6);
+    assert_eq!(
+        UriRef::parse("//[::01.1.1.1]").unwrap_err().kind(),
+        InvalidIpv6
+    );
+    assert_eq!(
+        UriRef::parse("//[::00.1.1.1]").unwrap_err().kind(),
+        InvalidIpv6
+    );
 }

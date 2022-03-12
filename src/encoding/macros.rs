@@ -57,7 +57,7 @@ macro_rules! validate {
         let s = $s;
         Validator::validate($v, &s[$offset..])?;
         // SAFETY: The caller must ensure that the validator doesn't allow invalid UTF-8
-        // and that the bytes before the offset are validated.
+        // and that the bytes before the offset are valid UTF-8.
         unsafe { std::str::from_utf8_unchecked(s) }
     }};
 }

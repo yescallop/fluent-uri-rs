@@ -154,6 +154,10 @@ fn parse_ip_literal(mut s: &[u8]) -> RawResult<Host<'_>> {
 fn parse_non_ip_literal(s: &[u8]) -> RawResult<Host<'_>> {
     Ok(match crate::ip::parse_v4(s) {
         Some(addr) => Host::Ipv4(addr),
-        None => Host::RegName(validate!(s, REG_NAME)),
+        None => {
+            let reg_name = validate!(s, REG_NAME);
+            // SAFETY: We have done the validation.
+            Host::RegName(unsafe { EStr::new_unchecked(reg_name) })
+        }
     })
 }
