@@ -1,6 +1,7 @@
 /// Module for working with paths.
 pub mod path;
 
+mod parser;
 mod parsing;
 
 use crate::encoding::EStr;

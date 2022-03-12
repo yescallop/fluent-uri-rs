@@ -9,7 +9,7 @@ memchr = "2.4.1"
 beef = "0.5.1"
 
 # Commented out to reduce compile time.
-#
+
 # [[bench]]
 # name = "bench"
 # harness = false
@@ -17,3 +17,4 @@ beef = "0.5.1"
 # [dev-dependencies]
 # criterion = "0.3"
 # url = "2.2.2"
+# uriparse = "0.6.3"

@@ -5,6 +5,7 @@ use fluent_uri::{
     encoding::{table::*, *},
     *,
 };
+use uriparse::URIReference;
 use url::Url;
 
 criterion_group!(
@@ -16,6 +17,7 @@ criterion_group!(
     bench_validate,
     bench_parse,
     bench_parse_url,
+    bench_parse_uriparse,
     bench_parse_v4,
     bench_parse_v4_std,
     bench_parse_v6,
@@ -83,6 +85,15 @@ fn bench_parse_url(c: &mut Criterion) {
         b.iter(|| {
             let s = "https://user@example.com/search?q=%E6%B5%8B%E8%AF%95#fragment";
             let _ = black_box(Url::parse(black_box(s)));
+        })
+    });
+}
+
+fn bench_parse_uriparse(c: &mut Criterion) {
+    c.bench_function("parse_uriparse", |b| {
+        b.iter(|| {
+            let s = "https://user@example.com/search?q=%E6%B5%8B%E8%AF%95#fragment";
+            let _ = black_box(URIReference::try_from(black_box(s)));
         })
     });
 }

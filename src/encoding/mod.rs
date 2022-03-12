@@ -105,10 +105,7 @@ impl borrow::Borrow<str> for &EStr {
 
 impl EStr {
     /// An empty `EStr`.
-    pub const EMPTY: &'static EStr = unsafe {
-        // SAFETY: A empty str is valid as `EStr`.
-        EStr::new_unchecked("")
-    };
+    pub const EMPTY: &'static EStr = EStr::new("");
 
     /// Converts a string slice to an `EStr`.
     ///
@@ -221,9 +218,9 @@ impl EStr {
 }
 
 /// A wrapper of percent-decoded bytes.
-/// 
+///
 /// This struct is created by calling [`decode`] on an `EStr`.
-/// 
+///
 /// [`decode`]: EStr::decode
 pub struct Decode<'a>(Cow<'a, [u8]>);
 
@@ -357,6 +354,7 @@ use self::table::Table;
 pub(crate) fn chr(s: &[u8], b: u8) -> Option<usize> {
     memchr::memchr(b, s).map(|i| {
         if i >= s.len() {
+            // SAFETY: We assume that the index is never out of bounds.
             unsafe { hint::unreachable_unchecked() }
         }
         i
@@ -368,6 +366,7 @@ pub(crate) fn chr(s: &[u8], b: u8) -> Option<usize> {
 pub(crate) fn rchr(s: &[u8], b: u8) -> Option<usize> {
     memchr::memrchr(b, s).map(|i| {
         if i >= s.len() {
+            // SAFETY: We assume that the index is never out of bounds.
             unsafe { hint::unreachable_unchecked() }
         }
         i
@@ -377,6 +376,7 @@ pub(crate) fn rchr(s: &[u8], b: u8) -> Option<usize> {
 pub(crate) fn chr_until(s: &[u8], b: u8, end: u8) -> Option<usize> {
     memchr::memchr2(b, end, s).and_then(|i| {
         if i >= s.len() {
+            // SAFETY: We assume that the index is never out of bounds.
             unsafe { hint::unreachable_unchecked() }
         }
         if s[i] == b {
