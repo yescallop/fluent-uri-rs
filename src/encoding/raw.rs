@@ -243,6 +243,7 @@ pub(crate) fn validate(s: &[u8], table: &Table) -> RawResult<()> {
             if !HEXDIG.contains(hi) || !HEXDIG.contains(lo) {
                 err!(cur, InvalidOctet);
             }
+            i += 2;
         } else if !table.contains(x) {
             err!(cur, UnexpectedChar);
         }
@@ -269,6 +270,7 @@ pub(crate) const fn validate_const(s: &[u8]) -> Result<(), usize> {
             if !hi.is_ascii_hexdigit() || !lo.is_ascii_hexdigit() {
                 return Err(i);
             }
+            i += 2;
         }
         i += 1;
     }
