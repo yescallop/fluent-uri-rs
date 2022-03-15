@@ -1,7 +1,9 @@
 /// A table determining which bytes are allowed in a string.
+///
+/// It is guaranteed that the bytes allowed are ASCII.
 #[derive(Clone, Copy)]
 pub struct Table {
-    arr: [bool; 256],
+    arr: [u8; 256],
     allow_enc: bool,
 }
 
@@ -23,10 +25,26 @@ impl Table {
         self
     }
 
+    /// Shifts the table values left.
+    pub const fn shl(mut self, n: u8) -> Table {
+        let mut i = 0;
+        while i < 128 {
+            self.arr[i] <<= n;
+            i += 1;
+        }
+        self
+    }
+
+    /// Returns the specified table value.
+    #[inline]
+    pub const fn get(&self, x: u8) -> u8 {
+        self.arr[x as usize]
+    }
+
     /// Returns `true` if a byte is allowed by the table.
     #[inline]
     pub const fn contains(&self, x: u8) -> bool {
-        self.arr[x as usize]
+        self.get(x) != 0
     }
 
     /// Returns `true` if percent-encoded octets are allowed by the table.
@@ -42,10 +60,10 @@ impl Table {
 ///
 /// Panics if any of the bytes is not ASCII.
 pub const fn gen(mut bytes: &[u8]) -> Table {
-    let mut arr = [false; 256];
+    let mut arr = [0; 256];
     while let [cur, rem @ ..] = bytes {
         assert!(cur.is_ascii(), "non-ASCII byte");
-        arr[*cur as usize] = true;
+        arr[*cur as usize] = 1;
         bytes = rem;
     }
     Table {
@@ -79,6 +97,9 @@ pub static UNRESERVED: &Table = &ALPHA.or(DIGIT).or(&gen(b"-._~"));
 
 /// pchar = unreserved / pct-encoded / sub-delims / ":" / "@"
 pub static PCHAR: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b":@")).enc();
+
+/// segment-nz-nc = 1*( unreserved / pct-encoded / sub-delims / "@" )
+pub static SEGMENT_NC: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b"@")).enc();
 
 /// scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
 pub static SCHEME: &Table = &ALPHA.or(DIGIT).or(&gen(b"+-."));
