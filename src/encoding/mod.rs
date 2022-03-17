@@ -373,20 +373,6 @@ pub(crate) fn rchr(s: &[u8], b: u8) -> Option<usize> {
     })
 }
 
-pub(crate) fn chr_until(s: &[u8], b: u8, end: u8) -> Option<usize> {
-    memchr::memchr2(b, end, s).and_then(|i| {
-        if i >= s.len() {
-            // SAFETY: We assume that the index is never out of bounds.
-            unsafe { hint::unreachable_unchecked() }
-        }
-        if s[i] == b {
-            Some(i)
-        } else {
-            None
-        }
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::{table::*, *};

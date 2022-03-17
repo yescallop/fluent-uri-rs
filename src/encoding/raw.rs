@@ -283,21 +283,3 @@ fn validate_by(s: &[u8], pred: impl Fn(&u8) -> bool) -> RawResult<()> {
         None => Ok(()),
     }
 }
-
-pub(crate) trait Validator {
-    fn validate(self, s: &[u8]) -> RawResult<()>;
-}
-
-impl Validator for &Table {
-    #[inline]
-    fn validate(self, s: &[u8]) -> RawResult<()> {
-        validate(s, self)
-    }
-}
-
-impl<T: Fn(&u8) -> bool> Validator for T {
-    #[inline]
-    fn validate(self, s: &[u8]) -> RawResult<()> {
-        validate_by(s, self)
-    }
-}

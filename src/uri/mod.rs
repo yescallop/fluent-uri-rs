@@ -2,7 +2,6 @@
 pub mod path;
 
 mod parser;
-mod parsing;
 
 use crate::encoding::EStr;
 use path::Path;
@@ -22,22 +21,10 @@ pub enum SyntaxErrorKind {
     ///
     /// The error index points to the character.
     UnexpectedChar,
-    /// Unclosed bracket in IP literal.
+    /// Invalid IP literal.
     ///
     /// The error index points to the preceding left square bracket "[".
-    UnclosedBracket,
-    /// Invalid IPvFuture address.
-    ///
-    /// The error index points to the preceding character "v" (case-insensitive).
-    InvalidIpvFuture,
-    /// Invalid Zone ID that either is not preceded by "%25" or is empty.
-    ///
-    /// The error index points to the preceding percent character "%".
-    IllPrecededOrEmptyZoneID,
-    /// Invalid IPv6 address.
-    ///
-    /// The error index points to the first character of the address.
-    InvalidIpv6,
+    InvalidIpLiteral,
 }
 
 /// A syntax error occurred when parsing or validating strings.
@@ -79,10 +66,7 @@ impl fmt::Display for SyntaxError {
         let msg = match self.kind {
             SyntaxErrorKind::InvalidOctet => "invalid percent-encoded octet at index ",
             SyntaxErrorKind::UnexpectedChar => "unexpected character at index ",
-            SyntaxErrorKind::UnclosedBracket => "unclosed bracket in IP literal at index ",
-            SyntaxErrorKind::InvalidIpvFuture => "invalid IPvFuture address at index ",
-            SyntaxErrorKind::IllPrecededOrEmptyZoneID => "ill-preceded or empty zone ID at index ",
-            SyntaxErrorKind::InvalidIpv6 => "invalid IPv6 address at index ",
+            SyntaxErrorKind::InvalidIpLiteral => "invalid IP literal at index ",
         };
         write!(f, "{}{}", msg, self.index)
     }
@@ -104,7 +88,7 @@ impl<'a> Uri<'a> {
     /// Parses a URI reference from a string into a `Uri`.
     #[inline]
     pub fn parse(s: &str) -> Result<Uri<'_>, SyntaxError> {
-        parsing::parse(s.as_bytes()).map_err(|(ptr, kind)| SyntaxError::from_raw(s, ptr, kind))
+        parser::parse(s.as_bytes())
     }
 
     /// An empty URI reference ("").

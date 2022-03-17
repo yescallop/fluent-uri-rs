@@ -39,27 +39,3 @@ macro_rules! take {
         crate::encoding::rchr($s, $b).map(|i| $n!($s, i))
     };
 }
-
-/// Validates the slice with a validator and converts it to a string.
-///
-/// # Safety
-///
-/// Make sure that the validator doesn't allow invalid UTF-8 and that the bytes
-/// before the offset are validated, otherwise there'd be undefined behavior.
-macro_rules! validate {
-    ($s:expr, $v:expr) => {{
-        let s = $s;
-        Validator::validate($v, s)?;
-        // SAFETY: The caller must ensure that the validator doesn't allow invalid UTF-8.
-        unsafe { std::str::from_utf8_unchecked(s) }
-    }};
-    ($s:expr, $v:expr, offset = $offset:expr) => {{
-        let s = $s;
-        Validator::validate($v, &s[$offset..])?;
-        // SAFETY: The caller must ensure that the validator doesn't allow invalid UTF-8
-        // and that the bytes before the offset are valid UTF-8.
-        unsafe { std::str::from_utf8_unchecked(s) }
-    }};
-}
-
-pub(crate) use {err, head, tail, take, validate};

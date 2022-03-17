@@ -4,7 +4,10 @@ use crate::{
     SyntaxErrorKind::*,
     Uri,
 };
-use std::str;
+use std::{
+    net::{Ipv4Addr, Ipv6Addr},
+    str,
+};
 
 type Result<T> = std::result::Result<T, SyntaxError>;
 
@@ -42,6 +45,17 @@ enum PathKind {
     ContinuedNoScheme,
 }
 
+enum Seg {
+    // *1":" 1*4HEXDIG
+    Normal(u16, bool),
+    // "::"
+    Ellipsis,
+    // *1":" 1*4HEXDIG "."
+    MaybeV4,
+    // ":"
+    Invalid,
+}
+
 impl<'a> Parser<'a> {
     fn has_remaining(&self) -> bool {
         self.pos < self.buf.len()
@@ -51,8 +65,8 @@ impl<'a> Parser<'a> {
         &self.buf[self.pos..]
     }
 
-    fn peek(&self) -> Option<u8> {
-        self.buf.get(self.pos).copied()
+    fn peek(&self, i: usize) -> Option<u8> {
+        self.buf.get(self.pos + i).copied()
     }
 
     fn skip(&mut self, n: usize) {
@@ -77,7 +91,7 @@ impl<'a> Parser<'a> {
                 }
                 i += 1;
             }
-            
+
             self.pos = i;
             return Ok(());
         }
@@ -93,15 +107,15 @@ impl<'a> Parser<'a> {
                 if !HEXDIG.contains(hi) || !HEXDIG.contains(lo) {
                     err!(i, InvalidOctet);
                 }
-                i += 2;
+                i += 3;
             } else {
                 let v = table.get(x);
                 if v == 0 {
                     break;
                 }
                 f(v);
+                i += 1;
             }
-            i += 1;
         }
 
         self.pos = i;
@@ -141,7 +155,7 @@ impl<'a> Parser<'a> {
         // Mark initially set to 0.
         self.scan(SCHEME, |_| ())?;
 
-        if self.peek() == Some(b':') {
+        if self.peek(0) == Some(b':') {
             let scheme = self.marked();
             // Scheme starts with a letter.
             if matches!(scheme.bytes().next(), Some(x) if x.is_ascii_alphabetic()) {
@@ -178,7 +192,7 @@ impl<'a> Parser<'a> {
             colon_cnt += (v & 1) as usize;
         })?;
 
-        if self.peek() == Some(b'@') {
+        if self.peek(0) == Some(b'@') {
             // Userinfo present.
             out.userinfo = Some(self.marked());
             self.skip(1);
@@ -228,8 +242,24 @@ impl<'a> Parser<'a> {
                     }
                 }
             };
-            out.host = parse_v4_or_reg_name(host);
+
+            // Save the state.
+            let state = (self.buf, self.pos);
+
+            self.buf = &self.buf[..self.mark + host.len()];
+            self.pos = self.mark;
+
+            let v4 = self.scan_v4();
+
+            out.host = match v4 {
+                Some(addr) if !self.has_remaining() => Host::Ipv4(addr),
+                // SAFETY: We have done the validation.
+                _ => Host::RegName(unsafe { EStr::new_unchecked(host) }),
+            };
             out.port = port;
+
+            // Restore the state.
+            (self.buf, self.pos) = state;
         }
 
         self.out.authority = Some(out);
@@ -247,15 +277,209 @@ impl<'a> Parser<'a> {
         if !self.read_str("[") {
             return Ok(None);
         }
-        todo!()
+        self.mark();
+
+        let host = if let Some(addr) = self.scan_v6() {
+            Host::Ipv6 {
+                addr,
+                zone_id: self.read_zone_id()?,
+            }
+        } else {
+            self.read_ipv_future()?
+        };
+
+        if !self.read_str("]") {
+            err!(self.mark - 1, InvalidIpLiteral);
+        }
+        Ok(Some(host))
+    }
+
+    fn scan_v6(&mut self) -> Option<Ipv6Addr> {
+        let mut segs = [0; 8];
+        let mut ellipsis_i = 8;
+
+        let mut i = 0;
+        while i < 8 {
+            match self.scan_v6_segment() {
+                Some(Seg::Normal(seg, colon)) => {
+                    if colon == (i == 0 || i == ellipsis_i) {
+                        // Preceding colon, triple colons or no colon.
+                        return None;
+                    }
+                    segs[i] = seg;
+                    i += 1;
+                }
+                Some(Seg::Ellipsis) => {
+                    if ellipsis_i != 8 {
+                        // Multiple ellipses.
+                        return None;
+                    }
+                    ellipsis_i = i;
+                }
+                Some(Seg::MaybeV4) => {
+                    if i > 6 {
+                        // Not enough space.
+                        return None;
+                    }
+                    let octets = self.scan_v4()?.octets();
+                    segs[i] = u16::from_be_bytes([octets[0], octets[1]]);
+                    segs[i + 1] = u16::from_be_bytes([octets[2], octets[3]]);
+                    i += 2;
+                    break;
+                }
+                Some(Seg::Invalid) => return None,
+                None => break,
+            }
+        }
+
+        if ellipsis_i == 8 {
+            // No ellipsis.
+            if i != 8 {
+                // Too short.
+                return None;
+            }
+        } else if i == 8 {
+            // Eliding nothing.
+            return None;
+        } else {
+            // Shift the segments after the ellipsis to the right.
+            for j in (ellipsis_i..i).rev() {
+                segs[8 - (i - j)] = segs[j];
+                segs[j] = 0;
+            }
+        }
+
+        Some(segs.into())
+    }
+
+    fn scan_v6_segment(&mut self) -> Option<Seg> {
+        let colon = self.read_str(":");
+        if !self.has_remaining() {
+            return None;
+        }
+
+        use crate::encoding::raw::OCTET_LO as HEX_TABLE;
+
+        let first = self.peek(0).unwrap();
+        let mut x = match HEX_TABLE[first as usize] {
+            v if v < 128 => v as u16,
+            _ => {
+                return match (colon, first == b':') {
+                    (true, true) => {
+                        self.skip(1);
+                        Some(Seg::Ellipsis)
+                    }
+                    (true, false) => Some(Seg::Invalid),
+                    (false, _) => None,
+                };
+            }
+        };
+        let mut i = 1;
+
+        while i < 4 {
+            if let Some(b) = self.peek(i) {
+                match HEX_TABLE[b as usize] {
+                    v if v < 128 => {
+                        x = (x << 4) | v as u16;
+                        i += 1;
+                        continue;
+                    }
+                    _ if b == b'.' => return Some(Seg::MaybeV4),
+                    _ => break,
+                }
+            } else {
+                self.skip(i);
+                return None;
+            }
+        }
+        self.skip(i);
+        Some(Seg::Normal(x, colon))
+    }
+
+    fn read_zone_id(&mut self) -> Result<Option<&'a EStr>> {
+        if !self.read_str("%25") {
+            return Ok(None);
+        }
+        let res = self.read(ZONE_ID)?;
+        if res.is_empty() {
+            err!(self.mark - 1, InvalidIpLiteral);
+        } else {
+            // SAFETY: We have done the validation.
+            Ok(Some(unsafe { EStr::new_unchecked(res) }))
+        }
     }
 
     fn read_v4_or_reg_name(&mut self) -> Result<Host<'a>> {
-        self.read(REG_NAME).map(parse_v4_or_reg_name)
+        self.mark();
+        let v4 = self.scan_v4();
+        let v4_end = self.pos;
+        self.scan(REG_NAME, |_| ())?;
+
+        Ok(match v4 {
+            Some(addr) if self.pos == v4_end => Host::Ipv4(addr),
+            // SAFETY: We have done the validation.
+            _ => Host::RegName(unsafe { EStr::new_unchecked(self.marked()) }),
+        })
+    }
+
+    fn scan_v4(&mut self) -> Option<Ipv4Addr> {
+        let mut res = self.scan_v4_octet()? << 24;
+        for i in (0..3).rev() {
+            if !self.read_str(".") {
+                return None;
+            }
+            res |= self.scan_v4_octet()? << (i * 8);
+        }
+        Some(Ipv4Addr::from(res))
+    }
+
+    fn scan_v4_octet(&mut self) -> Option<u32> {
+        let mut res = self.peek_digit(0)?;
+        if res == 0 {
+            self.skip(1);
+            return Some(0);
+        }
+
+        for i in 1..3 {
+            match self.peek_digit(i) {
+                Some(x) => res = res * 10 + x,
+                None => {
+                    self.skip(i);
+                    return Some(res);
+                }
+            }
+        }
+        self.skip(3);
+
+        if res <= u8::MAX as u32 {
+            Some(res)
+        } else {
+            None
+        }
+    }
+
+    fn peek_digit(&self, i: usize) -> Option<u32> {
+        self.peek(i).and_then(|x| (x as char).to_digit(10))
     }
 
     fn read_port(&mut self) -> Option<&'a str> {
         self.read_str(":").then(|| self.read_by(u8::is_ascii_digit))
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn read_ipv_future(&mut self) -> Result<Host<'a>> {
+        if self.marked_len() == 0 && matches!(self.peek(0), Some(b'v' | b'V')) {
+            self.skip(1);
+            let ver = self.read(HEXDIG)?;
+            if !ver.is_empty() && self.read_str(".") {
+                let addr = self.read(IPV_FUTURE)?;
+                if !addr.is_empty() {
+                    return Ok(Host::IpvFuture { ver, addr });
+                }
+            }
+        }
+        err!(self.mark - 1, InvalidIpLiteral);
     }
 
     fn parse_from_path(&mut self, kind: PathKind) -> Result<()> {
@@ -272,7 +496,7 @@ impl<'a> Parser<'a> {
             PathKind::ContinuedNoScheme => {
                 self.scan(SEGMENT_NC, |_| ())?;
 
-                if self.peek() == Some(b':') {
+                if self.peek(0) == Some(b':') {
                     // In a relative reference, the first path
                     // segment cannot contain a colon character.
                     err!(self.pos, UnexpectedChar);
@@ -280,7 +504,7 @@ impl<'a> Parser<'a> {
 
                 self.scan(PATH, |_| ())?;
                 self.marked()
-            },
+            }
         };
 
         if self.read_str("?") {
@@ -298,10 +522,145 @@ impl<'a> Parser<'a> {
     }
 }
 
-fn parse_v4_or_reg_name(s: &str) -> Host<'_> {
-    match crate::ip::parse_v4(s.as_bytes()) {
-        Some(addr) => Host::Ipv4(addr),
-        // SAFETY: We have done the validation.
-        None => Host::RegName(unsafe { EStr::new_unchecked(s) }),
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse_v4(s: &str) -> Option<Ipv4Addr> {
+        let s = format!("//{}", s);
+        match parse(s.as_bytes()).ok()?.authority()?.host() {
+            &Host::Ipv4(addr) => Some(addr),
+            _ => None,
+        }
+    }
+
+    fn parse_v6(s: &str) -> Option<Ipv6Addr> {
+        let s = format!("//[{}]", s);
+        match parse(s.as_bytes()).ok()?.authority()?.host() {
+            &Host::Ipv6 { addr, .. } => Some(addr),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn test_parse_v4() {
+        assert_eq!(Some(Ipv4Addr::new(127, 0, 0, 1)), parse_v4("127.0.0.1"));
+        assert_eq!(
+            Some(Ipv4Addr::new(255, 255, 255, 255)),
+            parse_v4("255.255.255.255")
+        );
+        assert_eq!(Some(Ipv4Addr::new(0, 0, 0, 0)), parse_v4("0.0.0.0"));
+
+        // out of range
+        assert!(parse_v4("256.0.0.1").is_none());
+        // too short
+        assert!(parse_v4("255.0.0").is_none());
+        // too long
+        assert!(parse_v4("255.0.0.1.2").is_none());
+        // no number between dots
+        assert!(parse_v4("255.0..1").is_none());
+        // octal
+        assert!(parse_v4("255.0.0.01").is_none());
+        // octal zero
+        assert!(parse_v4("255.0.0.00").is_none());
+        assert!(parse_v4("255.0.00.0").is_none());
+        // preceding dot
+        assert!(parse_v4(".0.0.0.0").is_none());
+        // trailing dot
+        assert!(parse_v4("0.0.0.0.").is_none());
+    }
+
+    #[test]
+    fn test_parse_v6() {
+        assert_eq!(
+            Some(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)),
+            parse_v6("0:0:0:0:0:0:0:0")
+        );
+        assert_eq!(
+            Some(Ipv6Addr::new(1, 2, 3, 4, 5, 6, 7, 8)),
+            parse_v6("1:02:003:0004:0005:006:07:8")
+        );
+
+        assert_eq!(Some(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1)), parse_v6("::1"));
+        assert_eq!(Some(Ipv6Addr::new(1, 0, 0, 0, 0, 0, 0, 0)), parse_v6("1::"));
+        assert_eq!(Some(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)), parse_v6("::"));
+
+        assert_eq!(
+            Some(Ipv6Addr::new(0x2a02, 0x6b8, 0, 0, 0, 0, 0x11, 0x11)),
+            parse_v6("2a02:6b8::11:11")
+        );
+
+        assert_eq!(
+            Some(Ipv6Addr::new(0, 2, 3, 4, 5, 6, 7, 8)),
+            parse_v6("::2:3:4:5:6:7:8")
+        );
+        assert_eq!(
+            Some(Ipv6Addr::new(1, 2, 3, 4, 0, 6, 7, 8)),
+            parse_v6("1:2:3:4::6:7:8")
+        );
+        assert_eq!(
+            Some(Ipv6Addr::new(1, 2, 3, 4, 5, 6, 7, 0)),
+            parse_v6("1:2:3:4:5:6:7::")
+        );
+
+        // only a colon
+        assert!(parse_v6(":").is_none());
+        // too long group
+        assert!(parse_v6("::00000").is_none());
+        // too short
+        assert!(parse_v6("1:2:3:4:5:6:7").is_none());
+        // too long
+        assert!(parse_v6("1:2:3:4:5:6:7:8:9").is_none());
+        // triple colon
+        assert!(parse_v6("1:2:::6:7:8").is_none());
+        assert!(parse_v6("1:2:::").is_none());
+        assert!(parse_v6(":::6:7:8").is_none());
+        assert!(parse_v6(":::").is_none());
+        // two double colons
+        assert!(parse_v6("1:2::6::8").is_none());
+        assert!(parse_v6("::6::8").is_none());
+        assert!(parse_v6("1:2::6::").is_none());
+        assert!(parse_v6("::2:6::").is_none());
+        // `::` indicating zero groups of zeros
+        assert!(parse_v6("::1:2:3:4:5:6:7:8").is_none());
+        assert!(parse_v6("1:2:3:4::5:6:7:8").is_none());
+        assert!(parse_v6("1:2:3:4:5:6:7:8::").is_none());
+        // preceding colon
+        assert!(parse_v6(":1:2:3:4:5:6:7:8").is_none());
+        assert!(parse_v6(":1::1").is_none());
+        assert!(parse_v6(":1").is_none());
+        // trailing colon
+        assert!(parse_v6("1:2:3:4:5:6:7:8:").is_none());
+        assert!(parse_v6("1::1:").is_none());
+        assert!(parse_v6("1:").is_none());
+    }
+
+    #[test]
+    fn test_parse_v4_in_v6() {
+        assert_eq!(
+            Some(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 49152, 545)),
+            parse_v6("::192.0.2.33")
+        );
+        assert_eq!(
+            Some(Ipv6Addr::new(0, 0, 0, 0, 0, 0xFFFF, 49152, 545)),
+            parse_v6("::FFFF:192.0.2.33")
+        );
+        assert_eq!(
+            Some(Ipv6Addr::new(0x64, 0xff9b, 0, 0, 0, 0, 49152, 545)),
+            parse_v6("64:ff9b::192.0.2.33")
+        );
+        assert_eq!(
+            Some(Ipv6Addr::new(
+                0x2001, 0xdb8, 0x122, 0xc000, 0x2, 0x2100, 49152, 545
+            )),
+            parse_v6("2001:db8:122:c000:2:2100:192.0.2.33")
+        );
+
+        // colon after v4
+        assert!(parse_v6("::127.0.0.1:").is_none());
+        // not enough groups
+        assert!(parse_v6("1:2:3:4:5:127.0.0.1").is_none());
+        // too many groups
+        assert!(parse_v6("1:2:3:4:5:6:7:127.0.0.1").is_none());
     }
 }

@@ -8,8 +8,5 @@
 /// Utilities for percent-encoding.
 pub mod encoding;
 
-/// IP address parser as per RFC 3986.
-pub mod ip;
-
 mod uri;
 pub use uri::*;

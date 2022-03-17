@@ -246,14 +246,17 @@ fn parse_error() {
     assert_eq!(e.index(), 0);
     assert_eq!(e.kind(), UnexpectedChar);
 
+    // After rewriting the parser, the following two cases are interpreted as
+    // containing colon in the first path segment of a relative reference.
+
     // Unexpected char in scheme
     let e = Uri::parse("exam=ple:foo").unwrap_err();
-    assert_eq!(e.index(), 4);
+    assert_eq!(e.index(), 8);
     assert_eq!(e.kind(), UnexpectedChar);
 
     // Percent-encoded scheme
     let e = Uri::parse("a%20:foo").unwrap_err();
-    assert_eq!(e.index(), 1);
+    assert_eq!(e.index(), 4);
     assert_eq!(e.kind(), UnexpectedChar);
 
     // Unexpected char in path
@@ -271,63 +274,68 @@ fn parse_error() {
     assert_eq!(e.index(), 4);
     assert_eq!(e.kind(), InvalidOctet);
 
+    // Non-decimal port
+    // In this case the port is validated in reverse.
+    let e = Uri::parse("http://example.com:80ab").unwrap_err();
+    assert_eq!(e.index(), 22);
+    assert_eq!(e.kind(), UnexpectedChar);
+
+    let e = Uri::parse("http://user@example.com:80ab").unwrap_err();
+    assert_eq!(e.index(), 26);
+    assert_eq!(e.kind(), UnexpectedChar);
+
     // Unclosed bracket
     let e = Uri::parse("https://[::1/").unwrap_err();
     assert_eq!(e.index(), 8);
-    assert_eq!(e.kind(), UnclosedBracket);
+    assert_eq!(e.kind(), InvalidIpLiteral);
 
     // Not port after IP literal
     let e = Uri::parse("https://[::1]wrong").unwrap_err();
     assert_eq!(e.index(), 13);
     assert_eq!(e.kind(), UnexpectedChar);
 
-    // Non-decimal port
-    let e = Uri::parse("http://127.0.0.1:abcd").unwrap_err();
-    assert_eq!(e.index(), 17);
-    assert_eq!(e.kind(), UnexpectedChar);
-
     // IP literal too short
     let e = Uri::parse("http://[:]").unwrap_err();
-    assert_eq!(e.index(), 8);
-    assert_eq!(e.kind(), UnexpectedChar);
+    assert_eq!(e.index(), 7);
+    assert_eq!(e.kind(), InvalidIpLiteral);
     let e = Uri::parse("http://[]").unwrap_err();
-    assert_eq!(e.index(), 8);
-    assert_eq!(e.kind(), UnexpectedChar);
+    assert_eq!(e.index(), 7);
+    assert_eq!(e.kind(), InvalidIpLiteral);
 
     // Non-hexadecimal version in IPvFuture
     let e = Uri::parse("http://[vG.addr]").unwrap_err();
-    assert_eq!(e.index(), 9);
-    assert_eq!(e.kind(), UnexpectedChar);
+    assert_eq!(e.index(), 7);
+    assert_eq!(e.kind(), InvalidIpLiteral);
 
     // Empty version in IPvFuture
     let e = Uri::parse("http://[v.addr]").unwrap_err();
-    assert_eq!(e.index(), 8);
-    assert_eq!(e.kind(), InvalidIpvFuture);
+    assert_eq!(e.index(), 7);
+    assert_eq!(e.kind(), InvalidIpLiteral);
 
     // Empty address in IPvFuture
     let e = Uri::parse("ftp://[vF.]").unwrap_err();
-    assert_eq!(e.index(), 7);
-    assert_eq!(e.kind(), InvalidIpvFuture);
+    assert_eq!(e.index(), 6);
+    assert_eq!(e.kind(), InvalidIpLiteral);
 
     // Percent-encoded address in IPvFuture
     let e = Uri::parse("ftp://[vF.%20]").unwrap_err();
-    assert_eq!(e.index(), 10);
-    assert_eq!(e.kind(), UnexpectedChar);
+    assert_eq!(e.index(), 6);
+    assert_eq!(e.kind(), InvalidIpLiteral);
 
     // Ill-preceded Zone ID
     let e = Uri::parse("ftp://[::1%240]").unwrap_err();
-    assert_eq!(e.index(), 10);
-    assert_eq!(e.kind(), IllPrecededOrEmptyZoneID);
+    assert_eq!(e.index(), 6);
+    assert_eq!(e.kind(), InvalidIpLiteral);
 
     // Empty Zone ID
     let e = Uri::parse("ftp://[::1%25]").unwrap_err();
-    assert_eq!(e.index(), 10);
-    assert_eq!(e.kind(), IllPrecededOrEmptyZoneID);
+    assert_eq!(e.index(), 6);
+    assert_eq!(e.kind(), InvalidIpLiteral);
 
     // Invalid IPv6 address
     let e = Uri::parse("example://[44:55::66::77]").unwrap_err();
-    assert_eq!(e.index(), 11);
-    assert_eq!(e.kind(), InvalidIpv6);
+    assert_eq!(e.index(), 10);
+    assert_eq!(e.kind(), InvalidIpLiteral);
 }
 
 #[test]
@@ -350,10 +358,10 @@ fn strict_ip_addr() {
 
     assert_eq!(
         Uri::parse("//[::01.1.1.1]").unwrap_err().kind(),
-        InvalidIpv6
+        InvalidIpLiteral
     );
     assert_eq!(
         Uri::parse("//[::00.1.1.1]").unwrap_err().kind(),
-        InvalidIpv6
+        InvalidIpLiteral
     );
 }
