@@ -1,13 +1,11 @@
-use crate::SyntaxErrorKind::{self, *};
+use crate::{Result, SyntaxError, SyntaxErrorKind::*};
 
 use super::{
-    chr,
+    err,
     table::{Table, HEXDIG},
 };
 use beef::Cow;
 use std::{ptr, str};
-
-pub(crate) type RawResult<T> = Result<T, (*const u8, SyntaxErrorKind)>;
 
 const fn gen_octet_table(hi: bool) -> [u8; 256] {
     let mut out = [0xFF; 256];
@@ -26,24 +24,39 @@ const fn gen_octet_table(hi: bool) -> [u8; 256] {
     out
 }
 
-static OCTET_HI: &[u8; 256] = &gen_octet_table(true);
-pub(crate) static OCTET_LO: &[u8; 256] = &gen_octet_table(false);
+static OCTET_TABLE_HI: &[u8; 256] = &gen_octet_table(true);
+pub(crate) static OCTET_TABLE_LO: &[u8; 256] = &gen_octet_table(false);
 
 /// Decodes a percent-encoded octet assuming validity.
 fn decode_octet_unchecked(hi: u8, lo: u8) -> u8 {
-    OCTET_HI[hi as usize] | OCTET_LO[lo as usize]
+    OCTET_TABLE_HI[hi as usize] | OCTET_TABLE_LO[lo as usize]
 }
 
 /// Decodes a percent-encoded octet.
 fn decode_octet(mut hi: u8, mut lo: u8) -> Option<u8> {
-    hi = OCTET_HI[hi as usize];
-    lo = OCTET_LO[lo as usize];
-    if hi != 0xFF && lo != 0xFF {
+    hi = OCTET_TABLE_HI[hi as usize];
+    lo = OCTET_TABLE_LO[lo as usize];
+    if hi & 1 == 0 && lo & 0x80 == 0 {
         Some(hi | lo)
     } else {
         None
     }
 }
+
+const fn gen_hex_table() -> [u8; 512] {
+    const HEX_DIGITS: &[u8; 16] = b"0123456789ABCDEF";
+
+    let mut i = 0;
+    let mut out = [0; 512];
+    while i < 256 {
+        out[i * 2] = HEX_DIGITS[i >> 4];
+        out[i * 2 + 1] = HEX_DIGITS[i & 15];
+        i += 1;
+    }
+    out
+}
+
+static HEX_TABLE: &[u8; 512] = &gen_hex_table();
 
 /// Copies the first `i` bytes from `s` into a `Vec` and returns it.
 ///
@@ -96,18 +109,14 @@ unsafe fn push(v: &mut Vec<u8>, x: u8) {
 ///
 /// `v.len() + 3` must not exceed `v.capacity()`.
 unsafe fn push_pct_encoded(v: &mut Vec<u8>, x: u8) {
-    const HEX_DIGITS: &[u8; 16] = b"0123456789ABCDEF";
-
     let len = v.len();
     debug_assert!(len + 2 < v.capacity());
     // SAFETY: The caller must ensure that the capacity is enough.
     unsafe {
         let ptr = v.as_mut_ptr().add(len);
-
-        let b = x as usize;
         *ptr = b'%';
-        *ptr.add(1) = HEX_DIGITS[(b >> 4) & 15];
-        *ptr.add(2) = HEX_DIGITS[b & 15];
+        *ptr.add(1) = HEX_TABLE[x as usize * 2];
+        *ptr.add(2) = HEX_TABLE[x as usize * 2 + 1];
 
         v.set_len(len + 3);
     }
@@ -148,7 +157,7 @@ pub(crate) fn encode<'a>(s: &'a [u8], table: &Table) -> Cow<'a, str> {
 /// Any invalid encoded octet in the string will result in undefined behavior.
 pub unsafe fn decode_unchecked(s: &[u8]) -> Cow<'_, [u8]> {
     // Skip bytes that are not '%'.
-    let mut i = match chr(s, b'%') {
+    let mut i = match s.iter().position(|&x| x == b'%') {
         Some(i) => i,
         None => return Cow::borrowed(s),
     };
@@ -168,118 +177,107 @@ pub unsafe fn decode_unchecked(s: &[u8]) -> Cow<'_, [u8]> {
 
             // SAFETY: The output will never be longer than the input.
             unsafe { push(&mut res, octet) }
-            i += 2;
+            i += 3;
         } else {
             // SAFETY: The output will never be longer than the input.
             unsafe { push(&mut res, x) }
+            i += 1;
         }
-        i += 1;
     }
     Cow::owned(res)
 }
 
-pub(super) fn decode(s: &str) -> RawResult<Cow<'_, [u8]>> {
+/// Decodes a percent-encoded string.
+pub fn decode(s: &str) -> Result<Cow<'_, [u8]>> {
     // Skip bytes that are not '%'.
-    let mut i = match chr(s.as_bytes(), b'%') {
+    let mut i = match s.bytes().position(|x| x == b'%') {
         Some(i) => i,
         None => return Ok(Cow::borrowed(s.as_bytes())),
     };
+    let s = s.as_bytes();
 
     // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
-    let mut res = unsafe { copy(s.as_bytes(), i, false) };
-    let ptr = s.as_ptr();
+    let mut res = unsafe { copy(s, i, false) };
 
     while i < s.len() {
-        // SAFETY: We have checked `i < s.len()`.
-        let cur = unsafe { ptr.add(i) };
-        let x = unsafe { *cur };
+        let x = s[i];
         if x == b'%' {
-            if i + 2 >= s.len() {
-                err!(cur, InvalidOctet);
-            }
-            // SAFETY: Dereferencing is safe since `i + 1 < i + 2 < s.len()`.
-            let (hi, lo) = unsafe { (*ptr.add(i + 1), *ptr.add(i + 2)) };
+            let (hi, lo) = match (s.get(i + 1), s.get(i + 2)) {
+                (Some(&hi), Some(&lo)) => (hi, lo),
+                _ => err!(i, InvalidOctet),
+            };
 
             let octet = match decode_octet(hi, lo) {
                 Some(o) => o,
-                None => err!(cur, InvalidOctet),
+                None => err!(i, InvalidOctet),
             };
 
             // SAFETY: The output will never be longer than the input.
             unsafe { push(&mut res, octet) }
-            i += 2;
+            i += 3;
         } else {
             // SAFETY: The output will never be longer than the input.
             unsafe { push(&mut res, x) }
+            i += 1;
         }
-        i += 1;
     }
     Ok(Cow::owned(res))
 }
 
-pub(crate) fn validate(s: &[u8], table: &Table) -> RawResult<()> {
+/// Checks if all characters in a string are allowed by the given table.
+pub fn validate(s: &str, table: &Table) -> Result<()> {
+    let s = s.as_bytes();
     if s.is_empty() {
         return Ok(());
     }
 
     if !table.allow_enc() {
-        return validate_by(s, |&x| table.contains(x));
+        match s.iter().position(|&x| !table.contains(x)) {
+            Some(i) => err!(i, UnexpectedChar),
+            None => return Ok(()),
+        }
     }
 
-    let ptr = s.as_ptr();
     let mut i = 0;
-
     while i < s.len() {
-        // SAFETY: We have checked `i < s.len()`.
-        let cur = unsafe { ptr.add(i) };
-        let x = unsafe { *cur };
+        let x = s[i];
         if x == b'%' {
-            if i + 2 >= s.len() {
-                err!(cur, InvalidOctet);
+            match (s.get(i + 1), s.get(i + 2)) {
+                (Some(&hi), Some(&lo)) if HEXDIG.get(hi) & HEXDIG.get(lo) != 0 => (),
+                _ => err!(i, InvalidOctet),
             }
-            // SAFETY: Dereferencing is safe since `i + 1 < i + 2 < s.len()`.
-            let (hi, lo) = unsafe { (*ptr.add(i + 1), *ptr.add(i + 2)) };
-
-            if !HEXDIG.contains(hi) || !HEXDIG.contains(lo) {
-                err!(cur, InvalidOctet);
+            i += 3;
+        } else {
+            if !table.contains(x) {
+                err!(i, UnexpectedChar);
             }
-            i += 2;
-        } else if !table.contains(x) {
-            err!(cur, UnexpectedChar);
+            i += 1;
         }
-        i += 1;
     }
     Ok(())
 }
 
-pub(crate) const fn validate_const(s: &[u8]) -> Result<(), usize> {
+pub(crate) const fn validate_const(s: &[u8]) -> bool {
     if s.is_empty() {
-        return Ok(());
+        return true;
     }
 
     let mut i = 0;
-
     while i < s.len() {
         let x = s[i];
         if x == b'%' {
             if i + 2 >= s.len() {
-                return Err(i);
+                return false;
             }
             let (hi, lo) = (s[i + 1], s[i + 2]);
 
             if !hi.is_ascii_hexdigit() || !lo.is_ascii_hexdigit() {
-                return Err(i);
+                return false;
             }
-            i += 2;
+            i += 3;
+        } else {
+            i += 1;
         }
-        i += 1;
     }
-    Ok(())
-}
-
-fn validate_by(s: &[u8], pred: impl Fn(&u8) -> bool) -> RawResult<()> {
-    match s.iter().position(|b| !pred(b)) {
-        Some(i) => err!(s[i], UnexpectedChar),
-        None => Ok(()),
-    }
+    true
 }

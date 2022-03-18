@@ -5,7 +5,6 @@ authors = ["Scallop Ye <yescallop@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-memchr = "2.4.1"
 beef = "0.5.1"
 
 # Commented out to reduce compile time.

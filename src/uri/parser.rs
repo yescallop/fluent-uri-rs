@@ -1,6 +1,6 @@
 use crate::{
-    encoding::{table::*, EStr},
-    Authority, Host, SyntaxError,
+    encoding::{err, table::*, EStr},
+    Authority, Host, Result, SyntaxError,
     SyntaxErrorKind::*,
     Uri,
 };
@@ -8,18 +8,6 @@ use std::{
     net::{Ipv4Addr, Ipv6Addr},
     str,
 };
-
-type Result<T> = std::result::Result<T, SyntaxError>;
-
-/// Returns immediately with a syntax error.
-macro_rules! err {
-    ($index:expr, $kind:expr) => {
-        return Err(SyntaxError {
-            index: $index,
-            kind: $kind,
-        })
-    };
-}
 
 pub(crate) fn parse(s: &[u8]) -> Result<Uri<'_>> {
     let mut parser = Parser {
@@ -53,7 +41,7 @@ enum Seg {
     // *1":" 1*4HEXDIG "."
     MaybeV4,
     // ":"
-    Invalid,
+    SingleColon,
 }
 
 impl<'a> Parser<'a> {
@@ -99,13 +87,9 @@ impl<'a> Parser<'a> {
         while i < s.len() {
             let x = s[i];
             if x == b'%' {
-                if i + 2 >= s.len() {
-                    err!(i, InvalidOctet);
-                }
-                let (hi, lo) = (s[i + 1], s[i + 2]);
-
-                if !HEXDIG.contains(hi) || !HEXDIG.contains(lo) {
-                    err!(i, InvalidOctet);
+                match (s.get(i + 1), s.get(i + 2)) {
+                    (Some(&hi), Some(&lo)) if HEXDIG.get(hi) & HEXDIG.get(lo) != 0 => (),
+                    _ => err!(i, InvalidOctet),
                 }
                 i += 3;
             } else {
@@ -284,8 +268,10 @@ impl<'a> Parser<'a> {
                 addr,
                 zone_id: self.read_zone_id()?,
             }
-        } else {
+        } else if self.marked_len() == 0 {
             self.read_ipv_future()?
+        } else {
+            err!(self.mark - 1, InvalidIpLiteral);
         };
 
         if !self.read_str("]") {
@@ -327,7 +313,7 @@ impl<'a> Parser<'a> {
                     i += 2;
                     break;
                 }
-                Some(Seg::Invalid) => return None,
+                Some(Seg::SingleColon) => return None,
                 None => break,
             }
         }
@@ -355,22 +341,24 @@ impl<'a> Parser<'a> {
     fn scan_v6_segment(&mut self) -> Option<Seg> {
         let colon = self.read_str(":");
         if !self.has_remaining() {
-            return None;
+            return if colon { Some(Seg::SingleColon) } else { None };
         }
 
-        use crate::encoding::raw::OCTET_LO as HEX_TABLE;
+        use crate::encoding::raw::OCTET_TABLE_LO as HEX_TABLE;
 
         let first = self.peek(0).unwrap();
         let mut x = match HEX_TABLE[first as usize] {
             v if v < 128 => v as u16,
             _ => {
-                return match (colon, first == b':') {
-                    (true, true) => {
+                return if colon {
+                    if first == b':' {
                         self.skip(1);
                         Some(Seg::Ellipsis)
+                    } else {
+                        Some(Seg::SingleColon)
                     }
-                    (true, false) => Some(Seg::Invalid),
-                    (false, _) => None,
+                } else {
+                    None
                 };
             }
         };
@@ -469,7 +457,7 @@ impl<'a> Parser<'a> {
     #[cold]
     #[inline(never)]
     fn read_ipv_future(&mut self) -> Result<Host<'a>> {
-        if self.marked_len() == 0 && matches!(self.peek(0), Some(b'v' | b'V')) {
+        if matches!(self.peek(0), Some(b'v' | b'V')) {
             self.skip(1);
             let ver = self.read(HEXDIG)?;
             if !ver.is_empty() && self.read_str(".") {

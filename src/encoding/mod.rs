@@ -1,12 +1,10 @@
 /// Character tables from RFC 3986 and RFC 6874.
 pub mod table;
 
-#[macro_use]
-pub(crate) mod macros;
-
 pub(crate) mod raw;
 
-use crate::SyntaxError;
+use self::table::Table;
+use crate::Result;
 use beef::Cow;
 use std::{
     borrow::{self, Cow::*},
@@ -14,7 +12,19 @@ use std::{
     string::FromUtf8Error,
 };
 
-pub use raw::decode_unchecked;
+/// Returns immediately with a syntax error.
+macro_rules! err {
+    ($index:expr, $kind:expr) => {
+        return Err(SyntaxError {
+            index: $index,
+            kind: $kind,
+        })
+    };
+}
+
+pub(crate) use err;
+
+pub use raw::{decode, decode_unchecked, validate};
 
 /// Percent-encodes any characters in a byte sequence that are not allowed by the given table.
 ///
@@ -25,18 +35,6 @@ pub use raw::decode_unchecked;
 pub fn encode<'a, S: AsRef<[u8]> + ?Sized>(s: &'a S, table: &Table) -> Cow<'a, str> {
     assert!(table.allow_enc(), "table not for encoding");
     raw::encode(s.as_ref(), table)
-}
-
-/// Decodes a percent-encoded string.
-#[inline]
-pub fn decode(s: &str) -> Result<Cow<'_, [u8]>, SyntaxError> {
-    raw::decode(s).map_err(|(ptr, kind)| SyntaxError::from_raw(s, ptr, kind))
-}
-
-/// Checks if all characters in a string are allowed by the given table.
-#[inline]
-pub fn validate(s: &str, table: &Table) -> Result<(), SyntaxError> {
-    raw::validate(s.as_bytes(), table).map_err(|(ptr, kind)| SyntaxError::from_raw(s, ptr, kind))
 }
 
 /// Percent-encoded string slices.
@@ -113,7 +111,7 @@ impl EStr {
     ///
     /// Panics if the string is not properly encoded.
     pub const fn new(s: &str) -> &EStr {
-        if raw::validate_const(s.as_bytes()).is_ok() {
+        if raw::validate_const(s.as_bytes()) {
             // SAFETY: We have done the validation.
             unsafe { EStr::new_unchecked(s) }
         } else {
@@ -210,7 +208,7 @@ impl EStr {
         );
         let bytes = self.inner.as_bytes();
 
-        let i = chr(bytes, delim as u8)?;
+        let i = bytes.iter().position(|&x| x == delim as u8)?;
         let (head, tail) = (&bytes[..i], &bytes[i + 1..]);
         // SAFETY: Splitting at a reserved character leaves valid percent-encoded UTF-8.
         unsafe { Some((EStr::from_bytes(head), EStr::from_bytes(tail))) }
@@ -303,13 +301,17 @@ impl<'a> Iterator for Split<'a> {
         if self.finished {
             return None;
         }
-        let res = match take!(head, self.s, self.delim) {
-            Some(x) => x,
+        let res;
+        match self.s.iter().position(|&x| x == self.delim) {
+            Some(i) => {
+                res = &self.s[..i];
+                self.s = &self.s[i + 1..];
+            }
             None => {
                 self.finished = true;
-                self.s
+                res = self.s;
             }
-        };
+        }
         // SAFETY: Splitting at a reserved character leaves valid percent-encoded UTF-8.
         Some(unsafe { EStr::from_bytes(res) })
     }
@@ -330,47 +332,20 @@ impl<'a> DoubleEndedIterator for Split<'a> {
         if self.finished {
             return None;
         }
-        let res = match take!(rev, tail, self.s, self.delim) {
-            Some(x) => x,
+        let res;
+        match self.s.iter().rposition(|&x| x == self.delim) {
+            Some(i) => {
+                res = &self.s[i + 1..];
+                self.s = &self.s[..i];
+            }
             None => {
                 self.finished = true;
-                self.s
+                res = self.s;
             }
-        };
+        }
         // SAFETY: Splitting at a reserved character leaves valid percent-encoded UTF-8.
         Some(unsafe { EStr::from_bytes(res) })
     }
-}
-
-// Memchr wrappers with unreachable hints.
-// A bunch of unsafe blocks can be avoided in this way.
-
-use std::hint;
-
-use self::table::Table;
-
-// This function should be inlined since it is called by an inlined public function.
-#[inline]
-pub(crate) fn chr(s: &[u8], b: u8) -> Option<usize> {
-    memchr::memchr(b, s).map(|i| {
-        if i >= s.len() {
-            // SAFETY: We assume that the index is never out of bounds.
-            unsafe { hint::unreachable_unchecked() }
-        }
-        i
-    })
-}
-
-// This function should be inlined since it is called by an inlined public function.
-#[inline]
-pub(crate) fn rchr(s: &[u8], b: u8) -> Option<usize> {
-    memchr::memrchr(b, s).map(|i| {
-        if i >= s.len() {
-            // SAFETY: We assume that the index is never out of bounds.
-            unsafe { hint::unreachable_unchecked() }
-        }
-        i
-    })
 }
 
 #[cfg(test)]
@@ -393,6 +368,9 @@ mod tests {
         assert_eq!(Ok(b"\x2d\xe6\xb5" as _), decode("%2D%E6%B5").as_deref());
 
         let s = "%2d%";
+        assert_eq!(3, decode(s).unwrap_err().index());
+
+        let s = "%2d%fg";
         assert_eq!(3, decode(s).unwrap_err().index());
 
         // We used to use slot 0 to indicate that percent-encoded octets are allowed,

@@ -30,22 +30,11 @@ pub enum SyntaxErrorKind {
 /// A syntax error occurred when parsing or validating strings.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SyntaxError {
-    index: usize,
-    kind: SyntaxErrorKind,
+    pub(crate) index: usize,
+    pub(crate) kind: SyntaxErrorKind,
 }
 
 impl SyntaxError {
-    /// Creates a `SyntaxError` from a raw pointer.
-    ///
-    /// The pointer must be within the given string, otherwise the result would be invalid.
-    // This function should be inlined since it is called by inlined public functions.
-    #[inline]
-    pub(crate) fn from_raw(s: &str, ptr: *const u8, kind: SyntaxErrorKind) -> SyntaxError {
-        let index = (ptr as usize).wrapping_sub(s.as_ptr() as usize);
-        debug_assert!(index < s.len());
-        SyntaxError { index, kind }
-    }
-
     /// Returns the index where the error occurred in the input string.
     #[inline]
     pub fn index(self) -> usize {
@@ -71,6 +60,8 @@ impl fmt::Display for SyntaxError {
         write!(f, "{}{}", msg, self.index)
     }
 }
+
+pub(crate) type Result<T, E = SyntaxError> = std::result::Result<T, E>;
 
 /// A URI reference defined in [RFC 3986].
 ///
@@ -167,6 +158,8 @@ impl<'a> Uri<'a> {
 
 /// The [scheme] element of URI reference.
 ///
+/// This struct provides fast lowercase-only comparison functions.
+///
 /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
 #[derive(Debug, Clone, Copy)]
 pub struct Scheme<'a>(&'a str);
@@ -195,6 +188,21 @@ impl<'a> Scheme<'a> {
                 .bytes()
                 .zip(s.bytes())
                 .all(|(a, b)| a.to_ascii_lowercase() == b)
+    }
+
+    /// Checks if the scheme equals case-insensitively with a lowercase alphabetical string.
+    ///
+    /// This function is slightly faster than `eq_lowercase` but would yield
+    /// incorrect result if the string is not a lowercase alphabetical one.
+    #[inline]
+    pub fn eq_lowercase_alpha(self, s: &str) -> bool {
+        const ASCII_CASE_MASK: u8 = 0b0010_0000;
+        self.0.len() == s.len()
+            && self
+                .0
+                .bytes()
+                .zip(s.bytes())
+                .all(|(a, b)| a | ASCII_CASE_MASK == b)
     }
 }
 
