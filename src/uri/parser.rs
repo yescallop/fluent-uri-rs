@@ -344,7 +344,7 @@ impl<'a> Parser<'a> {
             return if colon { Some(Seg::SingleColon) } else { None };
         }
 
-        use crate::encoding::raw::OCTET_TABLE_LO as HEX_TABLE;
+        use crate::encoding::imp::OCTET_TABLE_LO as HEX_TABLE;
 
         let first = self.peek(0).unwrap();
         let mut x = match HEX_TABLE[first as usize] {

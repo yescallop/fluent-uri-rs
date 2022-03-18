@@ -1,7 +1,7 @@
 /// Character tables from RFC 3986 and RFC 6874.
 pub mod table;
 
-pub(crate) mod raw;
+pub(crate) mod imp;
 
 use self::table::Table;
 use crate::Result;
@@ -24,7 +24,7 @@ macro_rules! err {
 
 pub(crate) use err;
 
-pub use raw::{decode, decode_unchecked, validate};
+pub use imp::{decode, decode_unchecked, validate};
 
 /// Percent-encodes any characters in a byte sequence that are not allowed by the given table.
 ///
@@ -34,7 +34,7 @@ pub use raw::{decode, decode_unchecked, validate};
 #[inline]
 pub fn encode<'a, S: AsRef<[u8]> + ?Sized>(s: &'a S, table: &Table) -> Cow<'a, str> {
     assert!(table.allow_enc(), "table not for encoding");
-    raw::encode(s.as_ref(), table)
+    imp::encode(s.as_ref(), table)
 }
 
 /// Percent-encoded string slices.
@@ -111,7 +111,7 @@ impl EStr {
     ///
     /// Panics if the string is not properly encoded.
     pub const fn new(s: &str) -> &EStr {
-        if raw::validate_const(s.as_bytes()) {
+        if imp::validate_const(s.as_bytes()) {
             // SAFETY: We have done the validation.
             unsafe { EStr::new_unchecked(s) }
         } else {
