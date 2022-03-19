@@ -50,7 +50,7 @@ impl<'a> Parser<'a> {
     }
 
     fn remaining(&self) -> &'a [u8] {
-        &self.buf[self.pos..]
+        unsafe { self.buf.get_unchecked(self.pos..) }
     }
 
     fn peek(&self, i: usize) -> Option<u8> {
@@ -111,13 +111,13 @@ impl<'a> Parser<'a> {
     }
 
     fn marked(&mut self) -> &'a str {
-        unsafe { str::from_utf8_unchecked(&self.buf[self.mark..self.pos]) }
+        unsafe { str::from_utf8_unchecked(self.buf.get_unchecked(self.mark..self.pos)) }
     }
 
     fn read(&mut self, table: &Table) -> Result<&'a str> {
         let start = self.pos;
         self.scan(table, |_| ())?;
-        Ok(unsafe { str::from_utf8_unchecked(&self.buf[start..self.pos]) })
+        Ok(unsafe { str::from_utf8_unchecked(self.buf.get_unchecked(start..self.pos)) })
     }
 
     fn read_by(&mut self, good: impl Fn(&u8) -> bool) -> &'a str {
@@ -200,7 +200,7 @@ impl<'a> Parser<'a> {
 
                     let mut i = s.len() - 1;
                     loop {
-                        let x = s.as_bytes()[i];
+                        let x = unsafe { *s.as_bytes().get_unchecked(i) };
                         if !x.is_ascii_digit() {
                             if x == b':' {
                                 break;
@@ -230,7 +230,7 @@ impl<'a> Parser<'a> {
             // Save the state.
             let state = (self.buf, self.pos);
 
-            self.buf = &self.buf[..self.mark + host.len()];
+            self.buf = unsafe { self.buf.get_unchecked(..self.mark + host.len()) };
             self.pos = self.mark;
 
             let v4 = self.scan_v4();
@@ -344,7 +344,7 @@ impl<'a> Parser<'a> {
             return if colon { Some(Seg::SingleColon) } else { None };
         }
 
-        use crate::encoding::imp::OCTET_TABLE_LO as HEX_TABLE;
+        use crate::encoding::OCTET_TABLE_LO as HEX_TABLE;
 
         let first = self.peek(0).unwrap();
         let mut x = match HEX_TABLE[first as usize] {

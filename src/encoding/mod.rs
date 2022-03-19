@@ -1,14 +1,16 @@
 /// Character tables from RFC 3986 and RFC 6874.
 pub mod table;
 
-pub(crate) mod imp;
+mod imp;
+pub use imp::*;
 
 use self::table::Table;
 use crate::Result;
 use beef::Cow;
 use std::{
     borrow::{self, Cow::*},
-    fmt, hash, str,
+    fmt, hash,
+    str::{self, Utf8Error},
     string::FromUtf8Error,
 };
 
@@ -24,9 +26,7 @@ macro_rules! err {
 
 pub(crate) use err;
 
-pub use imp::{decode, decode_unchecked, validate};
-
-/// Percent-encodes any characters in a byte sequence that are not allowed by the given table.
+/// Percent-encodes a byte sequence.
 ///
 /// # Panics
 ///
@@ -35,6 +35,27 @@ pub use imp::{decode, decode_unchecked, validate};
 pub fn encode<'a, S: AsRef<[u8]> + ?Sized>(s: &'a S, table: &Table) -> Cow<'a, str> {
     assert!(table.allow_enc(), "table not for encoding");
     imp::encode(s.as_ref(), table)
+}
+
+/// Percent-encodes a byte sequence with a buffer.
+///
+/// Returns `None` if the bytes need no encoding.
+///
+/// The argument `append_always` indicates whether the bytes should
+/// be appended to the buffer if the bytes need no encoding.
+///
+/// # Panics
+///
+/// Panics if the table is not for encoding.
+#[inline]
+pub fn encode_with<'a, S: AsRef<[u8]> + ?Sized>(
+    s: &S,
+    table: &Table,
+    buf: &'a mut Vec<u8>,
+    append_always: bool,
+) -> Option<&'a str> {
+    assert!(table.allow_enc(), "table not for encoding");
+    imp::encode_with(s.as_ref(), table, buf, append_always)
 }
 
 /// Percent-encoded string slices.
@@ -154,6 +175,24 @@ impl EStr {
         Decode(unsafe { decode_unchecked(self.inner.as_bytes()) })
     }
 
+    /// Decodes the `EStr` with a buffer.
+    ///
+    /// Note that the buffer is cleared prior to decoding
+    /// and the decoded bytes are not necessarily in the buffer.
+    pub fn decode_with<'a>(&'a self, buf: &'a mut Vec<u8>) -> DecodeRef<'a> {
+        buf.clear();
+        let s = self.inner.as_bytes();
+
+        // SAFETY: An `EStr` may only be created through `new_unchecked`,
+        // of which the caller must guarantee that the string is properly encoded.
+        let res = unsafe { decode_with_unchecked(s, buf, false) };
+
+        DecodeRef {
+            bytes: res.unwrap_or(s),
+            buffered: res.is_some(),
+        }
+    }
+
     /// Splits the `EStr` on the occurrences of the specified delimiter.
     ///
     /// # Panics
@@ -173,7 +212,7 @@ impl EStr {
     ///     .split('&')
     ///     .filter_map(|s| s.split_once('='))
     ///     .map(|(k, v)| (k.decode(), v.decode()))
-    ///     .filter_map(|(k, v)| k.into_utf8().ok().zip(v.into_utf8().ok()))
+    ///     .filter_map(|(k, v)| k.into_string().ok().zip(v.into_string().ok()))
     ///     .collect();
     /// assert_eq!(map["name"], "张三");
     /// assert_eq!(map["speech"], "¡Olé!");
@@ -239,7 +278,7 @@ impl<'a> Decode<'a> {
     ///
     /// An error is returned if the decoded bytes are not valid UTF-8.
     #[inline]
-    pub fn into_utf8(self) -> Result<Cow<'a, str>, FromUtf8Error> {
+    pub fn into_string(self) -> Result<Cow<'a, str>, FromUtf8Error> {
         // FIXME: A (maybe) more efficient approach: only validating encoded sequences.
         if self.0.is_borrowed() {
             let bytes = self.0.unwrap_borrowed();
@@ -252,7 +291,7 @@ impl<'a> Decode<'a> {
 
     /// Converts the decoded bytes to a string lossily.
     #[inline]
-    pub fn into_utf8_lossy(self) -> Cow<'a, str> {
+    pub fn into_string_lossy(self) -> Cow<'a, str> {
         if self.0.is_borrowed() {
             let bytes = self.0.unwrap_borrowed();
             // SAFETY: If the bytes are borrowed, they must be valid UTF-8.
@@ -273,7 +312,7 @@ impl<'a> Decode<'a> {
     ///
     /// The decoded bytes must be valid UTF-8.
     #[inline]
-    pub unsafe fn into_utf8_unchecked(self) -> Cow<'a, str> {
+    pub unsafe fn into_string_unchecked(self) -> Cow<'a, str> {
         if self.0.is_borrowed() {
             let bytes = self.0.unwrap_borrowed();
             // SAFETY: If the bytes are borrowed, they must be valid UTF-8.
@@ -283,6 +322,66 @@ impl<'a> Decode<'a> {
             // SAFETY: The caller must ensure that the decoded bytes are valid UTF-8.
             Cow::owned(unsafe { String::from_utf8_unchecked(bytes) })
         }
+    }
+}
+
+/// A wrapper of borrowed percent-decoded bytes.
+///
+/// This struct is created by calling [`decode_with`] on an `EStr`.
+///
+/// [`decode_with`]: EStr::decode_with
+#[derive(Clone, Copy)]
+pub struct DecodeRef<'a> {
+    bytes: &'a [u8],
+    buffered: bool,
+}
+
+impl<'a> DecodeRef<'a> {
+    /// Returns a reference to the decoded bytes.
+    #[inline]
+    pub fn as_bytes(self) -> &'a [u8] {
+        self.bytes
+    }
+
+    /// Returns `true` if the decoded bytes are buffered.
+    #[inline]
+    pub fn is_buffered(self) -> bool {
+        self.buffered
+    }
+
+    /// Converts the decoded bytes to a string slice.
+    ///
+    /// An error is returned if the decoded bytes are not valid UTF-8.
+    #[inline]
+    pub fn to_str(self) -> Result<&'a str, Utf8Error> {
+        if !self.buffered {
+            // SAFETY: If the bytes are not buffered, they must be valid UTF-8.
+            Ok(unsafe { str::from_utf8_unchecked(self.bytes) })
+        } else {
+            str::from_utf8(self.bytes)
+        }
+    }
+
+    /// Converts the decoded bytes to a string lossily.
+    #[inline]
+    pub fn to_string_lossy(self) -> Cow<'a, str> {
+        if !self.buffered {
+            // SAFETY: If the bytes are not buffered, they must be valid UTF-8.
+            Cow::borrowed(unsafe { str::from_utf8_unchecked(self.bytes) })
+        } else {
+            String::from_utf8_lossy(self.bytes).into()
+        }
+    }
+
+    /// Converts the decoded bytes to a string slice assuming validity.
+    ///
+    /// # Safety
+    ///
+    /// The decoded bytes must be valid UTF-8.
+    #[inline]
+    pub unsafe fn as_str_unchecked(self) -> &'a str {
+        // SAFETY: The caller must ensure that the decoded bytes are valid UTF-8.
+        unsafe { str::from_utf8_unchecked(self.bytes) }
     }
 }
 
@@ -363,7 +462,7 @@ mod tests {
         );
         assert!(validate(&s, QUERY_FRAGMENT).is_ok());
         assert_eq!(Ok(raw.as_bytes()), decode(&s).as_deref());
-        assert_eq!(raw.as_bytes(), unsafe { &*decode_unchecked(s.as_bytes()) });
+        assert_eq!(raw.as_bytes(), unsafe { decode_unchecked(s.as_bytes()) });
 
         assert_eq!(Ok(b"\x2d\xe6\xb5" as _), decode("%2D%E6%B5").as_deref());
 
@@ -386,7 +485,7 @@ mod tests {
         let it = split.next().unwrap();
         assert_eq!(it, "id=3");
         assert_eq!(it.decode().as_bytes(), b"id=3");
-        assert_eq!(it.decode().into_utf8().as_deref(), Ok("id=3"));
+        assert_eq!(it.decode().into_string().as_deref(), Ok("id=3"));
 
         let (k, v) = it.split_once('=').unwrap();
         assert_eq!(k, "id");
@@ -394,10 +493,10 @@ mod tests {
 
         let it = split.next().unwrap();
         assert_eq!(it, "name=%E5%BC%A0%E4%B8%89");
-        assert_eq!(it.decode().into_utf8().unwrap(), "name=张三");
+        assert_eq!(it.decode().into_string().unwrap(), "name=张三");
 
         let (k, v) = it.split_once('=').unwrap();
-        assert_eq!(k.decode().into_utf8().unwrap(), "name");
-        assert_eq!(v.decode().into_utf8().unwrap(), "张三");
+        assert_eq!(k.decode().into_string().unwrap(), "name");
+        assert_eq!(v.decode().into_string().unwrap(), "张三");
     }
 }
