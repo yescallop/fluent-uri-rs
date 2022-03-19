@@ -1,4 +1,4 @@
-/// A table determining which bytes are allowed in a string.
+/// A table determining the pattern of bytes allowed in a string.
 ///
 /// It is guaranteed that the bytes allowed are ASCII.
 #[derive(Clone, Copy)]
@@ -8,6 +8,24 @@ pub struct Table {
 }
 
 impl Table {
+    /// Generates a table that only allows the given bytes.
+    ///
+    /// # Panics
+    ///
+    /// Panics if any of the bytes is not ASCII.
+    pub const fn gen(mut bytes: &[u8]) -> Table {
+        let mut arr = [0; 256];
+        while let [cur, rem @ ..] = bytes {
+            assert!(cur.is_ascii(), "non-ASCII byte");
+            arr[*cur as usize] = 1;
+            bytes = rem;
+        }
+        Table {
+            arr,
+            allow_enc: false,
+        }
+    }
+
     /// Marks this table as allowing percent-encoded octets.
     pub const fn enc(mut self) -> Table {
         self.allow_enc = true;
@@ -54,22 +72,8 @@ impl Table {
     }
 }
 
-/// Generates a table that only allows the given bytes.
-///
-/// # Panics
-///
-/// Panics if any of the bytes is not ASCII.
-pub const fn gen(mut bytes: &[u8]) -> Table {
-    let mut arr = [0; 256];
-    while let [cur, rem @ ..] = bytes {
-        assert!(cur.is_ascii(), "non-ASCII byte");
-        arr[*cur as usize] = 1;
-        bytes = rem;
-    }
-    Table {
-        arr,
-        allow_enc: false,
-    }
+const fn gen(bytes: &[u8]) -> Table {
+    Table::gen(bytes)
 }
 
 /// ALPHA = A-Z / a-z

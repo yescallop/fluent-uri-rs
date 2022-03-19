@@ -76,12 +76,6 @@ pub struct Uri<'a> {
 }
 
 impl<'a> Uri<'a> {
-    /// Parses a URI reference from a string into a `Uri`.
-    #[inline]
-    pub fn parse(s: &str) -> Result<Uri<'_>, SyntaxError> {
-        parser::parse(s.as_bytes())
-    }
-
     /// An empty URI reference ("").
     pub const EMPTY: Uri<'static> = Uri {
         scheme: None,
@@ -90,6 +84,18 @@ impl<'a> Uri<'a> {
         query: None,
         fragment: None,
     };
+
+    /// Parses a URI reference from a byte sequence into a `Uri`.
+    ///
+    /// This function validates the input strictly except that UTF-8 validation is not
+    /// performed on a percent-encoded registered name (see [Section 3.2.2, RFC 3986][1]).
+    /// Care should be taken when dealing with such cases.
+    ///
+    /// [1]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
+    #[inline]
+    pub fn parse<S: AsRef<[u8]> + ?Sized>(s: &S) -> Result<Uri<'_>, SyntaxError> {
+        parser::parse(s.as_ref())
+    }
 
     /// Returns the [scheme] component.
     ///
@@ -158,8 +164,6 @@ impl<'a> Uri<'a> {
 
 /// The [scheme] element of URI reference.
 ///
-/// This struct provides fast lowercase-only comparison functions.
-///
 /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
 #[derive(Debug, Clone, Copy)]
 pub struct Scheme<'a>(&'a str);
@@ -179,29 +183,18 @@ impl<'a> Scheme<'a> {
 
     /// Checks if the scheme equals case-insensitively with a lowercase string.
     ///
-    /// This function will always return `false` if there's any uppercase letter in the given string.
+    /// This function is faster than [`str::eq_ignore_ascii_case`] but will
+    /// always return `false` if there is any uppercase letter in the given string.
     #[inline]
-    pub fn eq_lowercase(self, s: &str) -> bool {
-        self.0.len() == s.len()
+    pub fn eq_lowercase(self, other: &str) -> bool {
+        // The only characters allowed by a scheme are alphabets, digits, "+", "-" and ".",
+        // the ASCII codes of which allow us to simply set the sixth bit and compare.
+        const ASCII_CASE_MASK: u8 = 0b010_0000;
+        self.0.len() == other.len()
             && self
                 .0
                 .bytes()
-                .zip(s.bytes())
-                .all(|(a, b)| a.to_ascii_lowercase() == b)
-    }
-
-    /// Checks if the scheme equals case-insensitively with a lowercase alphabetical string.
-    ///
-    /// This function is slightly faster than `eq_lowercase` but would yield
-    /// incorrect result if the string is not a lowercase alphabetical one.
-    #[inline]
-    pub fn eq_lowercase_alpha(self, s: &str) -> bool {
-        const ASCII_CASE_MASK: u8 = 0b0010_0000;
-        self.0.len() == s.len()
-            && self
-                .0
-                .bytes()
-                .zip(s.bytes())
+                .zip(other.bytes())
                 .all(|(a, b)| a | ASCII_CASE_MASK == b)
     }
 }

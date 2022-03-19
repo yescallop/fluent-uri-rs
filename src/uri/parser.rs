@@ -166,7 +166,7 @@ impl<'a> Parser<'a> {
         let mut out = Authority::EMPTY;
 
         // This table contains userinfo, reg-name, ":", and port.
-        static TABLE: &Table = &USERINFO.shl(1).or(&gen(b":"));
+        static TABLE: &Table = &USERINFO.shl(1).or(&Table::gen(b":"));
 
         // The number of colons scanned.
         let mut colon_cnt = 0;
