@@ -18,3 +18,11 @@ jobs:
     - uses: actions/checkout@v2
     - name: Run tests
       run: cargo test
+    - name: Build doc
+      run: cargo doc --no-deps
+    - name: Deploy doc
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./target/doc
+        publish_branch: doc
