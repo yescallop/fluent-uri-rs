@@ -27,7 +27,7 @@ pub enum SyntaxErrorKind {
     InvalidIpLiteral,
 }
 
-/// A syntax error occurred when parsing or validating strings.
+/// A syntax error occurred when parsing, decoding or validating strings.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SyntaxError {
     pub(crate) index: usize,
@@ -187,7 +187,7 @@ impl<'a> Scheme<'a> {
     /// always return `false` if there is any uppercase letter in the given string.
     #[inline]
     pub fn eq_lowercase(self, other: &str) -> bool {
-        // The only characters allowed by a scheme are alphabets, digits, "+", "-" and ".",
+        // The only characters allowed in a scheme are alphabets, digits, "+", "-" and ".",
         // the ASCII codes of which allow us to simply set the sixth bit and compare.
         const ASCII_CASE_MASK: u8 = 0b010_0000;
         self.0.len() == other.len()

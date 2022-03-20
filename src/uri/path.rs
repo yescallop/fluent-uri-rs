@@ -1,3 +1,5 @@
+use crate::encoding::EStr;
+
 /// The [path] component of URI reference.
 ///
 /// [path]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
@@ -5,6 +7,13 @@
 pub struct Path<'a>(pub(crate) &'a str);
 
 impl<'a> Path<'a> {
+    /// Returns the path as an `EStr`.
+    #[inline]
+    pub fn as_estr(self) -> &'a EStr {
+        // SAFETY: We have done the validation.
+        unsafe { EStr::new_unchecked(self.0) }
+    }
+
     /// Returns the path as a string slice.
     #[inline]
     pub fn as_str(self) -> &'a str {

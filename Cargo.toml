@@ -16,4 +16,4 @@ beef = "0.5.1"
 # [dev-dependencies]
 # criterion = "0.3"
 # url = "2.2.2"
-# uriparse = "0.6.3"
+# uriparse = "0.6.4"
