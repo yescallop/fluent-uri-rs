@@ -482,7 +482,10 @@ impl<'a> Parser<'a> {
     fn read_port(&mut self) -> Option<&'a str> {
         self.read_str(":").then(|| {
             let rem = self.remaining();
-            let n = rem.iter().position(u8::is_ascii_digit).unwrap_or(rem.len());
+            let n = rem
+                .iter()
+                .position(|x| !x.is_ascii_digit())
+                .unwrap_or(rem.len());
             // INVARIANT: Skipping `n` digits is fine.
             self.skip(n);
             // SAFETY: ASCII digits are valid UTF-8.
