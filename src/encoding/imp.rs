@@ -238,10 +238,10 @@ pub unsafe fn decode_unchecked(s: &[u8]) -> Cow<'_, [u8]> {
 
 /// Decodes a percent-encoded string with a buffer assuming validity.
 ///
-/// Returns `None` if the bytes need no decoding.
+/// Returns `None` if the string needs no decoding.
 ///
-/// The argument `append_always` indicates whether the bytes should
-/// be appended to the buffer if the bytes need no encoding.
+/// The argument `append_always` indicates whether the string
+/// should be appended to the buffer if it needs no decoding.
 ///
 /// # Safety
 ///
@@ -274,47 +274,40 @@ pub unsafe fn decode_with_unchecked<'a>(
     }
 }
 
-/// Decodes a percent-encoded string.
-pub fn decode(s: &str) -> Result<Cow<'_, [u8]>> {
+pub(super) fn decode(s: &[u8]) -> Result<Cow<'_, [u8]>> {
     // Skip bytes that are not '%'.
-    let i = match s.bytes().position(|x| x == b'%') {
+    let i = match s.iter().position(|&x| x == b'%') {
         Some(i) => i,
-        None => return Ok(Cow::borrowed(s.as_bytes())),
+        None => return Ok(Cow::borrowed(s)),
     };
     // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
-    let mut buf = unsafe { copy_new(s.as_bytes(), i, false) };
+    let mut buf = unsafe { copy_new(s, i, false) };
 
-    unsafe { _decode(s.as_bytes(), i, &mut buf, true)? }
+    unsafe { _decode(s, i, &mut buf, true)? }
     Ok(Cow::owned(buf))
 }
 
-/// Decodes a percent-encoded string with a buffer.
-///
-/// Returns `None` if the bytes need no decoding.
-///
-/// The argument `append_always` indicates whether the bytes should
-/// be appended to the buffer if the bytes need no encoding.
-pub fn decode_with<'a>(
-    s: &str,
+pub(super) fn decode_with<'a>(
+    s: &[u8],
     buf: &'a mut Vec<u8>,
     append_always: bool,
 ) -> Result<Option<&'a [u8]>> {
     // Skip bytes that are not '%'.
-    let i = match s.bytes().position(|x| x == b'%') {
+    let i = match s.iter().position(|&x| x == b'%') {
         Some(i) => i,
         None => {
             if append_always {
-                buf.extend_from_slice(s.as_bytes());
+                buf.extend_from_slice(s);
             }
             return Ok(None);
         }
     };
     // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
-    unsafe { copy(s.as_bytes(), buf, i, false) }
+    unsafe { copy(s, buf, i, false) }
 
     let start = buf.len();
     unsafe {
-        _decode(s.as_bytes(), i, buf, true)?;
+        _decode(s, i, buf, true)?;
         // SAFETY: The length is non-decreasing.
         Ok(Some(buf.get_unchecked(start..)))
     }

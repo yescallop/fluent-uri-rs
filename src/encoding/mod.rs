@@ -25,6 +25,26 @@ macro_rules! err {
 
 pub(crate) use err;
 
+mod internal {
+    pub trait Buf {
+        unsafe fn as_mut_vec(&mut self) -> &mut Vec<u8>;
+    }
+
+    impl Buf for Vec<u8> {
+        #[inline]
+        unsafe fn as_mut_vec(&mut self) -> &mut Vec<u8> {
+            self
+        }
+    }
+
+    impl Buf for String {
+        #[inline]
+        unsafe fn as_mut_vec(&mut self) -> &mut Vec<u8> {
+            unsafe { self.as_mut_vec() }
+        }
+    }
+}
+
 /// Percent-encodes a byte sequence.
 ///
 /// # Panics
@@ -40,30 +60,56 @@ pub fn encode<'a, S: AsRef<[u8]> + ?Sized>(s: &'a S, table: &Table) -> Cow<'a, s
 ///
 /// Returns `None` if the bytes need no encoding.
 ///
-/// The argument `append_always` indicates whether the bytes should
-/// be appended to the buffer if the bytes need no encoding.
+/// The buffer may either be a [`String`] or a [`Vec<u8>`].
+///
+/// The argument `append_always` indicates whether the bytes
+/// should be appended to the buffer if they need no encoding.
 ///
 /// # Panics
 ///
 /// Panics if the table is not for encoding.
 #[inline]
-pub fn encode_with<'a, S: AsRef<[u8]> + ?Sized>(
+pub fn encode_with<'a, S: AsRef<[u8]> + ?Sized, B: internal::Buf>(
     s: &S,
     table: &Table,
-    buf: &'a mut Vec<u8>,
+    buf: &'a mut B,
     append_always: bool,
 ) -> Option<&'a str> {
     assert!(table.allow_enc(), "table not for encoding");
+    // SAFETY: The encoded bytes are valid UTF-8.
+    let buf = unsafe { buf.as_mut_vec() };
     imp::encode_with(s.as_ref(), table, buf, append_always)
+}
+
+/// Decodes a percent-encoded string.
+#[inline]
+pub fn decode<S: AsRef<[u8]> + ?Sized>(s: &S) -> Result<Cow<'_, [u8]>> {
+    imp::decode(s.as_ref())
+}
+
+/// Decodes a percent-encoded string with a buffer.
+///
+/// Returns `None` if the string needs no decoding.
+///
+/// The argument `append_always` indicates whether the string
+/// should be appended to the buffer if it needs no decoding.
+#[inline]
+pub fn decode_with<'a, S: AsRef<[u8]> + ?Sized>(
+    s: &S,
+    buf: &'a mut Vec<u8>,
+    append_always: bool,
+) -> Result<Option<&'a [u8]>> {
+    imp::decode_with(s.as_ref(), buf, append_always)
 }
 
 /// Checks if all characters in a string are allowed by the given table.
 #[inline]
-pub fn validate(s: &str, table: &Table) -> Result<()> {
+pub fn validate<S: AsRef<[u8]> + ?Sized>(s: &S, table: &Table) -> Result<()> {
+    let s = s.as_ref();
     if table.allow_enc() {
-        validate_enc(s.as_bytes(), table)
+        validate_enc(s, table)
     } else {
-        match s.bytes().position(|x| !table.contains(x)) {
+        match s.iter().position(|&x| !table.contains(x)) {
             Some(i) => err!(i, UnexpectedChar),
             None => Ok(()),
         }
@@ -80,6 +126,13 @@ impl AsRef<str> for EStr {
     #[inline]
     fn as_ref(&self) -> &str {
         &self.inner
+    }
+}
+
+impl AsRef<[u8]> for EStr {
+    #[inline]
+    fn as_ref(&self) -> &[u8] {
+        self.inner.as_bytes()
     }
 }
 
@@ -472,8 +525,8 @@ mod tests {
             "te%F0%9F%98%83a%20%E6%B5%8B1%60~!@%E8%AF%95%23$%25st%5E&+=",
             s
         );
-        assert!(validate(&s, QUERY_FRAGMENT).is_ok());
-        assert_eq!(Ok(raw.as_bytes()), decode(&s).as_deref());
+        assert!(validate(&*s, QUERY_FRAGMENT).is_ok());
+        assert_eq!(Ok(raw.as_bytes()), decode(&*s).as_deref());
         assert_eq!(raw.as_bytes(), unsafe { decode_unchecked(s.as_bytes()) });
 
         assert_eq!(Ok(b"\x2d\xe6\xb5" as _), decode("%2D%E6%B5").as_deref());
