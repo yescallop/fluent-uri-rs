@@ -1,4 +1,4 @@
-use crate::{Result, SyntaxError, SyntaxErrorKind::*};
+use crate::Result;
 
 use super::{
     err,
@@ -58,6 +58,47 @@ const fn gen_hex_table() -> [u8; 512] {
 
 static HEX_TABLE: &[u8; 512] = &gen_hex_table();
 
+fn calc_capacity(s: &[u8], triple: bool) -> usize {
+    #[cold]
+    #[inline(never)]
+    fn capacity_overflow() -> ! {
+        panic!("capacity overflow")
+    }
+
+    let cap = s.len();
+    if triple {
+        match cap.checked_mul(3) {
+            Some(cap) => cap,
+            // We must panic here since an insufficient capacity may cause UB.
+            None => capacity_overflow(),
+        }
+    } else {
+        cap
+    }
+}
+
+/// Copies the first `i` bytes from `s` into a new buffer.
+///
+/// Set `triple` to `true` if triple capacity is needed.
+///
+/// # Safety
+///
+/// `i` must not exceed `s.len()`.
+unsafe fn copy_new(s: &[u8], i: usize, triple: bool) -> Vec<u8> {
+    let cap = calc_capacity(s, triple);
+    let mut buf = Vec::with_capacity(cap);
+
+    unsafe {
+        // SAFETY: Since `i <= s.len() <= buf.capacity()`, `s` is valid
+        // for reads of `i` bytes, and `buf` is valid for writes of `i` bytes.
+        // Newly allocated `buf` cannot overlap with `s`.
+        ptr::copy_nonoverlapping(s.as_ptr(), buf.as_mut_ptr(), i);
+        // The first `i` bytes are now initialized so it's safe to set the length.
+        buf.set_len(i);
+    }
+    buf
+}
+
 /// Copies the first `i` bytes from `s` into a buffer.
 ///
 /// Set `triple` to `true` if triple capacity is needed.
@@ -65,32 +106,18 @@ static HEX_TABLE: &[u8; 512] = &gen_hex_table();
 /// # Safety
 ///
 /// `i` must not exceed `s.len()`.
-#[inline(always)]
-unsafe fn copy(s: &[u8], v: &mut Vec<u8>, i: usize, triple: bool, replace: bool) {
-    let mut cap = s.len();
-    debug_assert!(i <= cap);
-    if triple {
-        cap = match cap.checked_mul(3) {
-            Some(cap) => cap,
-            // We must panic here since an insufficient capacity may cause UB.
-            None => panic!("capacity overflow"),
-        };
-    }
-
-    if replace {
-        *v = Vec::with_capacity(cap);
-    } else {
-        v.reserve_exact(cap);
-    }
+unsafe fn copy(s: &[u8], buf: &mut Vec<u8>, i: usize, triple: bool) {
+    let cap = calc_capacity(s, triple);
+    buf.reserve_exact(cap);
 
     unsafe {
-        let dst = v.as_mut_ptr().add(v.len());
-        // SAFETY: Since `i <= s.len() <= v.capacity() - v.len()`, `s` is valid
+        let dst = buf.as_mut_ptr().add(buf.len());
+        // SAFETY: Since `i <= s.len() <= buf.capacity() - buf.len()`, `s` is valid
         // for reads of `i` bytes, and `dst` is valid for writes of `i` bytes.
-        // Mutable reference `v` cannot overlap with immutable `s`.
+        // Mutable reference `buf` cannot overlap with immutable `s`.
         ptr::copy_nonoverlapping(s.as_ptr(), dst, i);
-        // The first `i` bytes are now initialized so it's safe to set the length.
-        v.set_len(v.len() + i);
+        // The appended `i` bytes are now initialized so it's safe to set the length.
+        buf.set_len(buf.len() + i);
     }
 }
 
@@ -135,10 +162,11 @@ pub(super) fn encode<'a>(s: &'a [u8], table: &Table) -> Cow<'a, str> {
         // SAFETY: All bytes are checked to be less than 128 (ASCII).
         None => return Cow::borrowed(unsafe { str::from_utf8_unchecked(s) }),
     };
-    let mut buf = Vec::new();
+    // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
+    let mut buf = unsafe { copy_new(s, i, true) };
 
     unsafe {
-        _encode(s, i, table, &mut buf, true);
+        _encode(s, i, table, &mut buf);
         // SAFETY: The bytes should all be ASCII and thus valid UTF-8.
         Cow::owned(String::from_utf8_unchecked(buf))
     }
@@ -161,21 +189,19 @@ pub(super) fn encode_with<'a>(
             return None;
         }
     };
+    // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
+    unsafe { copy(s, buf, i, true) };
 
     let start = buf.len();
     unsafe {
-        _encode(s, i, table, buf, false);
+        _encode(s, i, table, buf);
         // SAFETY: The bytes should all be ASCII and thus valid UTF-8.
         // The length is non-decreasing.
         Some(str::from_utf8_unchecked(buf.get_unchecked(start..)))
     }
 }
 
-#[inline(always)]
-unsafe fn _encode(s: &[u8], mut i: usize, table: &Table, buf: &mut Vec<u8>, replace: bool) {
-    // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
-    unsafe { copy(s, buf, i, true, replace) };
-
+unsafe fn _encode(s: &[u8], mut i: usize, table: &Table, buf: &mut Vec<u8>) {
     while i < s.len() {
         let x = s[i];
         // SAFETY: The maximum output length is triple the input length.
@@ -202,10 +228,11 @@ pub unsafe fn decode_unchecked(s: &[u8]) -> Cow<'_, [u8]> {
         Some(i) => i,
         None => return Cow::borrowed(s),
     };
-    let mut buf = Vec::new();
+    // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
+    let mut buf = unsafe { copy_new(s, i, false) };
 
     // SAFETY: The caller must ensure that the string is properly encoded.
-    unsafe { _decode(s, i, &mut buf, false, true).unwrap() }
+    unsafe { _decode(s, i, &mut buf, false).unwrap() }
     Cow::owned(buf)
 }
 
@@ -235,13 +262,14 @@ pub unsafe fn decode_with_unchecked<'a>(
             return None;
         }
     };
+    // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
+    unsafe { copy(s, buf, i, false) }
 
     let start = buf.len();
-
     unsafe {
         // SAFETY: The caller must ensure that the string is properly encoded.
         // The length is non-decreasing.
-        _decode(s, i, buf, false, false).unwrap();
+        _decode(s, i, buf, false).unwrap();
         Some(buf.get_unchecked(start..))
     }
 }
@@ -253,9 +281,11 @@ pub fn decode(s: &str) -> Result<Cow<'_, [u8]>> {
         Some(i) => i,
         None => return Ok(Cow::borrowed(s.as_bytes())),
     };
-    let mut buf = Vec::new();
+    // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
+    let mut buf = unsafe { copy_new(s.as_bytes(), i, false) };
 
-    unsafe { _decode(s.as_bytes(), i, &mut buf, true, true).map(|_| Cow::owned(buf)) }
+    unsafe { _decode(s.as_bytes(), i, &mut buf, true)? }
+    Ok(Cow::owned(buf))
 }
 
 /// Decodes a percent-encoded string with a buffer.
@@ -279,34 +309,28 @@ pub fn decode_with<'a>(
             return Ok(None);
         }
     };
+    // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
+    unsafe { copy(s.as_bytes(), buf, i, false) }
 
     let start = buf.len();
     unsafe {
-        _decode(s.as_bytes(), i, buf, true, false)?;
+        _decode(s.as_bytes(), i, buf, true)?;
         // SAFETY: The length is non-decreasing.
         Ok(Some(buf.get_unchecked(start..)))
     }
 }
 
-#[inline(always)]
-unsafe fn _decode(
-    s: &[u8],
-    mut i: usize,
-    buf: &mut Vec<u8>,
-    checked: bool,
-    replace: bool,
-) -> Result<()> {
-    // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
-    unsafe { copy(s, buf, i, false, replace) }
-
+unsafe fn _decode(s: &[u8], mut i: usize, buf: &mut Vec<u8>, checked: bool) -> Result<()> {
     while i < s.len() {
         let x = s[i];
         if x == b'%' {
             let octet = if checked {
-                let (hi, lo) = match (s.get(i + 1), s.get(i + 2)) {
-                    (Some(&hi), Some(&lo)) => (hi, lo),
-                    _ => err!(i, InvalidOctet),
-                };
+                if i + 2 >= s.len() {
+                    err!(i, InvalidOctet);
+                }
+                // SAFETY: We have checked that `i + 2 < s.len()`.
+                // Overflow should be impossible because we cannot have that large a slice.
+                let (hi, lo) = unsafe { (*s.get_unchecked(i + 1), *s.get_unchecked(i + 2)) };
 
                 match decode_octet(hi, lo) {
                     Some(o) => o,
@@ -314,10 +338,8 @@ unsafe fn _decode(
                 }
             } else {
                 // SAFETY: The caller must ensure that the string is properly encoded.
-                unsafe {
-                    let (hi, lo) = (*s.get_unchecked(i + 1), *s.get_unchecked(i + 2));
-                    decode_octet_unchecked(hi, lo)
-                }
+                let (hi, lo) = unsafe { (*s.get_unchecked(i + 1), *s.get_unchecked(i + 2)) };
+                decode_octet_unchecked(hi, lo)
             };
 
             // SAFETY: The output will never be longer than the input.
@@ -332,27 +354,20 @@ unsafe fn _decode(
     Ok(())
 }
 
-/// Checks if all characters in a string are allowed by the given table.
-pub fn validate(s: &str, table: &Table) -> Result<()> {
-    let s = s.as_bytes();
-    if s.is_empty() {
-        return Ok(());
-    }
-
-    if !table.allow_enc() {
-        match s.iter().position(|&x| !table.contains(x)) {
-            Some(i) => err!(i, UnexpectedChar),
-            None => return Ok(()),
-        }
-    }
-
+pub(super) fn validate_enc(s: &[u8], table: &Table) -> Result<()> {
     let mut i = 0;
     while i < s.len() {
         let x = s[i];
         if x == b'%' {
-            match (s.get(i + 1), s.get(i + 2)) {
-                (Some(&hi), Some(&lo)) if HEXDIG.get(hi) & HEXDIG.get(lo) != 0 => (),
-                _ => err!(i, InvalidOctet),
+            if i + 2 >= s.len() {
+                err!(i, InvalidOctet);
+            }
+            // SAFETY: We have checked that `i + 2 < s.len()`.
+            // Overflow should be impossible because we cannot have that large a slice.
+            let (hi, lo) = unsafe { (*s.get_unchecked(i + 1), *s.get_unchecked(i + 2)) };
+
+            if HEXDIG.get(hi) & HEXDIG.get(lo) == 0 {
+                err!(i, InvalidOctet);
             }
             i += 3;
         } else {
@@ -366,10 +381,6 @@ pub fn validate(s: &str, table: &Table) -> Result<()> {
 }
 
 pub(super) const fn validate_const(s: &[u8]) -> bool {
-    if s.is_empty() {
-        return true;
-    }
-
     let mut i = 0;
     while i < s.len() {
         let x = s[i];

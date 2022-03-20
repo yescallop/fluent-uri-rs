@@ -1,8 +1,6 @@
 use crate::{
-    encoding::{err, table::*, EStr},
-    Authority, Host, Result, SyntaxError,
-    SyntaxErrorKind::*,
-    Uri,
+    encoding::{err, table::*, EStr, OCTET_TABLE_LO},
+    Authority, Host, Result, Uri,
 };
 use std::{
     net::{Ipv4Addr, Ipv6Addr},
@@ -20,6 +18,10 @@ pub(crate) fn parse(s: &[u8]) -> Result<Uri<'_>> {
     Ok(parser.out)
 }
 
+/// URI parser.
+///
+/// The invariant holds that `mark <= pos <= buf.len()`,
+/// where `pos` is non-decreasing and `buf[..pos]` is valid UTF-8.
 struct Parser<'a> {
     buf: &'a [u8],
     pos: usize,
@@ -50,47 +52,64 @@ impl<'a> Parser<'a> {
     }
 
     fn remaining(&self) -> &'a [u8] {
+        // SAFETY: The invariant holds.
         unsafe { self.buf.get_unchecked(self.pos..) }
     }
 
     fn peek(&self, i: usize) -> Option<u8> {
-        self.buf.get(self.pos + i).copied()
+        self.remaining().get(i).copied()
     }
 
+    /// Skips `n` bytes.
+    ///
+    /// Any call to this function must keep the invariant.
     fn skip(&mut self, n: usize) {
+        // INVARIANT: `pos` is non-decreasing.
         self.pos += n;
+        debug_assert!(self.pos <= self.buf.len());
     }
 
     fn mark(&mut self) {
+        // INVARIANT: It holds that `mark <= pos`.
         self.mark = self.pos;
     }
 
-    fn scan(&mut self, table: &Table, mut f: impl FnMut(u8)) -> Result<()> {
-        if !self.has_remaining() {
-            return Ok(());
-        }
-        let s = self.buf;
-        let mut i = self.pos;
-
-        if !table.allow_enc() {
-            while i < s.len() {
-                if !table.contains(s[i]) {
+    fn scan(&mut self, table: &Table) -> Result<()> {
+        if table.allow_enc() {
+            self.scan_enc(table, |_| ())
+        } else {
+            let mut i = self.pos;
+            while i < self.buf.len() {
+                if !table.contains(self.buf[i]) {
                     break;
                 }
+                // INVARIANT: Since `i < buf.len()`, it holds that `i + 1 <= buf.len()`.
                 i += 1;
             }
-
+            // INVARIANT: `i` is non-decreasing and all bytes scanned are ASCII.
             self.pos = i;
-            return Ok(());
+            Ok(())
         }
+    }
+
+    fn scan_enc(&mut self, table: &Table, mut f: impl FnMut(u8)) -> Result<()> {
+        let s = self.buf;
+        let mut i = self.pos;
 
         while i < s.len() {
             let x = s[i];
             if x == b'%' {
-                match (s.get(i + 1), s.get(i + 2)) {
-                    (Some(&hi), Some(&lo)) if HEXDIG.get(hi) & HEXDIG.get(lo) != 0 => (),
-                    _ => err!(i, InvalidOctet),
+                if i + 2 >= s.len() {
+                    err!(i, InvalidOctet);
                 }
+                // SAFETY: We have checked that `i + 2 < s.len()`.
+                // Overflow should be impossible because we cannot have that large a slice.
+                let (hi, lo) = unsafe { (*s.get_unchecked(i + 1), *s.get_unchecked(i + 2)) };
+
+                if HEXDIG.get(hi) & HEXDIG.get(lo) == 0 {
+                    err!(i, InvalidOctet);
+                }
+                // INVARIANT: Since `i + 2 < s.len()`, it holds that `i + 3 <= s.len()`.
                 i += 3;
             } else {
                 let v = table.get(x);
@@ -98,10 +117,12 @@ impl<'a> Parser<'a> {
                     break;
                 }
                 f(v);
+                // INVARIANT: Since `i < s.len()`, it holds that `i + 1 <= s.len()`.
                 i += 1;
             }
         }
 
+        // INVARIANT: `i` is non-decreasing and all bytes scanned are ASCII.
         self.pos = i;
         Ok(())
     }
@@ -111,25 +132,21 @@ impl<'a> Parser<'a> {
     }
 
     fn marked(&mut self) -> &'a str {
+        // SAFETY: The invariant holds.
         unsafe { str::from_utf8_unchecked(self.buf.get_unchecked(self.mark..self.pos)) }
     }
 
     fn read(&mut self, table: &Table) -> Result<&'a str> {
         let start = self.pos;
-        self.scan(table, |_| ())?;
+        self.scan(table)?;
+        // SAFETY: The invariant holds.
         Ok(unsafe { str::from_utf8_unchecked(self.buf.get_unchecked(start..self.pos)) })
-    }
-
-    fn read_by(&mut self, good: impl Fn(&u8) -> bool) -> &'a str {
-        let s = self.remaining();
-        let n = s.iter().position(|x| !good(x)).unwrap_or(s.len());
-        self.skip(n);
-        unsafe { str::from_utf8_unchecked(&s[..n]) }
     }
 
     fn read_str(&mut self, s: &str) -> bool {
         let res = self.remaining().starts_with(s.as_bytes());
         if res {
+            // INVARIANT: The remaining bytes start with `s` so it's fine to skip `s.len()`.
             self.skip(s.len());
         }
         res
@@ -137,7 +154,7 @@ impl<'a> Parser<'a> {
 
     fn parse_from_scheme(&mut self) -> Result<()> {
         // Mark initially set to 0.
-        self.scan(SCHEME, |_| ())?;
+        self.scan(SCHEME)?;
 
         if self.peek(0) == Some(b':') {
             let scheme = self.marked();
@@ -148,6 +165,7 @@ impl<'a> Parser<'a> {
                 err!(0, UnexpectedChar);
             }
 
+            // INVARIANT: Skipping ":" is fine.
             self.skip(1);
             self.parse_from_authority()
         } else if self.marked_len() == 0 {
@@ -172,13 +190,14 @@ impl<'a> Parser<'a> {
         let mut colon_cnt = 0;
 
         self.mark();
-        self.scan(TABLE, |v| {
+        self.scan_enc(TABLE, |v| {
             colon_cnt += (v & 1) as usize;
         })?;
 
         if self.peek(0) == Some(b'@') {
             // Userinfo present.
             out.userinfo = Some(self.marked());
+            // INVARIANT: Skipping "@" is fine.
             self.skip(1);
 
             out.host = self.read_host()?;
@@ -200,6 +219,7 @@ impl<'a> Parser<'a> {
 
                     let mut i = s.len() - 1;
                     loop {
+                        // SAFETY: There must be a colon in the way.
                         let x = unsafe { *s.as_bytes().get_unchecked(i) };
                         if !x.is_ascii_digit() {
                             if x == b':' {
@@ -211,14 +231,15 @@ impl<'a> Parser<'a> {
                         i -= 1;
                     }
 
-                    // SAFETY: Splitting at an ASCII char is fine.
+                    // SAFETY: Splitting at a colon is fine.
                     unsafe { (s.get_unchecked(..i), Some(s.get_unchecked(i + 1..))) }
                 }
                 // Multiple colons.
                 _ => {
                     let mut i = self.mark;
                     loop {
-                        let x = self.buf[i];
+                        // SAFETY: There must be a colon in the way.
+                        let x = unsafe { *self.buf.get_unchecked(i) };
                         if x == b':' {
                             err!(i, UnexpectedChar)
                         }
@@ -230,7 +251,10 @@ impl<'a> Parser<'a> {
             // Save the state.
             let state = (self.buf, self.pos);
 
+            // SAFETY: The entire host is already marked so the index is within bounds.
             self.buf = unsafe { self.buf.get_unchecked(..self.mark + host.len()) };
+            // INVARIANT: It holds that `mark <= pos <= buf.len()`.
+            // Here `pos` may decrease but will be restored later.
             self.pos = self.mark;
 
             let v4 = self.scan_v4();
@@ -243,6 +267,7 @@ impl<'a> Parser<'a> {
             out.port = port;
 
             // Restore the state.
+            // INVARIANT: Restoring the state would not affect the invariant.
             (self.buf, self.pos) = state;
         }
 
@@ -344,14 +369,13 @@ impl<'a> Parser<'a> {
             return if colon { Some(Seg::SingleColon) } else { None };
         }
 
-        use crate::encoding::OCTET_TABLE_LO as HEX_TABLE;
-
         let first = self.peek(0).unwrap();
-        let mut x = match HEX_TABLE[first as usize] {
+        let mut x = match OCTET_TABLE_LO[first as usize] {
             v if v < 128 => v as u16,
             _ => {
                 return if colon {
                     if first == b':' {
+                        // Skipping ":" is fine.
                         self.skip(1);
                         Some(Seg::Ellipsis)
                     } else {
@@ -366,7 +390,7 @@ impl<'a> Parser<'a> {
 
         while i < 4 {
             if let Some(b) = self.peek(i) {
-                match HEX_TABLE[b as usize] {
+                match OCTET_TABLE_LO[b as usize] {
                     v if v < 128 => {
                         x = (x << 4) | v as u16;
                         i += 1;
@@ -376,10 +400,12 @@ impl<'a> Parser<'a> {
                     _ => break,
                 }
             } else {
+                // Skipping `i` hexadecimal digits is fine.
                 self.skip(i);
                 return None;
             }
         }
+        // Skipping `i` hexadecimal digits is fine.
         self.skip(i);
         Some(Seg::Normal(x, colon))
     }
@@ -401,7 +427,7 @@ impl<'a> Parser<'a> {
         self.mark();
         let v4 = self.scan_v4();
         let v4_end = self.pos;
-        self.scan(REG_NAME, |_| ())?;
+        self.scan(REG_NAME)?;
 
         Ok(match v4 {
             Some(addr) if self.pos == v4_end => Host::Ipv4(addr),
@@ -424,6 +450,7 @@ impl<'a> Parser<'a> {
     fn scan_v4_octet(&mut self) -> Option<u32> {
         let mut res = self.peek_digit(0)?;
         if res == 0 {
+            // INVARIANT: Skipping "0" is fine.
             self.skip(1);
             return Some(0);
         }
@@ -432,11 +459,13 @@ impl<'a> Parser<'a> {
             match self.peek_digit(i) {
                 Some(x) => res = res * 10 + x,
                 None => {
+                    // INVARIANT: Skipping `i` digits is fine.
                     self.skip(i);
                     return Some(res);
                 }
             }
         }
+        // INVARIANT: Skipping 3 digits is fine.
         self.skip(3);
 
         if res <= u8::MAX as u32 {
@@ -451,13 +480,21 @@ impl<'a> Parser<'a> {
     }
 
     fn read_port(&mut self) -> Option<&'a str> {
-        self.read_str(":").then(|| self.read_by(u8::is_ascii_digit))
+        self.read_str(":").then(|| {
+            let rem = self.remaining();
+            let n = rem.iter().position(u8::is_ascii_digit).unwrap_or(rem.len());
+            // INVARIANT: Skipping `n` digits is fine.
+            self.skip(n);
+            // SAFETY: ASCII digits are valid UTF-8.
+            unsafe { str::from_utf8_unchecked(&rem[..n]) }
+        })
     }
 
     #[cold]
     #[inline(never)]
     fn read_ipv_future(&mut self) -> Result<Host<'a>> {
         if matches!(self.peek(0), Some(b'v' | b'V')) {
+            // INVARIANT: Skipping "v" or "V" is fine.
             self.skip(1);
             let ver = self.read(HEXDIG)?;
             if !ver.is_empty() && self.read_str(".") {
@@ -474,15 +511,15 @@ impl<'a> Parser<'a> {
         self.out.path = match kind {
             PathKind::General => self.read(PATH)?,
             PathKind::AbEmpty => {
-                let s = self.read(PATH)?;
-                if s.is_empty() || s.starts_with('/') {
-                    s
+                let path = self.read(PATH)?;
+                if path.is_empty() || path.starts_with('/') {
+                    path
                 } else {
-                    err!(self.pos - s.len(), UnexpectedChar);
+                    err!(self.pos - path.len(), UnexpectedChar);
                 }
             }
             PathKind::ContinuedNoScheme => {
-                self.scan(SEGMENT_NC, |_| ())?;
+                self.scan(SEGMENT_NC)?;
 
                 if self.peek(0) == Some(b':') {
                     // In a relative reference, the first path
@@ -490,7 +527,7 @@ impl<'a> Parser<'a> {
                     err!(self.pos, UnexpectedChar);
                 }
 
-                self.scan(PATH, |_| ())?;
+                self.scan(PATH)?;
                 self.marked()
             }
         };

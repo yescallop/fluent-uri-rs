@@ -1,4 +1,3 @@
-/// Character tables from RFC 3986 and RFC 6874.
 pub mod table;
 
 mod imp;
@@ -16,10 +15,10 @@ use std::{
 
 /// Returns immediately with a syntax error.
 macro_rules! err {
-    ($index:expr, $kind:expr) => {
-        return Err(SyntaxError {
+    ($index:expr, $kind:ident) => {
+        return Err(crate::SyntaxError {
             index: $index,
-            kind: $kind,
+            kind: crate::SyntaxErrorKind::$kind,
         })
     };
 }
@@ -56,6 +55,19 @@ pub fn encode_with<'a, S: AsRef<[u8]> + ?Sized>(
 ) -> Option<&'a str> {
     assert!(table.allow_enc(), "table not for encoding");
     imp::encode_with(s.as_ref(), table, buf, append_always)
+}
+
+/// Checks if all characters in a string are allowed by the given table.
+#[inline]
+pub fn validate(s: &str, table: &Table) -> Result<()> {
+    if table.allow_enc() {
+        validate_enc(s.as_bytes(), table)
+    } else {
+        match s.bytes().position(|x| !table.contains(x)) {
+            Some(i) => err!(i, UnexpectedChar),
+            None => Ok(()),
+        }
+    }
 }
 
 /// Percent-encoded string slices.

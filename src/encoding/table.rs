@@ -1,3 +1,7 @@
+//! Character tables from RFC 3986 and RFC 6874.
+//!
+//! The predefined tables in this module have values that are either 0 or 1.
+
 /// A table determining the pattern of bytes allowed in a string.
 ///
 /// It is guaranteed that the bytes allowed are ASCII.
