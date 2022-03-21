@@ -161,7 +161,7 @@ impl<'a> Uri<'a> {
     }
 }
 
-/// The [scheme] element of URI reference.
+/// The [scheme] component of URI reference.
 ///
 /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
 #[derive(Debug, Clone, Copy)]
@@ -198,7 +198,7 @@ impl<'a> Scheme<'a> {
     }
 }
 
-/// The [authority] element of URI reference.
+/// The [authority] component of URI reference.
 ///
 /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
 #[derive(Debug, Clone, PartialEq, Eq)]
