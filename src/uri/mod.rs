@@ -1,10 +1,9 @@
-/// Module for working with paths.
-pub mod path;
+mod path;
+pub use path::*;
 
 mod parser;
 
 use crate::encoding::EStr;
-use path::Path;
 use std::{
     fmt,
     net::{Ipv4Addr, Ipv6Addr},
@@ -93,7 +92,7 @@ impl<'a> Uri<'a> {
     ///
     /// [1]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
     #[inline]
-    pub fn parse<S: AsRef<[u8]> + ?Sized>(s: &S) -> Result<Uri<'_>, SyntaxError> {
+    pub fn parse<S: AsRef<[u8]> + ?Sized>(s: &S) -> Result<Uri<'_>> {
         parser::parse(s.as_ref())
     }
 

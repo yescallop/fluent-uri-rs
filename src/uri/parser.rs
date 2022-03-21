@@ -375,7 +375,7 @@ impl<'a> Parser<'a> {
             _ => {
                 return if colon {
                     if first == b':' {
-                        // Skipping ":" is fine.
+                        // INVARIANT: Skipping ":" is fine.
                         self.skip(1);
                         Some(Seg::Ellipsis)
                     } else {
@@ -400,12 +400,12 @@ impl<'a> Parser<'a> {
                     _ => break,
                 }
             } else {
-                // Skipping `i` hexadecimal digits is fine.
+                // INVARIANT: Skipping `i` hexadecimal digits is fine.
                 self.skip(i);
                 return None;
             }
         }
-        // Skipping `i` hexadecimal digits is fine.
+        // INVARIANT: Skipping `i` hexadecimal digits is fine.
         self.skip(i);
         Some(Seg::Normal(x, colon))
     }

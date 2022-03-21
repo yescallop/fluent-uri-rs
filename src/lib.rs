@@ -1,4 +1,4 @@
-#![warn(rust_2018_idioms, unreachable_pub, missing_docs)]
+#![warn(rust_2018_idioms, missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
 //! A URI parser that strictly adheres to IETF [RFC 3986] and [RFC 6874].
 //!

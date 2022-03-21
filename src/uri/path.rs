@@ -1,4 +1,4 @@
-use crate::encoding::EStr;
+use crate::encoding::{EStr, Split};
 
 /// The [path] component of URI reference.
 ///
@@ -30,5 +30,23 @@ impl<'a> Path<'a> {
     #[inline]
     pub fn is_rootless(self) -> bool {
         !self.is_absolute()
+    }
+
+    /// Returns an iterator over the [segments] of the path.
+    ///
+    /// [segments]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
+    #[inline]
+    pub fn segments(self) -> Split<'a> {
+        let mut path = self.0;
+        if self.is_absolute() {
+            // SAFETY: Skipping "/" is fine.
+            path = unsafe { path.get_unchecked(1..) };
+        }
+        // SAFETY: We have done the validation.
+        let path = unsafe { EStr::new_unchecked(path) };
+
+        let mut split = path.split('/');
+        split.finished = self.0.is_empty();
+        split
     }
 }

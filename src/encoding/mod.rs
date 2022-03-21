@@ -242,8 +242,9 @@ impl EStr {
 
     /// Decodes the `EStr` with a buffer.
     ///
-    /// Note that the buffer is cleared prior to decoding
-    /// and the decoded bytes are not necessarily in the buffer.
+    /// Note that the buffer is cleared prior to decoding and that
+    /// the decoded bytes are not necessarily appended to the buffer.
+    #[inline]
     pub fn decode_with<'a>(&'a self, buf: &'a mut Vec<u8>) -> DecodeRef<'a> {
         buf.clear();
         let s = self.inner.as_bytes();
@@ -454,7 +455,7 @@ impl<'a> DecodeRef<'a> {
 pub struct Split<'a> {
     s: &'a [u8],
     delim: u8,
-    finished: bool,
+    pub(crate) finished: bool,
 }
 
 impl<'a> Iterator for Split<'a> {
