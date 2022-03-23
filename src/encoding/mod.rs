@@ -242,20 +242,21 @@ impl EStr {
 
     /// Decodes the `EStr` with a buffer.
     ///
-    /// Note that the buffer is cleared prior to decoding and that
-    /// the decoded bytes are not necessarily appended to the buffer.
+    /// The argument `append_always` indicates whether the string
+    /// should be appended to the buffer if it needs no decoding.
+    ///
+    /// Note that the buffer is not cleared prior to decoding.
     #[inline]
-    pub fn decode_with<'a>(&'a self, buf: &'a mut Vec<u8>) -> DecodeRef<'a> {
-        buf.clear();
-        let s = self.inner.as_bytes();
+    pub fn decode_with<'a>(&'a self, buf: &'a mut Vec<u8>, append_always: bool) -> DecodeRef<'a> {
+        let bytes = self.inner.as_bytes();
 
         // SAFETY: An `EStr` may only be created through `new_unchecked`,
         // of which the caller must guarantee that the string is properly encoded.
-        let res = unsafe { decode_with_unchecked(s, buf, false) };
+        let decoded = unsafe { decode_with_unchecked(bytes, buf, append_always) };
 
         DecodeRef {
-            bytes: res.unwrap_or(s),
-            buffered: res.is_some(),
+            bytes: decoded.unwrap_or(bytes),
+            buffered: decoded.is_some(),
         }
     }
 
@@ -371,24 +372,6 @@ impl<'a> Decode<'a> {
             })
         }
     }
-
-    /// Converts the decoded bytes to a string assuming validity.
-    ///
-    /// # Safety
-    ///
-    /// The decoded bytes must be valid UTF-8.
-    #[inline]
-    pub unsafe fn into_string_unchecked(self) -> Cow<'a, str> {
-        if self.0.is_borrowed() {
-            let bytes = self.0.unwrap_borrowed();
-            // SAFETY: If the bytes are borrowed, they must be valid UTF-8.
-            Cow::borrowed(unsafe { str::from_utf8_unchecked(bytes) })
-        } else {
-            let bytes = self.0.into_owned();
-            // SAFETY: The caller must ensure that the decoded bytes are valid UTF-8.
-            Cow::owned(unsafe { String::from_utf8_unchecked(bytes) })
-        }
-    }
 }
 
 /// A wrapper of borrowed percent-decoded bytes.
@@ -407,12 +390,6 @@ impl<'a> DecodeRef<'a> {
     #[inline]
     pub fn as_bytes(self) -> &'a [u8] {
         self.bytes
-    }
-
-    /// Returns `true` if the decoded bytes are buffered.
-    #[inline]
-    pub fn is_buffered(self) -> bool {
-        self.buffered
     }
 
     /// Converts the decoded bytes to a string slice.
@@ -437,17 +414,6 @@ impl<'a> DecodeRef<'a> {
         } else {
             String::from_utf8_lossy(self.bytes).into()
         }
-    }
-
-    /// Converts the decoded bytes to a string slice assuming validity.
-    ///
-    /// # Safety
-    ///
-    /// The decoded bytes must be valid UTF-8.
-    #[inline]
-    pub unsafe fn as_str_unchecked(self) -> &'a str {
-        // SAFETY: The caller must ensure that the decoded bytes are valid UTF-8.
-        unsafe { str::from_utf8_unchecked(self.bytes) }
     }
 }
 

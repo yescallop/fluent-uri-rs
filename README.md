@@ -35,6 +35,7 @@ This project is still under development. Contributions are welcome!
 
 ## Goals
 
+- [ ] More tests.
 - [ ] URI building.
 - [ ] Reference resolution.
 - [ ] Normalization and comparison.
