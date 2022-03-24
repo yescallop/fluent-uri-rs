@@ -1,6 +1,6 @@
 # fluent-uri
 
-A Rust URI parser that strictly adheres to IETF [RFC 3986] and [RFC 6874].
+A URI parser in Rust that strictly adheres to IETF [RFC 3986].
 
 [![build](https://img.shields.io/github/workflow/status/yescallop/fluent-uri-rs/Rust)](https://github.com/yescallop/fluent-uri-rs/actions/workflows/rust.yml)
 [![license](https://img.shields.io/github/license/yescallop/fluent-uri-rs?color=blue)](/LICENSE)
@@ -13,7 +13,6 @@ A Rust URI parser that strictly adheres to IETF [RFC 3986] and [RFC 6874].
 This project is still under development. Contributions are welcome!
 
 [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
-[RFC 6874]: https://datatracker.ietf.org/doc/html/rfc6874/
 
 ## Features & Examples
 

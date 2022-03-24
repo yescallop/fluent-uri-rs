@@ -291,7 +291,7 @@ impl<'a> Parser<'a> {
         let host = if let Some(addr) = self.scan_v6() {
             Host::Ipv6 {
                 addr,
-                zone_id: self.read_zone_id()?,
+                // zone_id: self.read_zone_id()?,
             }
         } else if self.marked_len() == 0 {
             self.read_ipv_future()?
@@ -410,6 +410,7 @@ impl<'a> Parser<'a> {
         Some(Seg::Normal(x, colon))
     }
 
+    #[allow(unused)]
     fn read_zone_id(&mut self) -> Result<Option<&'a EStr>> {
         if !self.read_str("%25") {
             return Ok(None);

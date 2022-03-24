@@ -45,7 +45,7 @@ fn parse_absolute() {
             authority: Some(Authority {
                 host: Host::Ipv6 {
                     addr: Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 0x7),
-                    zone_id: None,
+                    // zone_id: None,
                 },
                 ..Authority::EMPTY
             }),
@@ -149,20 +149,20 @@ fn parse_absolute() {
         })
     );
 
-    assert_eq!(
-        Uri::parse("http://[fe80::520f:f5ff:fe51:cf0%2517]"),
-        Ok(Uri {
-            scheme: Some("http"),
-            authority: Some(Authority {
-                host: Host::Ipv6 {
-                    addr: Ipv6Addr::new(0xfe80, 0, 0, 0, 0x520f, 0xf5ff, 0xfe51, 0xcf0),
-                    zone_id: Some(EStr::new("17")),
-                },
-                ..Authority::EMPTY
-            }),
-            ..Uri::EMPTY
-        })
-    );
+    // assert_eq!(
+    //     Uri::parse("http://[fe80::520f:f5ff:fe51:cf0%2517]"),
+    //     Ok(Uri {
+    //         scheme: Some("http"),
+    //         authority: Some(Authority {
+    //             host: Host::Ipv6 {
+    //                 addr: Ipv6Addr::new(0xfe80, 0, 0, 0, 0x520f, 0xf5ff, 0xfe51, 0xcf0),
+    //                 zone_id: Some(EStr::new("17")),
+    //             },
+    //             ..Authority::EMPTY
+    //         }),
+    //         ..Uri::EMPTY
+    //     })
+    // );
 
     let u = Uri::parse("http://127.0.0.1:/").unwrap();
     let auth = u.authority().unwrap();

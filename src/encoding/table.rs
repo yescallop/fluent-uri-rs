@@ -128,4 +128,4 @@ pub static PATH: &Table = &PCHAR.or(&gen(b"/"));
 pub static QUERY_FRAGMENT: &Table = &PCHAR.or(&gen(b"/?"));
 
 /// RFC 6874: ZoneID = 1*( unreserved / pct-encoded )
-pub static ZONE_ID: &Table = &UNRESERVED.enc();
+pub(crate) static ZONE_ID: &Table = &UNRESERVED.enc();

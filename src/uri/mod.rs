@@ -263,12 +263,13 @@ impl<'a> Authority<'a> {
 pub enum Host<'a> {
     /// An IPv4 address.
     Ipv4(Ipv4Addr),
-    /// An IPv6 address with optional zone ID.
+    /// An IPv6 address.
+    #[non_exhaustive]
     Ipv6 {
         /// The address.
         addr: Ipv6Addr,
-        /// The zone ID.
-        zone_id: Option<&'a EStr>,
+        // /// The zone ID.
+        // zone_id: Option<&'a EStr>,
     },
     /// An IP address of future version.
     IpvFuture {
