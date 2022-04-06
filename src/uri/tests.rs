@@ -358,9 +358,11 @@ fn parse_error() {
 
     // IPvFuture when the feature isn't enabled.
     #[cfg(not(feature = "ipv_future"))]
-    let e = Uri::parse("http://[vFe.foo.bar]").unwrap_err();
-    assert_eq!(e.index(), 7);
-    assert_eq!(e.kind(), InvalidIpLiteral);
+    {
+        let e = Uri::parse("http://[vFe.foo.bar]").unwrap_err();
+        assert_eq!(e.index(), 7);
+        assert_eq!(e.kind(), InvalidIpLiteral);
+    }
 }
 
 #[test]
