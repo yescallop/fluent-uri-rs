@@ -8,7 +8,7 @@ A URI parser in Rust that strictly adheres to IETF [RFC 3986].
 
 - **Fast:** Zero-copy parsing. Observed to be 2x ~ 25x faster than common URI parsers in Rust.
 - **Easy:** Carefully designed and documented APIs. Handy percent-encoding utilities.
-- **Strict:** Parses every possible URI defined in RFCs and denies anything else.
+- **Strict:** Parses every possible URI defined in the RFC and denies anything else.
 
 This project is still under development. Contributions are welcome!
 
@@ -32,7 +32,7 @@ This project is still under development. Contributions are welcome!
     assert_eq!(map["speech"], "¡Olé!");
     ```
 
-## Goals
+## Roadmap
 
 - [ ] More tests.
 - [ ] URI building.

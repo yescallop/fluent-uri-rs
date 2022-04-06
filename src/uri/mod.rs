@@ -203,18 +203,28 @@ impl<'a> Scheme<'a> {
 /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Authority<'a> {
+    raw: &'a str,
     userinfo: Option<&'a str>,
+    host_raw: &'a str,
     host: Host<'a>,
     port: Option<&'a str>,
 }
 
 impl<'a> Authority<'a> {
-    /// An empty authority element.
+    /// An empty authority component.
     pub const EMPTY: Authority<'static> = Authority {
+        raw: "",
         userinfo: None,
+        host_raw: "",
         host: Host::EMPTY,
         port: None,
     };
+
+    /// Returns the raw authority component as a string slice.
+    #[inline]
+    pub fn as_str(&self) -> &str {
+        self.raw
+    }
 
     /// Returns the [userinfo] subcomponent.
     ///
@@ -225,7 +235,15 @@ impl<'a> Authority<'a> {
         self.userinfo.map(|s| unsafe { EStr::new_unchecked(s) })
     }
 
-    /// Returns the [host] subcomponent.
+    /// Returns the raw [host] subcomponent.
+    ///
+    /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
+    #[inline]
+    pub fn host_raw(&self) -> &str {
+        self.host_raw
+    }
+
+    /// Returns the parsed [host] subcomponent.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
     #[inline]
@@ -264,14 +282,16 @@ pub enum Host<'a> {
     /// An IPv4 address.
     Ipv4(Ipv4Addr),
     /// An IPv6 address.
-    #[non_exhaustive]
     Ipv6 {
         /// The address.
         addr: Ipv6Addr,
-        // /// The zone ID.
+        // /// The zone identifier.
         // zone_id: Option<&'a EStr>,
     },
     /// An IP address of future version.
+    /// 
+    /// This is supported on **crate feature `ipv_future`** only.
+    #[cfg(feature = "ipv_future")]
     IpvFuture {
         /// The version.
         ver: &'a str,

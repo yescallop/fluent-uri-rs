@@ -182,6 +182,7 @@ impl<'a> Parser<'a> {
             return self.parse_from_path(PathKind::General);
         }
         let mut out = Authority::EMPTY;
+        let start = self.pos;
 
         // This table contains userinfo, reg-name, ":", and port.
         static TABLE: &Table = &USERINFO.shl(1).or(&Table::gen(b":"));
@@ -200,12 +201,15 @@ impl<'a> Parser<'a> {
             // INVARIANT: Skipping "@" is fine.
             self.skip(1);
 
+            self.mark();
             out.host = self.read_host()?;
+            out.host_raw = self.marked();
             out.port = self.read_port();
         } else if self.marked_len() == 0 {
             // Nothing scanned. We're now at the start of an IP literal or the path.
             if let Some(host) = self.read_ip_literal()? {
                 out.host = host;
+                out.host_raw = self.marked();
                 out.port = self.read_port();
             }
         } else {
@@ -264,6 +268,7 @@ impl<'a> Parser<'a> {
                 // SAFETY: We have done the validation.
                 _ => Host::RegName(unsafe { EStr::new_unchecked(host) }),
             };
+            out.host_raw = host;
             out.port = port;
 
             // Restore the state.
@@ -271,10 +276,13 @@ impl<'a> Parser<'a> {
             (self.buf, self.pos) = state;
         }
 
+        // SAFETY: The invariant holds.
+        out.raw = unsafe { str::from_utf8_unchecked(self.buf.get_unchecked(start..self.pos)) };
         self.out.authority = Some(out);
         self.parse_from_path(PathKind::AbEmpty)
     }
 
+    // The marked length must be zero when this function is called.
     fn read_host(&mut self) -> Result<Host<'a>> {
         match self.read_ip_literal()? {
             Some(host) => Ok(host),
@@ -282,25 +290,30 @@ impl<'a> Parser<'a> {
         }
     }
 
+    // The marked length must be zero when this function is called.
     fn read_ip_literal(&mut self) -> Result<Option<Host<'a>>> {
         if !self.read_str("[") {
             return Ok(None);
         }
-        self.mark();
 
         let host = if let Some(addr) = self.scan_v6() {
             Host::Ipv6 {
                 addr,
                 // zone_id: self.read_zone_id()?,
             }
-        } else if self.marked_len() == 0 {
-            self.read_ipv_future()?
         } else {
-            err!(self.mark - 1, InvalidIpLiteral);
+            #[cfg(feature = "ipv_future")]
+            if self.marked_len() == 1 {
+                self.read_ipv_future()?
+            } else {
+                err!(self.mark, InvalidIpLiteral);
+            }
+            #[cfg(not(feature = "ipv_future"))]
+            err!(self.mark, InvalidIpLiteral);
         };
 
         if !self.read_str("]") {
-            err!(self.mark - 1, InvalidIpLiteral);
+            err!(self.mark, InvalidIpLiteral);
         }
         Ok(Some(host))
     }
@@ -417,15 +430,15 @@ impl<'a> Parser<'a> {
         }
         let res = self.read(ZONE_ID)?;
         if res.is_empty() {
-            err!(self.mark - 1, InvalidIpLiteral);
+            err!(self.mark, InvalidIpLiteral);
         } else {
             // SAFETY: We have done the validation.
             Ok(Some(unsafe { EStr::new_unchecked(res) }))
         }
     }
 
+    // The marked length must be zero when this function is called.
     fn read_v4_or_reg_name(&mut self) -> Result<Host<'a>> {
-        self.mark();
         let v4 = self.scan_v4();
         let v4_end = self.pos;
         self.scan(REG_NAME)?;
@@ -494,8 +507,7 @@ impl<'a> Parser<'a> {
         })
     }
 
-    #[cold]
-    #[inline(never)]
+    #[cfg(feature = "ipv_future")]
     fn read_ipv_future(&mut self) -> Result<Host<'a>> {
         if matches!(self.peek(0), Some(b'v' | b'V')) {
             // INVARIANT: Skipping "v" or "V" is fine.
@@ -508,7 +520,7 @@ impl<'a> Parser<'a> {
                 }
             }
         }
-        err!(self.mark - 1, InvalidIpLiteral);
+        err!(self.mark, InvalidIpLiteral);
     }
 
     fn parse_from_path(&mut self, kind: PathKind) -> Result<()> {
@@ -566,7 +578,7 @@ mod tests {
     fn parse_v6(s: &str) -> Option<Ipv6Addr> {
         let s = format!("//[{}]", s);
         match parse(s.as_bytes()).ok()?.authority()?.host() {
-            &Host::Ipv6 { addr, .. } => Some(addr),
+            &Host::Ipv6 { addr } => Some(addr),
             _ => None,
         }
     }

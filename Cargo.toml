@@ -7,6 +7,9 @@ edition = "2021"
 [dependencies]
 beef = "0.5.1"
 
+[features]
+ipv_future = []
+
 # Commented out to reduce compile time.
 
 # [[bench]]
@@ -17,3 +20,4 @@ beef = "0.5.1"
 # criterion = "0.3"
 # url = "2.2.2"
 # uriparse = "0.6.4"
+# iri-string = "0.5.0"

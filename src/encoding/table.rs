@@ -1,4 +1,4 @@
-//! Character tables from RFC 3986 and RFC 6874.
+//! Character tables from RFC 3986.
 //!
 //! The predefined tables in this module have values that are either 0 or 1.
 

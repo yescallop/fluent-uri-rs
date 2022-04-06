@@ -17,7 +17,9 @@ fn parse_absolute() {
         Ok(Uri {
             scheme: Some("ftp"),
             authority: Some(Authority {
+                raw: "ftp.is.co.za",
                 host: Host::RegName(EStr::new("ftp.is.co.za")),
+                host_raw: "ftp.is.co.za",
                 ..Authority::EMPTY
             }),
             path: "/rfc/rfc1808.txt",
@@ -30,7 +32,9 @@ fn parse_absolute() {
         Ok(Uri {
             scheme: Some("http"),
             authority: Some(Authority {
+                raw: "www.ietf.org",
                 host: Host::RegName(EStr::new("www.ietf.org")),
+                host_raw: "www.ietf.org",
                 ..Authority::EMPTY
             }),
             path: "/rfc/rfc2396.txt",
@@ -43,10 +47,12 @@ fn parse_absolute() {
         Ok(Uri {
             scheme: Some("ldap"),
             authority: Some(Authority {
+                raw: "[2001:db8::7]",
                 host: Host::Ipv6 {
                     addr: Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 0x7),
                     // zone_id: None,
                 },
+                host_raw: "[2001:db8::7]",
                 ..Authority::EMPTY
             }),
             path: "/c=GB",
@@ -87,7 +93,9 @@ fn parse_absolute() {
         Ok(Uri {
             scheme: Some("telnet"),
             authority: Some(Authority {
+                raw: "192.0.2.16:80",
                 host: Host::Ipv4(Ipv4Addr::new(192, 0, 2, 16)),
+                host_raw: "192.0.2.16",
                 port: Some("80"),
                 userinfo: None,
             }),
@@ -110,7 +118,9 @@ fn parse_absolute() {
         Ok(Uri {
             scheme: Some("foo"),
             authority: Some(Authority {
+                raw: "example.com:8042",
                 host: Host::RegName(EStr::new("example.com")),
+                host_raw: "example.com",
                 port: Some("8042"),
                 userinfo: None,
             }),
@@ -125,7 +135,9 @@ fn parse_absolute() {
         Ok(Uri {
             scheme: Some("ftp"),
             authority: Some(Authority {
+                raw: "cnn.example.com&story=breaking_news@10.0.0.1",
                 host: Host::Ipv4(Ipv4Addr::new(10, 0, 0, 1)),
+                host_raw: "10.0.0.1",
                 port: None,
                 userinfo: Some("cnn.example.com&story=breaking_news"),
             }),
@@ -134,15 +146,18 @@ fn parse_absolute() {
         })
     );
 
+    #[cfg(feature = "ipv_future")]
     assert_eq!(
         Uri::parse("http://[vFe.foo.bar]"),
         Ok(Uri {
             scheme: Some("http"),
             authority: Some(Authority {
+                raw: "[vFe.foo.bar]",
                 host: Host::IpvFuture {
                     ver: "Fe",
                     addr: "foo.bar",
                 },
+                host_raw: "[vFe.foo.bar]",
                 ..Authority::EMPTY
             }),
             ..Uri::EMPTY
@@ -154,10 +169,12 @@ fn parse_absolute() {
     //     Ok(Uri {
     //         scheme: Some("http"),
     //         authority: Some(Authority {
+    //             raw: "[fe80::520f:f5ff:fe51:cf0%2517]",
     //             host: Host::Ipv6 {
     //                 addr: Ipv6Addr::new(0xfe80, 0, 0, 0, 0x520f, 0xf5ff, 0xfe51, 0xcf0),
     //                 zone_id: Some(EStr::new("17")),
     //             },
+    //             host_raw: "[fe80::520f:f5ff:fe51:cf0%2517]",
     //             ..Authority::EMPTY
     //         }),
     //         ..Uri::EMPTY
@@ -210,7 +227,9 @@ fn parse_relative() {
         Uri::parse("//example.com"),
         Ok(Uri {
             authority: Some(Authority {
+                raw: "example.com",
                 host: Host::RegName(EStr::new("example.com")),
+                host_raw: "example.com",
                 ..Authority::EMPTY
             }),
             ..Uri::EMPTY
@@ -335,6 +354,12 @@ fn parse_error() {
     // Invalid IPv6 address
     let e = Uri::parse("example://[44:55::66::77]").unwrap_err();
     assert_eq!(e.index(), 10);
+    assert_eq!(e.kind(), InvalidIpLiteral);
+
+    // IPvFuture when the feature isn't enabled.
+    #[cfg(not(feature = "ipv_future"))]
+    let e = Uri::parse("http://[vFe.foo.bar]").unwrap_err();
+    assert_eq!(e.index(), 7);
     assert_eq!(e.kind(), InvalidIpLiteral);
 }
 
