@@ -233,12 +233,12 @@ impl EStr {
     }
 
     /// Decodes the `EStr`.
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use fluent_uri::encoding::EStr;
-    /// 
+    ///
     /// let dec = EStr::new("%C2%BF").decode();
     /// assert_eq!(dec.as_bytes(), &[0xc2, 0xbf]);
     /// assert_eq!(dec.into_string().unwrap(), "¿");
@@ -256,20 +256,20 @@ impl EStr {
     /// should be appended to the buffer if it needs no decoding.
     ///
     /// Note that the buffer is not cleared prior to decoding.
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use fluent_uri::encoding::EStr;
-    /// 
+    ///
     /// let mut buf = Vec::new();
     /// let dec = EStr::new("23").decode_with(&mut buf, false);
     /// assert_eq!(dec.to_str().unwrap(), "23");
     /// assert!(buf.is_empty());
-    /// 
+    ///
     /// EStr::new("23").decode_with(&mut buf, true);
     /// assert_eq!(buf, b"23");
-    /// 
+    ///
     /// let dec = EStr::new("%33").decode_with(&mut buf, false);
     /// assert_eq!(dec.to_str().unwrap(), "3");
     /// assert_eq!(buf, b"233");
@@ -334,16 +334,16 @@ impl EStr {
     /// Panics if the delimiter is not a [reserved] character.
     ///
     /// [reserved]: https://datatracker.ietf.org/doc/html/rfc3986/#section-2.2
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use fluent_uri::encoding::EStr;
-    /// 
+    ///
     /// let (k, v) = EStr::new("key=value").split_once('=').unwrap();
     /// assert_eq!(k, "key");
     /// assert_eq!(v, "value");
-    /// 
+    ///
     /// assert!(EStr::new("abc").split_once(';').is_none());
     /// ```
     #[inline]
@@ -366,6 +366,7 @@ impl EStr {
 /// This struct is created by calling [`decode`] on an `EStr`.
 ///
 /// [`decode`]: EStr::decode
+#[derive(Debug)]
 pub struct Decode<'a>(Cow<'a, [u8]>);
 
 impl<'a> Decode<'a> {
@@ -419,7 +420,7 @@ impl<'a> Decode<'a> {
 /// This struct is created by calling [`decode_with`] on an `EStr`.
 ///
 /// [`decode_with`]: EStr::decode_with
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct DecodeRef<'a> {
     bytes: &'a [u8],
     buffered: bool,
@@ -458,6 +459,7 @@ impl<'a> DecodeRef<'a> {
 }
 
 /// An iterator over substrings of an `EStr` separated by a delimiter.
+#[derive(Debug)]
 pub struct Split<'a> {
     s: &'a [u8],
     delim: u8,

@@ -5,7 +5,7 @@
 /// A table determining the pattern of bytes allowed in a string.
 ///
 /// It is guaranteed that the bytes allowed are ASCII.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Table {
     arr: [u8; 256],
     allow_enc: bool,

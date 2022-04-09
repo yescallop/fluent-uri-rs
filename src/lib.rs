@@ -1,5 +1,11 @@
-#![warn(rust_2018_idioms, missing_docs)]
+#![warn(
+    missing_debug_implementations,
+    missing_docs,
+    rust_2018_idioms,
+    unreachable_pub
+)]
 #![deny(unsafe_op_in_unsafe_fn)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 //! A URI parser that strictly adheres to IETF [RFC 3986].
 //!

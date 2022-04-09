@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crate::encoding::{EStr, Split};
 
 /// The [path] component of URI reference.
@@ -35,19 +37,19 @@ impl<'a> Path<'a> {
     /// Returns an iterator over the [segments] of the path.
     ///
     /// [segments]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use fluent_uri::Uri;
-    /// 
+    ///
     /// // An empty path has no segments.
     /// let uri = Uri::EMPTY;
     /// assert_eq!(uri.path().segments().next(), None);
-    /// 
+    ///
     /// let uri = Uri::parse("a/b/c").unwrap();
     /// assert!(uri.path().segments().eq(["a", "b", "c"]));
-    /// 
+    ///
     /// // The empty string before a preceding "/" is not a segment.
     /// // However, segments can be empty in the other cases.
     /// let uri = Uri::parse("/path/to//dir/").unwrap();
@@ -66,5 +68,12 @@ impl<'a> Path<'a> {
         let mut split = path.split('/');
         split.finished = self.0.is_empty();
         split
+    }
+}
+
+impl<'a> fmt::Display for Path<'a> {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self.as_str(), f)
     }
 }

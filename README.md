@@ -2,15 +2,15 @@
 
 A URI parser in Rust that strictly adheres to IETF [RFC 3986].
 
+[![crates.io](https://img.shields.io/crates/v/fluent-uri.svg)](https://crates.io/crates/fluent-uri)
 [![build](https://img.shields.io/github/workflow/status/yescallop/fluent-uri-rs/Rust)](https://github.com/yescallop/fluent-uri-rs/actions/workflows/rust.yml)
 [![license](https://img.shields.io/github/license/yescallop/fluent-uri-rs?color=blue)](/LICENSE)
-[![docs](https://img.shields.io/badge/docs-GitHub%20Pages-red)](https://yescallop.cn/fluent-uri-rs/fluent_uri/)
 
 - **Fast:** Zero-copy parsing. Observed to be 2x ~ 25x faster than common URI parsers in Rust.
 - **Easy:** Carefully designed and documented APIs. Handy percent-encoding utilities.
 - **Strict:** Parses every possible URI defined in the RFC and denies anything else.
 
-This project is still under development. Contributions are welcome!
+[API docs](https://docs.rs/fluent-uri/latest/fluent-uri)
 
 [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
 

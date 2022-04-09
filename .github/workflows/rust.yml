@@ -17,12 +17,4 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Run tests
-      run: cargo test --all-features
-    - name: Build doc
-      run: cargo doc --no-deps --all-features
-    - name: Deploy doc
-      uses: peaceiris/actions-gh-pages@v3
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./target/doc
-        publish_branch: doc
+      run: cargo +nightly test --all-features

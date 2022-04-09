@@ -568,7 +568,7 @@ mod tests {
     use super::*;
 
     fn parse_v4(s: &str) -> Option<Ipv4Addr> {
-        let s = format!("//{}", s);
+        let s = format!("//{s}");
         match parse(s.as_bytes()).ok()?.authority()?.host() {
             &Host::Ipv4(addr) => Some(addr),
             _ => None,
@@ -576,7 +576,7 @@ mod tests {
     }
 
     fn parse_v6(s: &str) -> Option<Ipv6Addr> {
-        let s = format!("//[{}]", s);
+        let s = format!("//[{s}]");
         match parse(s.as_bytes()).ok()?.authority()?.host() {
             &Host::Ipv6 { addr } => Some(addr),
             _ => None,
