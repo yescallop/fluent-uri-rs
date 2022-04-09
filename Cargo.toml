@@ -15,6 +15,10 @@ beef = "0.5.1"
 [features]
 ipv_future = []
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 # Commented out to reduce compile time.
 
 # [[bench]]
