@@ -35,6 +35,24 @@ impl<'a> Path<'a> {
     /// Returns an iterator over the [segments] of the path.
     ///
     /// [segments]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use fluent_uri::Uri;
+    /// 
+    /// // An empty path has no segments.
+    /// let uri = Uri::EMPTY;
+    /// assert_eq!(uri.path().segments().next(), None);
+    /// 
+    /// let uri = Uri::parse("a/b/c").unwrap();
+    /// assert!(uri.path().segments().eq(["a", "b", "c"]));
+    /// 
+    /// // The empty string before a preceding "/" is not a segment.
+    /// // However, segments can be empty in the other cases.
+    /// let uri = Uri::parse("/path/to//dir/").unwrap();
+    /// assert!(uri.path().segments().eq(["path", "to", "", "dir", ""]));
+    /// ```
     #[inline]
     pub fn segments(self) -> Split<'a> {
         let mut path = self.0;

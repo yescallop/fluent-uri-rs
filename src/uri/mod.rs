@@ -144,6 +144,17 @@ impl<'a> Uri<'a> {
     ///
     /// [relative]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.2
     /// [`is_absolute`]: Self::is_absolute
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use fluent_uri::Uri;
+    /// 
+    /// let uri = Uri::parse("/path/to/file").unwrap();
+    /// assert!(uri.is_relative());
+    /// let uri = Uri::parse("http://example.com/").unwrap();
+    /// assert!(!uri.is_relative());
+    /// ```
     #[inline]
     pub fn is_relative(&self) -> bool {
         self.scheme.is_none()
@@ -155,6 +166,19 @@ impl<'a> Uri<'a> {
     ///
     /// [absolute]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.3
     /// [`is_relative`]: Self::is_relative
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use fluent_uri::Uri;
+    /// 
+    /// let uri = Uri::parse("http://example.com/").unwrap();
+    /// assert!(uri.is_absolute());
+    /// let uri = Uri::parse("http://example.com/#title1").unwrap();
+    /// assert!(!uri.is_absolute());
+    /// let uri = Uri::parse("/path/to/file").unwrap();
+    /// assert!(!uri.is_absolute());
+    /// ```
     #[inline]
     pub fn is_absolute(&self) -> bool {
         self.scheme.is_some() && self.fragment.is_none()
@@ -169,12 +193,32 @@ pub struct Scheme<'a>(&'a str);
 
 impl<'a> Scheme<'a> {
     /// Returns the scheme as a string slice in the raw form.
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use fluent_uri::Uri;
+    /// 
+    /// let uri = Uri::parse("Http://Example.Com/").unwrap();
+    /// let scheme = uri.scheme().unwrap();
+    /// assert_eq!(scheme.as_str(), "Http");
+    /// ```
     #[inline]
     pub fn as_str(self) -> &'a str {
         self.0
     }
 
     /// Returns the scheme as a string in the normalized (lowercase) form.
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use fluent_uri::Uri;
+    /// 
+    /// let uri = Uri::parse("Http://Example.Com/").unwrap();
+    /// let scheme = uri.scheme().unwrap();
+    /// assert_eq!(scheme.normalize(), "http");
+    /// ```
     #[inline]
     pub fn normalize(self) -> String {
         self.0.to_ascii_lowercase()
@@ -184,6 +228,18 @@ impl<'a> Scheme<'a> {
     ///
     /// This function is faster than [`str::eq_ignore_ascii_case`] but will
     /// always return `false` if there is any uppercase letter in the given string.
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use fluent_uri::Uri;
+    /// 
+    /// let uri = Uri::parse("Http://Example.Com/").unwrap();
+    /// let scheme = uri.scheme().unwrap();
+    /// assert!(scheme.eq_lowercase("http"));
+    /// // Always return `false` if there's any uppercase letter in the given string.
+    /// assert!(!scheme.eq_lowercase("hTTp"));
+    /// ```
     #[inline]
     pub fn eq_lowercase(self, other: &str) -> bool {
         // The only characters allowed in a scheme are alphabets, digits, "+", "-" and ".",
@@ -221,6 +277,16 @@ impl<'a> Authority<'a> {
     };
 
     /// Returns the raw authority component as a string slice.
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use fluent_uri::Uri;
+    /// 
+    /// let uri = Uri::parse("ftp://user@[fe80::abcd]:6780/").unwrap();
+    /// let authority = uri.authority().unwrap();
+    /// assert_eq!(authority.as_str(), "user@[fe80::abcd]:6780");
+    /// ```
     #[inline]
     pub fn as_str(&self) -> &str {
         self.raw
@@ -229,15 +295,35 @@ impl<'a> Authority<'a> {
     /// Returns the [userinfo] subcomponent.
     ///
     /// [userinfo]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.1
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use fluent_uri::Uri;
+    /// 
+    /// let uri = Uri::parse("ftp://user@192.168.1.24/").unwrap();
+    /// let authority = uri.authority().unwrap();
+    /// assert_eq!(authority.userinfo().unwrap(), "user");
+    /// ```
     #[inline]
     pub fn userinfo(&self) -> Option<&EStr> {
         // SAFETY: We have done the validation.
         self.userinfo.map(|s| unsafe { EStr::new_unchecked(s) })
     }
 
-    /// Returns the raw [host] subcomponent.
+    /// Returns the raw [host] subcomponent as a string slice.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use fluent_uri::Uri;
+    /// 
+    /// let uri = Uri::parse("ftp://user@[::1]/").unwrap();
+    /// let authority = uri.authority().unwrap();
+    /// assert_eq!(authority.host_raw(), "[::1]");
+    /// ```
     #[inline]
     pub fn host_raw(&self) -> &str {
         self.host_raw
@@ -251,9 +337,27 @@ impl<'a> Authority<'a> {
         &self.host
     }
 
-    /// Returns the raw [port] subcomponent.
+    /// Returns the raw [port] subcomponent as a string slice.
     ///
     /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use fluent_uri::Uri;
+    /// 
+    /// let uri = Uri::parse("ssh://device.local:4673/").unwrap();
+    /// let authority = uri.authority().unwrap();
+    /// assert_eq!(authority.port_raw(), Some("4673"));
+    /// 
+    /// let uri = Uri::parse("ssh://device.local:/").unwrap();
+    /// let authority = uri.authority().unwrap();
+    /// assert_eq!(authority.port_raw(), Some(""));
+    /// 
+    /// let uri = Uri::parse("ssh://device.local/").unwrap();
+    /// let authority = uri.authority().unwrap();
+    /// assert_eq!(authority.port_raw(), None);
+    /// ```
     #[inline]
     pub fn port_raw(&self) -> Option<&str> {
         self.port
@@ -266,6 +370,28 @@ impl<'a> Authority<'a> {
     /// If the raw port overflows a `u16`, a `Some(Err)` containing the raw port will be returned.
     ///
     /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use fluent_uri::Uri;
+    /// 
+    /// let uri = Uri::parse("ssh://device.local:4673/").unwrap();
+    /// let authority = uri.authority().unwrap();
+    /// assert_eq!(authority.port(), Some(Ok(4673)));
+    /// 
+    /// let uri = Uri::parse("ssh://device.local:/").unwrap();
+    /// let authority = uri.authority().unwrap();
+    /// assert_eq!(authority.port(), None);
+    /// 
+    /// let uri = Uri::parse("ssh://device.local/").unwrap();
+    /// let authority = uri.authority().unwrap();
+    /// assert_eq!(authority.port(), None);
+    /// 
+    /// let uri = Uri::parse("example://device.local:31415926/").unwrap();
+    /// let authority = uri.authority().unwrap();
+    /// assert_eq!(authority.port(), Some(Err("31415926")));
+    /// ```
     #[inline]
     pub fn port(&self) -> Option<Result<u16, &str>> {
         self.port
@@ -282,6 +408,9 @@ pub enum Host<'a> {
     /// An IPv4 address.
     Ipv4(Ipv4Addr),
     /// An IPv6 address.
+    /// 
+    /// In the future an optional zone identifier may be supported.
+    #[non_exhaustive]
     Ipv6 {
         /// The address.
         addr: Ipv6Addr,
