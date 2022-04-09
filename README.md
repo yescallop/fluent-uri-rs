@@ -3,7 +3,7 @@
 A URI parser in Rust that strictly adheres to IETF [RFC 3986].
 
 [![crates.io](https://img.shields.io/crates/v/fluent-uri.svg)](https://crates.io/crates/fluent-uri)
-[![build](https://img.shields.io/github/workflow/status/yescallop/fluent-uri-rs/Rust)](https://github.com/yescallop/fluent-uri-rs/actions/workflows/rust.yml)
+[![CI](https://github.com/yescallop/fluent-uri-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/yescallop/fluent-uri-rs/actions/workflows/ci.yml)
 [![license](https://img.shields.io/github/license/yescallop/fluent-uri-rs?color=blue)](/LICENSE)
 
 - **Fast:** Zero-copy parsing. Observed to be 2x ~ 25x faster than common URI parsers in Rust.
