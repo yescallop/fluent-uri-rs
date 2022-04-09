@@ -432,6 +432,8 @@ pub enum Host<'a> {
         // zone_id: Option<&'a EStr>,
     },
     /// An IP address of future version.
+    /// 
+    /// This is supported on **crate feature `ipv_future`** only.
     #[cfg(feature = "ipv_future")]
     IpvFuture {
         /// The version.

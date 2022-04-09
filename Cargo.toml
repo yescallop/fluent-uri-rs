@@ -17,7 +17,6 @@ ipv_future = []
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
 
 # Commented out to reduce compile time.
 
