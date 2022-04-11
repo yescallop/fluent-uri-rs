@@ -44,16 +44,17 @@ impl<'a> Path<'a> {
     /// use fluent_uri::Uri;
     ///
     /// // An empty path has no segments.
-    /// let uri = Uri::EMPTY;
+    /// let uri = Uri::parse("")?;
     /// assert_eq!(uri.path().segments().next(), None);
     ///
-    /// let uri = Uri::parse("a/b/c").unwrap();
+    /// let uri = Uri::parse("a/b/c")?;
     /// assert!(uri.path().segments().eq(["a", "b", "c"]));
     ///
     /// // The empty string before a preceding "/" is not a segment.
     /// // However, segments can be empty in the other cases.
-    /// let uri = Uri::parse("/path/to//dir/").unwrap();
+    /// let uri = Uri::parse("/path/to//dir/")?;
     /// assert!(uri.path().segments().eq(["path", "to", "", "dir", ""]));
+    /// # Ok::<_, fluent_uri::SyntaxError>(())
     /// ```
     #[inline]
     pub fn segments(self) -> Split<'a> {
