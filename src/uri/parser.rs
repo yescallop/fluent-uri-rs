@@ -96,12 +96,12 @@ impl<'a> Parser<'a> {
     }
 
     fn scan(&mut self, table: &Table) -> Result<()> {
-        if table.allow_enc() {
+        if table.allows_enc() {
             self.scan_enc(table, |_| ())
         } else {
             let mut i = self.pos;
             while i < self.out.len {
-                if !table.contains(self.get(i)) {
+                if !table.allows(self.get(i)) {
                     break;
                 }
                 // INVARIANT: Since `i < len`, it holds that `i + 1 <= len`.

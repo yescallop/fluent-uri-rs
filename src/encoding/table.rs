@@ -1,50 +1,92 @@
-//! Character tables from RFC 3986.
+//! Byte pattern tables from RFC 3986.
 //!
 //! The predefined tables in this module have values that are either 0 or 1.
 
-/// A table determining the pattern of bytes allowed in a string.
+/// A table determining the byte patterns allowed in a string.
 ///
-/// It is guaranteed that the bytes allowed are ASCII.
+/// It is guaranteed that the unencoded bytes allowed are ASCII and that
+/// an unencoded `%` is not allowed.
+///
+/// Note that table values are not meant for use outside this crate.
 #[derive(Clone, Copy, Debug)]
 pub struct Table {
     arr: [u8; 256],
-    allow_enc: bool,
+    allows_enc: bool,
 }
 
 impl Table {
-    /// Generates a table that only allows the given bytes.
+    /// Generates a table that only allows the given unencoded bytes.
     ///
     /// # Panics
     ///
-    /// Panics if any of the bytes is not ASCII.
+    /// Panics if any of the bytes is not ASCII or is `%`.
     pub const fn gen(mut bytes: &[u8]) -> Table {
         let mut arr = [0; 256];
         while let [cur, rem @ ..] = bytes {
-            assert!(cur.is_ascii(), "non-ASCII byte");
+            assert!(cur.is_ascii() && *cur != b'%', "non-ASCII or %");
             arr[*cur as usize] = 1;
             bytes = rem;
         }
         Table {
             arr,
-            allow_enc: false,
+            allows_enc: false,
         }
     }
 
     /// Marks this table as allowing percent-encoded octets.
     pub const fn enc(mut self) -> Table {
-        self.allow_enc = true;
+        self.allows_enc = true;
         self
     }
 
     /// Combines two tables into one.
-    pub const fn or(mut self, t: &Table) -> Table {
+    ///
+    /// Returns a new table that allows all the byte patterns allowed
+    /// either by `self` or by `other`.
+    ///
+    /// The values in the returned table are each the bitwise
+    /// OR of the corresponding values in `self` and `other`.
+    pub const fn or(mut self, other: &Table) -> Table {
         let mut i = 0;
         while i < 128 {
-            self.arr[i] |= t.arr[i];
+            self.arr[i] |= other.arr[i];
             i += 1;
         }
-        self.allow_enc |= t.allow_enc;
+        self.allows_enc |= other.allows_enc;
         self
+    }
+
+    /// Subtracts from this table.
+    ///
+    /// Returns a new table that allows all the byte patterns allowed
+    /// by `self` but not allowed by `other`.
+    ///
+    /// The values in the returned table are each copied from `self` or set to 0.
+    pub const fn sub(mut self, other: &Table) -> Table {
+        let mut i = 0;
+        while i < 128 {
+            if other.arr[i] != 0 {
+                self.arr[i] = 0;
+            }
+            i += 1;
+        }
+        if other.allows_enc {
+            self.allows_enc = false;
+        }
+        self
+    }
+
+    /// Returns `true` if the table is a subset of another, i.e., `other`
+    /// allows at least all the byte patterns allowed by `self`.
+    pub const fn is_subset(&self, other: &Table) -> bool {
+        let mut i = 0;
+        while i < 128 {
+            if self.arr[i] != 0 && other.arr[i] == 0 {
+                return false;
+            }
+            i += 1;
+        }
+        !(self.allows_enc && !other.allows_enc)
     }
 
     /// Shifts the table values left.
@@ -63,16 +105,16 @@ impl Table {
         self.arr[x as usize]
     }
 
-    /// Returns `true` if a byte is allowed by the table.
+    /// Returns `true` if an unencoded byte is allowed by the table.
     #[inline]
-    pub const fn contains(&self, x: u8) -> bool {
+    pub const fn allows(&self, x: u8) -> bool {
         self.get(x) != 0
     }
 
     /// Returns `true` if percent-encoded octets are allowed by the table.
     #[inline]
-    pub const fn allow_enc(&self) -> bool {
-        self.allow_enc
+    pub const fn allows_enc(&self) -> bool {
+        self.allows_enc
     }
 }
 
@@ -81,51 +123,51 @@ const fn gen(bytes: &[u8]) -> Table {
 }
 
 /// ALPHA = A-Z / a-z
-pub static ALPHA: &Table = &gen(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
+pub const ALPHA: &Table = &gen(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
 
 /// DIGIT = 0-9
-pub static DIGIT: &Table = &gen(b"0123456789");
+pub const DIGIT: &Table = &gen(b"0123456789");
 
 /// HEXDIG = DIGIT / "A" / "B" / "C" / "D" / "E" / "F"
 ///                / "a" / "b" / "c" / "d" / "e" / "f"
-pub static HEXDIG: &Table = &DIGIT.or(&gen(b"ABCDEFabcdef"));
+pub const HEXDIG: &Table = &DIGIT.or(&gen(b"ABCDEFabcdef"));
 
 /// reserved = gen-delims / sub-delims
-pub static RESERVED: &Table = &GEN_DELIMS.or(SUB_DELIMS);
+pub const RESERVED: &Table = &GEN_DELIMS.or(SUB_DELIMS);
 
 /// gen-delims = ":" / "/" / "?" / "#" / "[" / "]" / "@"
-pub static GEN_DELIMS: &Table = &gen(b":/?#[]@");
+pub const GEN_DELIMS: &Table = &gen(b":/?#[]@");
 
 /// sub-delims = "!" / "$" / "&" / "'" / "(" / ")"
 ///            / "*" / "+" / "," / ";" / "="
-pub static SUB_DELIMS: &Table = &gen(b"!$&'()*+,;=");
+pub const SUB_DELIMS: &Table = &gen(b"!$&'()*+,;=");
 
 /// unreserved = ALPHA / DIGIT / "-" / "." / "_" / "~"
-pub static UNRESERVED: &Table = &ALPHA.or(DIGIT).or(&gen(b"-._~"));
+pub const UNRESERVED: &Table = &ALPHA.or(DIGIT).or(&gen(b"-._~"));
 
 /// pchar = unreserved / pct-encoded / sub-delims / ":" / "@"
-pub static PCHAR: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b":@")).enc();
+pub const PCHAR: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b":@")).enc();
 
 /// segment-nz-nc = 1*( unreserved / pct-encoded / sub-delims / "@" )
-pub static SEGMENT_NC: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b"@")).enc();
+pub const SEGMENT_NC: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b"@")).enc();
 
 /// scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
-pub static SCHEME: &Table = &ALPHA.or(DIGIT).or(&gen(b"+-."));
+pub const SCHEME: &Table = &ALPHA.or(DIGIT).or(&gen(b"+-."));
 
 /// userinfo = *( unreserved / pct-encoded / sub-delims / ":" )
-pub static USERINFO: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b":")).enc();
+pub const USERINFO: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b":")).enc();
 
 /// IPvFuture = "v" 1\*HEXDIG "." 1\*( unreserved / sub-delims / ":" )
-pub static IPV_FUTURE: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b":"));
+pub const IPV_FUTURE: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b":"));
 
 /// reg-name = *( unreserved / pct-encoded / sub-delims )
-pub static REG_NAME: &Table = &UNRESERVED.or(SUB_DELIMS).enc();
+pub const REG_NAME: &Table = &UNRESERVED.or(SUB_DELIMS).enc();
 
 /// path = *( pchar / "/" )
-pub static PATH: &Table = &PCHAR.or(&gen(b"/"));
+pub const PATH: &Table = &PCHAR.or(&gen(b"/"));
 
 /// query = fragment = *( pchar / "/" / "?" )
-pub static QUERY_FRAGMENT: &Table = &PCHAR.or(&gen(b"/?"));
+pub const QUERY_FRAGMENT: &Table = &PCHAR.or(&gen(b"/?"));
 
 /// RFC 6874: ZoneID = 1*( unreserved / pct-encoded )
-pub(crate) static ZONE_ID: &Table = &UNRESERVED.enc();
+pub(crate) const ZONE_ID: &Table = &UNRESERVED.enc();

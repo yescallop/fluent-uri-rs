@@ -3,6 +3,9 @@ pub mod table;
 mod imp;
 pub use imp::*;
 
+mod estring;
+pub use estring::*;
+
 use self::table::Table;
 use crate::Result;
 use beef::Cow;
@@ -52,33 +55,27 @@ mod internal {
 /// Panics if the table is not for encoding.
 #[inline]
 pub fn encode<'a, S: AsRef<[u8]> + ?Sized>(s: &'a S, table: &Table) -> Cow<'a, str> {
-    assert!(table.allow_enc(), "table not for encoding");
+    assert!(table.allows_enc(), "table not for encoding");
     imp::encode(s.as_ref(), table)
 }
 
-/// Percent-encodes a byte sequence with a buffer.
-///
-/// Returns `None` if the bytes need no encoding.
+/// Percent-encodes a byte sequence to a buffer.
 ///
 /// The buffer may either be a [`String`] or a [`Vec<u8>`].
-///
-/// The argument `append_always` indicates whether the bytes
-/// should be appended to the buffer if they need no encoding.
 ///
 /// # Panics
 ///
 /// Panics if the table is not for encoding.
 #[inline]
-pub fn encode_with<'a, S: AsRef<[u8]> + ?Sized, B: internal::Buf>(
+pub fn encode_to<'a, S: AsRef<[u8]> + ?Sized, B: internal::Buf>(
     s: &S,
     table: &Table,
     buf: &'a mut B,
-    append_always: bool,
-) -> Option<&'a str> {
-    assert!(table.allow_enc(), "table not for encoding");
+) {
+    assert!(table.allows_enc(), "table not for encoding");
     // SAFETY: The encoded bytes are valid UTF-8.
     let buf = unsafe { buf.as_mut_vec() };
-    imp::encode_with(s.as_ref(), table, buf, append_always)
+    imp::encode_to(s.as_ref(), table, buf)
 }
 
 /// Decodes a percent-encoded string.
@@ -89,27 +86,24 @@ pub fn decode<S: AsRef<[u8]> + ?Sized>(s: &S) -> Result<Cow<'_, [u8]>> {
 
 /// Decodes a percent-encoded string with a buffer.
 ///
-/// Returns `None` if the string needs no decoding.
-///
-/// The argument `append_always` indicates whether the string
-/// should be appended to the buffer if it needs no decoding.
+/// If the string needs no decoding, this function returns `Ok(None)`
+/// and no bytes will be appended to the buffer.
 #[inline]
 pub fn decode_with<'a, S: AsRef<[u8]> + ?Sized>(
     s: &S,
     buf: &'a mut Vec<u8>,
-    append_always: bool,
 ) -> Result<Option<&'a [u8]>> {
-    imp::decode_with(s.as_ref(), buf, append_always)
+    imp::decode_with(s.as_ref(), buf)
 }
 
 /// Checks if all characters in a string are allowed by the given table.
 #[inline]
 pub fn validate<S: AsRef<[u8]> + ?Sized>(s: &S, table: &Table) -> Result<()> {
     let s = s.as_ref();
-    if table.allow_enc() {
+    if table.allows_enc() {
         validate_enc(s, table)
     } else {
-        match s.iter().position(|&x| !table.contains(x)) {
+        match s.iter().position(|&x| !table.allows(x)) {
             Some(i) => err!(i, UnexpectedChar),
             None => Ok(()),
         }
@@ -204,7 +198,7 @@ impl EStr {
     ///
     /// Panics if the string is not properly encoded.
     pub const fn new(s: &str) -> &EStr {
-        if imp::validate_const(s.as_bytes()) {
+        if imp::validate_estr(s.as_bytes()) {
             // SAFETY: We have done the validation.
             unsafe { EStr::new_unchecked(s) }
         } else {
@@ -220,7 +214,7 @@ impl EStr {
     /// and parses the encoded octets without checking bounds or validating them.
     /// Any invalid encoded octet in the string will result in undefined behavior.
     #[inline]
-    pub const unsafe fn new_unchecked(s: &str) -> &EStr {
+    pub(crate) const unsafe fn new_unchecked(s: &str) -> &EStr {
         // SAFETY: The caller must ensure that the string is properly encoded.
         unsafe { &*(s as *const str as *const EStr) }
     }
@@ -260,8 +254,8 @@ impl EStr {
 
     /// Decodes the `EStr` with a buffer.
     ///
-    /// The argument `append_always` indicates whether the string
-    /// should be appended to the buffer if it needs no decoding.
+    /// If the string needs no decoding, this function returns `None`
+    /// and no bytes will be appended to the buffer.
     ///
     /// Note that the buffer is not cleared prior to decoding.
     ///
@@ -271,25 +265,22 @@ impl EStr {
     /// use fluent_uri::encoding::EStr;
     ///
     /// let mut buf = Vec::new();
-    /// let dec = EStr::new("23").decode_with(&mut buf, false);
-    /// assert_eq!(dec.to_str()?, "23");
+    /// let dec = EStr::new("3").decode_with(&mut buf);
+    /// assert_eq!(dec.to_str()?, "3");
     /// assert!(buf.is_empty());
     ///
-    /// EStr::new("23").decode_with(&mut buf, true);
-    /// assert_eq!(buf, b"23");
-    ///
-    /// let dec = EStr::new("%33").decode_with(&mut buf, false);
+    /// let dec = EStr::new("%33").decode_with(&mut buf);
     /// assert_eq!(dec.to_str()?, "3");
-    /// assert_eq!(buf, b"233");
+    /// assert_eq!(buf, b"3");
     /// # Ok::<_, std::str::Utf8Error>(())
     /// ```
     #[inline]
-    pub fn decode_with<'a>(&'a self, buf: &'a mut Vec<u8>, append_always: bool) -> DecodeRef<'a> {
+    pub fn decode_with<'a>(&'a self, buf: &'a mut Vec<u8>) -> DecodeRef<'a> {
         let bytes = self.inner.as_bytes();
 
         // SAFETY: An `EStr` may only be created through `new_unchecked`,
         // of which the caller must guarantee that the string is properly encoded.
-        let decoded = unsafe { decode_with_unchecked(bytes, buf, append_always) };
+        let decoded = unsafe { decode_with_unchecked(bytes, buf) };
 
         DecodeRef {
             bytes: decoded.unwrap_or(bytes),
@@ -324,7 +315,7 @@ impl EStr {
     #[inline]
     pub fn split(&self, delim: char) -> Split<'_> {
         assert!(
-            delim.is_ascii() && table::RESERVED.contains(delim as u8),
+            delim.is_ascii() && table::RESERVED.allows(delim as u8),
             "splitting with non-reserved character"
         );
 
@@ -358,7 +349,7 @@ impl EStr {
     #[inline]
     pub fn split_once(&self, delim: char) -> Option<(&EStr, &EStr)> {
         assert!(
-            delim.is_ascii() && table::RESERVED.contains(delim as u8),
+            delim.is_ascii() && table::RESERVED.allows(delim as u8),
             "splitting with non-reserved character"
         );
         let bytes = self.inner.as_bytes();
@@ -440,6 +431,12 @@ impl<'a> DecodeRef<'a> {
     #[inline]
     pub fn as_bytes(self) -> &'a [u8] {
         self.bytes
+    }
+
+    /// Returns `true` if the decoded bytes are appended to the buffer.
+    #[inline]
+    pub fn is_buffered(self) -> bool {
+        self.buffered
     }
 
     /// Converts the decoded bytes to a string slice.

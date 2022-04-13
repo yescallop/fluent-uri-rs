@@ -56,24 +56,21 @@ const fn gen_hex_table() -> [u8; 512] {
     out
 }
 
-static HEX_TABLE: &[u8; 512] = &gen_hex_table();
+pub(super) static HEX_TABLE: &[u8; 512] = &gen_hex_table();
 
 fn calc_capacity(s: &[u8], triple: bool) -> usize {
     #[cold]
-    #[inline(never)]
     fn capacity_overflow() -> ! {
         panic!("capacity overflow")
     }
 
-    let cap = s.len();
     if triple {
-        match cap.checked_mul(3) {
-            Some(cap) => cap,
-            // We must panic here since an insufficient capacity may cause UB.
-            None => capacity_overflow(),
+        if s.len() > isize::MAX as usize / 3 {
+            capacity_overflow();
         }
+        s.len() * 3
     } else {
-        cap
+        s.len()
     }
 }
 
@@ -108,7 +105,7 @@ unsafe fn copy_new(s: &[u8], i: usize, triple: bool) -> Vec<u8> {
 /// `i` must not exceed `s.len()`.
 unsafe fn copy(s: &[u8], buf: &mut Vec<u8>, i: usize, triple: bool) {
     let cap = calc_capacity(s, triple);
-    buf.reserve_exact(cap);
+    buf.reserve(cap);
 
     unsafe {
         let dst = buf.as_mut_ptr().add(buf.len());
@@ -157,7 +154,7 @@ unsafe fn push_pct_encoded(v: &mut Vec<u8>, x: u8) {
 
 pub(super) fn encode<'a>(s: &'a [u8], table: &Table) -> Cow<'a, str> {
     // Skip the allowed bytes.
-    let i = match s.iter().position(|&x| !table.contains(x)) {
+    let i = match s.iter().position(|&x| !table.allows(x)) {
         Some(i) => i,
         // SAFETY: All bytes are checked to be less than 128 (ASCII).
         None => return Cow::borrowed(unsafe { str::from_utf8_unchecked(s) }),
@@ -172,32 +169,16 @@ pub(super) fn encode<'a>(s: &'a [u8], table: &Table) -> Cow<'a, str> {
     }
 }
 
-pub(super) fn encode_with<'a>(
-    s: &[u8],
-    table: &Table,
-    buf: &'a mut Vec<u8>,
-    append_always: bool,
-) -> Option<&'a str> {
+pub(super) fn encode_to<'a>(s: &[u8], table: &Table, buf: &'a mut Vec<u8>) {
     // Skip the allowed bytes.
-    let i = match s.iter().position(|&x| !table.contains(x)) {
+    let i = match s.iter().position(|&x| !table.allows(x)) {
         Some(i) => i,
-        // SAFETY: All bytes are checked to be less than 128 (ASCII).
-        None => {
-            if append_always {
-                buf.extend_from_slice(s)
-            }
-            return None;
-        }
+        None => return buf.extend_from_slice(s),
     };
     // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
-    unsafe { copy(s, buf, i, true) };
-
-    let start = buf.len();
     unsafe {
+        copy(s, buf, i, true);
         _encode(s, i, table, buf);
-        // SAFETY: The bytes should all be ASCII and thus valid UTF-8.
-        // The length is non-decreasing.
-        Some(str::from_utf8_unchecked(buf.get_unchecked(start..)))
     }
 }
 
@@ -206,7 +187,7 @@ unsafe fn _encode(s: &[u8], mut i: usize, table: &Table, buf: &mut Vec<u8>) {
         let x = s[i];
         // SAFETY: The maximum output length is triple the input length.
         unsafe {
-            if table.contains(x) {
+            if table.allows(x) {
                 push(buf, x);
             } else {
                 push_pct_encoded(buf, x);
@@ -238,29 +219,18 @@ pub unsafe fn decode_unchecked(s: &[u8]) -> Cow<'_, [u8]> {
 
 /// Decodes a percent-encoded string with a buffer assuming validity.
 ///
-/// Returns `None` if the string needs no decoding.
-///
-/// The argument `append_always` indicates whether the string
-/// should be appended to the buffer if it needs no decoding.
+/// If the string needs no decoding, this function returns `None`
+/// and no bytes will be appended to the buffer.
 ///
 /// # Safety
 ///
 /// This function does not check that the string is properly encoded.
 /// Any invalid encoded octet in the string will result in undefined behavior.
-pub unsafe fn decode_with_unchecked<'a>(
-    s: &[u8],
-    buf: &'a mut Vec<u8>,
-    append_always: bool,
-) -> Option<&'a [u8]> {
+pub unsafe fn decode_with_unchecked<'a>(s: &[u8], buf: &'a mut Vec<u8>) -> Option<&'a [u8]> {
     // Skip bytes that are not '%'.
     let i = match s.iter().position(|&x| x == b'%') {
         Some(i) => i,
-        None => {
-            if append_always {
-                buf.extend_from_slice(s);
-            }
-            return None;
-        }
+        None => return None,
     };
     // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
     unsafe { copy(s, buf, i, false) }
@@ -268,8 +238,8 @@ pub unsafe fn decode_with_unchecked<'a>(
     let start = buf.len();
     unsafe {
         // SAFETY: The caller must ensure that the string is properly encoded.
-        // The length is non-decreasing.
         _decode(s, i, buf, false).unwrap();
+        // SAFETY: The length is non-decreasing.
         Some(buf.get_unchecked(start..))
     }
 }
@@ -287,20 +257,11 @@ pub(super) fn decode(s: &[u8]) -> Result<Cow<'_, [u8]>> {
     Ok(Cow::owned(buf))
 }
 
-pub(super) fn decode_with<'a>(
-    s: &[u8],
-    buf: &'a mut Vec<u8>,
-    append_always: bool,
-) -> Result<Option<&'a [u8]>> {
+pub(super) fn decode_with<'a>(s: &[u8], buf: &'a mut Vec<u8>) -> Result<Option<&'a [u8]>> {
     // Skip bytes that are not '%'.
     let i = match s.iter().position(|&x| x == b'%') {
         Some(i) => i,
-        None => {
-            if append_always {
-                buf.extend_from_slice(s);
-            }
-            return Ok(None);
-        }
+        None => return Ok(None),
     };
     // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
     unsafe { copy(s, buf, i, false) }
@@ -364,7 +325,7 @@ pub(super) fn validate_enc(s: &[u8], table: &Table) -> Result<()> {
             }
             i += 3;
         } else {
-            if !table.contains(x) {
+            if !table.allows(x) {
                 err!(i, UnexpectedChar);
             }
             i += 1;
@@ -373,7 +334,7 @@ pub(super) fn validate_enc(s: &[u8], table: &Table) -> Result<()> {
     Ok(())
 }
 
-pub(super) const fn validate_const(s: &[u8]) -> bool {
+pub(super) const fn validate_estr(s: &[u8]) -> bool {
     let mut i = 0;
     while i < s.len() {
         let x = s[i];
@@ -383,7 +344,7 @@ pub(super) const fn validate_const(s: &[u8]) -> bool {
             }
             let (hi, lo) = (s[i + 1], s[i + 2]);
 
-            if !hi.is_ascii_hexdigit() || !lo.is_ascii_hexdigit() {
+            if HEXDIG.get(hi) & HEXDIG.get(lo) == 0 {
                 return false;
             }
             i += 3;
