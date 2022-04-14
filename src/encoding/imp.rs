@@ -159,10 +159,10 @@ pub(super) fn encode<'a>(s: &'a [u8], table: &Table) -> Cow<'a, str> {
         // SAFETY: All bytes are checked to be less than 128 (ASCII).
         None => return Cow::borrowed(unsafe { str::from_utf8_unchecked(s) }),
     };
-    // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
-    let mut buf = unsafe { copy_new(s, i, true) };
 
     unsafe {
+        // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
+        let mut buf = copy_new(s, i, true);
         _encode(s, i, table, &mut buf);
         // SAFETY: The bytes should all be ASCII and thus valid UTF-8.
         Cow::owned(String::from_utf8_unchecked(buf))
@@ -175,8 +175,8 @@ pub(super) fn encode_to<'a>(s: &[u8], table: &Table, buf: &'a mut Vec<u8>) {
         Some(i) => i,
         None => return buf.extend_from_slice(s),
     };
-    // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
     unsafe {
+        // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
         copy(s, buf, i, true);
         _encode(s, i, table, buf);
     }
@@ -232,11 +232,12 @@ pub unsafe fn decode_with_unchecked<'a>(s: &[u8], buf: &'a mut Vec<u8>) -> Optio
         Some(i) => i,
         None => return None,
     };
-    // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
-    unsafe { copy(s, buf, i, false) }
 
     let start = buf.len();
+
     unsafe {
+        // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
+        copy(s, buf, i, false);
         // SAFETY: The caller must ensure that the string is properly encoded.
         _decode(s, i, buf, false).unwrap();
         // SAFETY: The length is non-decreasing.
@@ -263,11 +264,12 @@ pub(super) fn decode_with<'a>(s: &[u8], buf: &'a mut Vec<u8>) -> Result<Option<&
         Some(i) => i,
         None => return Ok(None),
     };
-    // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
-    unsafe { copy(s, buf, i, false) }
 
     let start = buf.len();
+
     unsafe {
+        // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
+        copy(s, buf, i, false);
         _decode(s, i, buf, true)?;
         // SAFETY: The length is non-decreasing.
         Ok(Some(buf.get_unchecked(start..)))

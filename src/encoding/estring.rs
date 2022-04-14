@@ -25,7 +25,7 @@ pub struct EString<E: Encoder> {
 }
 
 impl<E: Encoder> EString<E> {
-    const ASSERT_ALLOWS_ENC: () = assert!(E::TABLE.allows_enc(), "table not for encoding");
+    const ASSERT: () = assert!(E::TABLE.allows_enc(), "table not for encoding");
 
     /// Creates a new empty `EString`.
     #[inline]
@@ -89,13 +89,12 @@ impl<E: Encoder> EString<E> {
             _marker: PhantomData<(SubE, E)>,
         }
         impl<SubE: Encoder, E: Encoder> Assert<SubE, E> {
-            const IS_SUBSET: () = assert!(
+            const IS_SUB_ENCODER: () = assert!(
                 SubE::TABLE.is_subset(E::TABLE),
                 "pushing with non-sub-encoder"
             );
         }
-        let _ = Assert::<SubE, E>::IS_SUBSET;
-        let _ = EString::<SubE>::ASSERT_ALLOWS_ENC;
+        let _ = (Assert::<SubE, E>::IS_SUB_ENCODER, EString::<SubE>::ASSERT);
 
         super::encode_to(s, SubE::TABLE, &mut self.string);
     }
