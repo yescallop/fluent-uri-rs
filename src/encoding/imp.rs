@@ -189,10 +189,12 @@ pub(super) fn encode_with<'a>(
             return None;
         }
     };
+
+    let start = buf.len();
+
     // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
     unsafe { copy(s, buf, i, true) };
 
-    let start = buf.len();
     unsafe {
         _encode(s, i, table, buf);
         // SAFETY: The bytes should all be ASCII and thus valid UTF-8.
@@ -262,10 +264,12 @@ pub unsafe fn decode_with_unchecked<'a>(
             return None;
         }
     };
+
+    let start = buf.len();
+
     // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
     unsafe { copy(s, buf, i, false) }
 
-    let start = buf.len();
     unsafe {
         // SAFETY: The caller must ensure that the string is properly encoded.
         // The length is non-decreasing.
@@ -302,10 +306,12 @@ pub(super) fn decode_with<'a>(
             return Ok(None);
         }
     };
+
+    let start = buf.len();
+
     // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
     unsafe { copy(s, buf, i, false) }
 
-    let start = buf.len();
     unsafe {
         _decode(s, i, buf, true)?;
         // SAFETY: The length is non-decreasing.

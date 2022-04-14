@@ -263,15 +263,15 @@ impl EStr {
     /// use fluent_uri::encoding::EStr;
     ///
     /// let mut buf = Vec::new();
-    /// let dec = EStr::new("23").decode_with(&mut buf, false);
-    /// assert_eq!(dec.to_str().unwrap(), "23");
+    /// let dec = EStr::new("233").decode_with(&mut buf, false);
+    /// assert_eq!(dec.to_str().unwrap(), "233");
     /// assert!(buf.is_empty());
     ///
-    /// EStr::new("23").decode_with(&mut buf, true);
-    /// assert_eq!(buf, b"23");
+    /// EStr::new("2").decode_with(&mut buf, true);
+    /// assert_eq!(buf, b"2");
     ///
-    /// let dec = EStr::new("%33").decode_with(&mut buf, false);
-    /// assert_eq!(dec.to_str().unwrap(), "3");
+    /// let dec = EStr::new("3%33").decode_with(&mut buf, false);
+    /// assert_eq!(dec.to_str().unwrap(), "33");
     /// assert_eq!(buf, b"233");
     /// ```
     #[inline]
