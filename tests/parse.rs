@@ -343,6 +343,11 @@ fn parse_error() {
     assert_eq!(e.index(), 4);
     assert_eq!(e.kind(), InvalidOctet);
 
+    // A single percent
+    let e = Uri::parse("%").unwrap_err();
+    assert_eq!(e.index(), 0);
+    assert_eq!(e.kind(), InvalidOctet);
+
     // Non-decimal port
     // In this case the port is validated in reverse.
     let e = Uri::parse("http://example.com:80ab").unwrap_err();
@@ -351,6 +356,11 @@ fn parse_error() {
 
     let e = Uri::parse("http://user@example.com:80ab").unwrap_err();
     assert_eq!(e.index(), 26);
+    assert_eq!(e.kind(), UnexpectedChar);
+
+    // Multiple colons in authority
+    let e = Uri::parse("http://user:pass:example.com/").unwrap_err();
+    assert_eq!(e.index(), 11);
     assert_eq!(e.kind(), UnexpectedChar);
 
     // Unclosed bracket
