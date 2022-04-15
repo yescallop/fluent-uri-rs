@@ -120,10 +120,11 @@ impl<'a> Parser<'a> {
         while i < self.out.len {
             let x = self.get(i);
             if x == b'%' {
-                if i >= self.out.len.wrapping_sub(2) {
+                if i + 2 >= self.out.len {
                     err!(i, InvalidOctet);
                 }
-                // SAFETY: Both `i + 1` and `i + 2` won't overflow and are within bounds.
+                // SAFETY: We have checked that `i + 2 < len`.
+                // Overflow is impossible since `len` is no larger than `i32::MAX`.
                 let (hi, lo) = unsafe { (self.get_unchecked(i + 1), self.get_unchecked(i + 2)) };
 
                 if HEXDIG.get(hi) & HEXDIG.get(lo) == 0 {
