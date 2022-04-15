@@ -65,6 +65,7 @@ impl<'a> Parser<'a> {
     }
 
     unsafe fn get_unchecked(&self, i: u32) -> u8 {
+        debug_assert!(i < self.out.len, "index out of bounds");
         // SAFETY: The caller must ensure that the index is within bounds.
         unsafe { *self.out.ptr.add(i as usize) }
     }

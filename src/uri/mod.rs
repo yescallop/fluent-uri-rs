@@ -104,6 +104,7 @@ impl<'a> Uri<'a> {
 
     #[inline]
     unsafe fn slice(&self, start: u32, end: u32) -> &'a str {
+        debug_assert!(start <= end && end <= self.len);
         // SAFETY: The caller must ensure that the indexes are within bounds.
         let bytes =
             unsafe { slice::from_raw_parts(self.ptr.add(start as usize), (end - start) as usize) };
