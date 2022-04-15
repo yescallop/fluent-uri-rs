@@ -5,7 +5,7 @@ use fluent_uri::{Host, Uri};
 fn parse_v4(s: &str) -> Option<Ipv4Addr> {
     let s = format!("//{s}");
     match Uri::parse(s.as_bytes()).ok()?.authority()?.host() {
-        Host::Ipv4(addr) => Some(*addr),
+        Host::Ipv4(addr) => Some(addr),
         _ => None,
     }
 }
@@ -13,7 +13,7 @@ fn parse_v4(s: &str) -> Option<Ipv4Addr> {
 fn parse_v6(s: &str) -> Option<Ipv6Addr> {
     let s = format!("//[{s}]");
     match Uri::parse(s.as_bytes()).ok()?.authority()?.host() {
-        Host::Ipv6 { addr } => Some(*addr),
+        Host::Ipv6 { addr } => Some(addr),
         _ => None,
     }
 }

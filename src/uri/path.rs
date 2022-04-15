@@ -6,7 +6,7 @@ use crate::encoding::{EStr, Split};
 ///
 /// [path]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
 #[derive(Debug, Clone, Copy)]
-pub struct Path<'a>(pub(crate) &'a str);
+pub struct Path<'a>(pub(super) &'a str);
 
 impl<'a> Path<'a> {
     /// Returns the path as an `EStr`.

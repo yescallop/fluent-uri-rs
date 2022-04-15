@@ -102,6 +102,7 @@ impl<'a> Uri<'a> {
         parser::parse(s.as_ref())
     }
 
+    #[inline]
     unsafe fn slice(&self, start: u32, end: u32) -> &'a str {
         // SAFETY: The caller must ensure that the indexes are within bounds.
         let bytes =
@@ -110,6 +111,7 @@ impl<'a> Uri<'a> {
         unsafe { str::from_utf8_unchecked(bytes) }
     }
 
+    #[inline]
     unsafe fn eslice(&self, start: u32, end: u32) -> &'a EStr {
         // SAFETY: The caller must ensure that the indexes are within bounds.
         let s = unsafe { self.slice(start, end) };
@@ -117,6 +119,7 @@ impl<'a> Uri<'a> {
         unsafe { EStr::new_unchecked(s) }
     }
 
+    #[inline]
     /// Returns the URI reference as a string slice.
     pub fn as_str(&self) -> &'a str {
         // SAFETY: The indexes are within bounds.
@@ -127,7 +130,7 @@ impl<'a> Uri<'a> {
     ///
     /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
     #[inline]
-    pub fn scheme(&self) -> Option<Scheme<'_>> {
+    pub fn scheme(&self) -> Option<Scheme<'a>> {
         // SAFETY: The indexes are within bounds.
         self.scheme_end
             .map(|i| Scheme(unsafe { self.slice(0, i.get() - 1) }))
@@ -137,7 +140,7 @@ impl<'a> Uri<'a> {
     ///
     /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
     #[inline]
-    pub fn authority(&self) -> Option<Authority<'_>> {
+    pub fn authority(&self) -> Option<Authority<'a, '_>> {
         if self.host.is_some() {
             Some(Authority(self))
         } else {
@@ -149,7 +152,7 @@ impl<'a> Uri<'a> {
     ///
     /// [path]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
     #[inline]
-    pub fn path(&self) -> Path<'_> {
+    pub fn path(&self) -> Path<'a> {
         // SAFETY: The indexes are within bounds.
         Path(unsafe { self.slice(self.path.0, self.path.1) })
     }
@@ -158,7 +161,7 @@ impl<'a> Uri<'a> {
     ///
     /// [query]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.4
     #[inline]
-    pub fn query(&self) -> Option<&EStr> {
+    pub fn query(&self) -> Option<&'a EStr> {
         // SAFETY: The indexes are within bounds and we have done the validation.
         self.query_end
             .map(|i| unsafe { self.eslice(self.path.1 + 1, i.get()) })
@@ -168,7 +171,7 @@ impl<'a> Uri<'a> {
     ///
     /// [fragment]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.5
     #[inline]
-    pub fn fragment(&self) -> Option<&EStr> {
+    pub fn fragment(&self) -> Option<&'a EStr> {
         // SAFETY: The indexes are within bounds and we have done the validation.
         self.fragment_start
             .map(|i| unsafe { self.eslice(i.get(), self.len) })
@@ -325,16 +328,16 @@ impl<'a> fmt::Display for Scheme<'a> {
 ///
 /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
 #[derive(Clone, Copy)]
-pub struct Authority<'a>(&'a Uri<'a>);
+pub struct Authority<'a, 'b>(&'b Uri<'a>);
 
-impl<'a> Authority<'a> {
+impl<'a, 'b> Authority<'a, 'b> {
     #[inline]
-    fn start(&self) -> u32 {
+    fn start(self) -> u32 {
         self.0.scheme_end.map(|x| x.get()).unwrap_or(0) + 2
     }
 
     #[inline]
-    fn host_bounds(&self) -> (u32, u32) {
+    fn host_bounds(self) -> (u32, u32) {
         // SAFETY: When authority is present, `host` must be `Some`.
         let host = unsafe { self.0.host.as_ref().unwrap_unchecked() };
         (host.0.get(), host.1)
@@ -353,7 +356,7 @@ impl<'a> Authority<'a> {
     /// # Ok::<_, fluent_uri::SyntaxError>(())
     /// ```
     #[inline]
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(self) -> &'a str {
         // SAFETY: The indexes are within bounds.
         unsafe { self.0.slice(self.start(), self.0.path.0) }
     }
@@ -373,7 +376,7 @@ impl<'a> Authority<'a> {
     /// # Ok::<_, fluent_uri::SyntaxError>(())
     /// ```
     #[inline]
-    pub fn userinfo(&self) -> Option<&EStr> {
+    pub fn userinfo(self) -> Option<&'a EStr> {
         let start = self.start();
         let host_start = self.host_bounds().0;
         // SAFETY: The indexes are within bounds and we have done the validation.
@@ -395,7 +398,7 @@ impl<'a> Authority<'a> {
     /// # Ok::<_, fluent_uri::SyntaxError>(())
     /// ```
     #[inline]
-    pub fn host_raw(&self) -> &str {
+    pub fn host_raw(self) -> &'a str {
         let bounds = self.host_bounds();
         // SAFETY: The indexes are within bounds.
         unsafe { self.0.slice(bounds.0, bounds.1) }
@@ -404,7 +407,7 @@ impl<'a> Authority<'a> {
     /// Returns the parsed [host] subcomponent.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
-    pub fn host(&self) -> Host<'_> {
+    pub fn host(self) -> Host<'a> {
         // SAFETY: When authority is present, `host` must be `Some`.
         let host = unsafe { self.0.host.as_ref().unwrap_unchecked() };
         Host::from_internal(self, &host.2)
@@ -433,7 +436,7 @@ impl<'a> Authority<'a> {
     /// # Ok::<_, fluent_uri::SyntaxError>(())
     /// ```
     #[inline]
-    pub fn port_raw(&self) -> Option<&str> {
+    pub fn port_raw(self) -> Option<&'a str> {
         let host_end = self.host_bounds().1;
         // SAFETY: The indexes are within bounds.
         (host_end != self.0.path.0).then(|| unsafe { self.0.slice(host_end + 1, self.0.path.0) })
@@ -470,14 +473,14 @@ impl<'a> Authority<'a> {
     /// # Ok::<_, fluent_uri::SyntaxError>(())
     /// ```
     #[inline]
-    pub fn port(&self) -> Option<Result<u16, &str>> {
+    pub fn port(self) -> Option<Result<u16, &'a str>> {
         self.port_raw()
             .filter(|s| !s.is_empty())
             .map(|s| s.parse().map_err(|_| s))
     }
 }
 
-impl<'a> fmt::Debug for Authority<'a> {
+impl<'a, 'b> fmt::Debug for Authority<'a, 'b> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Authority")
             .field("userinfo", &self.userinfo())
@@ -487,7 +490,7 @@ impl<'a> fmt::Debug for Authority<'a> {
     }
 }
 
-impl<'a> fmt::Display for Authority<'a> {
+impl<'a, 'b> fmt::Display for Authority<'a, 'b> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self.as_str(), f)
@@ -511,13 +514,13 @@ enum HostInternal {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Host<'a> {
     /// An IPv4 address.
-    Ipv4(&'a Ipv4Addr),
+    Ipv4(Ipv4Addr),
     /// An IPv6 address.
     ///
     /// In the future an optional zone identifier may be supported.
     Ipv6 {
         /// The address.
-        addr: &'a Ipv6Addr,
+        addr: Ipv6Addr,
         // /// The zone identifier.
         // zone_id: Option<&'a EStr>,
     },
@@ -536,12 +539,12 @@ pub enum Host<'a> {
 }
 
 impl<'a> Host<'a> {
-    fn from_internal(auth: &'a Authority<'a>, internal: &'a HostInternal) -> Host<'a> {
-        match internal {
+    fn from_internal<'b>(auth: Authority<'a, 'b>, internal: &'b HostInternal) -> Host<'a> {
+        match *internal {
             HostInternal::Ipv4(addr) => Host::Ipv4(addr),
             HostInternal::Ipv6(addr) => Host::Ipv6 { addr },
             #[cfg(feature = "ipv_future")]
-            &HostInternal::IpvFuture { dot_i } => unsafe {
+            HostInternal::IpvFuture { dot_i } => unsafe {
                 let bounds = auth.host_bounds();
                 // SAFETY: The indexes are within bounds.
                 Host::IpvFuture {

@@ -267,10 +267,12 @@ impl EStr {
     /// let mut buf = Vec::new();
     /// let dec = EStr::new("233").decode_with(&mut buf);
     /// assert_eq!(dec.to_str()?, "233");
+    /// assert!(!dec.is_buffered());
     /// assert!(buf.is_empty());
     ///
     /// let dec = EStr::new("2%333").decode_with(&mut buf);
     /// assert_eq!(dec.to_str()?, "233");
+    /// assert!(dec.is_buffered());
     /// assert_eq!(buf, b"233");
     /// # Ok::<_, std::str::Utf8Error>(())
     /// ```
