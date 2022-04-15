@@ -281,11 +281,10 @@ unsafe fn _decode(s: &[u8], mut i: usize, buf: &mut Vec<u8>, checked: bool) -> R
         let x = s[i];
         if x == b'%' {
             let octet = if checked {
-                if i + 2 >= s.len() {
+                if i >= s.len().wrapping_sub(2) {
                     err!(i, InvalidOctet);
                 }
-                // SAFETY: We have checked that `i + 2 < s.len()`.
-                // Overflow should be impossible because we cannot have that large a slice.
+                // SAFETY: Both `i + 1` and `i + 2` won't overflow and are within bounds.
                 let (hi, lo) = unsafe { (*s.get_unchecked(i + 1), *s.get_unchecked(i + 2)) };
 
                 match decode_octet(hi, lo) {
@@ -315,11 +314,10 @@ pub(super) fn validate_enc(s: &[u8], table: &Table) -> Result<()> {
     while i < s.len() {
         let x = s[i];
         if x == b'%' {
-            if i + 2 >= s.len() {
+            if i >= s.len().wrapping_sub(2) {
                 err!(i, InvalidOctet);
             }
-            // SAFETY: We have checked that `i + 2 < s.len()`.
-            // Overflow should be impossible because we cannot have that large a slice.
+            // SAFETY: Both `i + 1` and `i + 2` won't overflow and are within bounds.
             let (hi, lo) = unsafe { (*s.get_unchecked(i + 1), *s.get_unchecked(i + 2)) };
 
             if HEXDIG.get(hi) & HEXDIG.get(lo) == 0 {
@@ -341,7 +339,7 @@ pub(super) const fn validate_estr(s: &[u8]) -> bool {
     while i < s.len() {
         let x = s[i];
         if x == b'%' {
-            if i + 2 >= s.len() {
+            if i >= s.len().wrapping_sub(2) {
                 return false;
             }
             let (hi, lo) = (s[i + 1], s[i + 2]);
