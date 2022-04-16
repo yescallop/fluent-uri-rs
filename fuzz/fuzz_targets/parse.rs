@@ -1,7 +1,7 @@
 #![no_main]
 use libfuzzer_sys::fuzz_target;
 
-fuzz_target!(|data: &str| {
+fuzz_target!(|data: &[u8]| {
     if let Ok(u) = fluent_uri::Uri::parse(data) {
         let mut buf = String::with_capacity(data.len());
         if let Some(s) = u.scheme() {
