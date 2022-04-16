@@ -323,6 +323,10 @@ fn parse_error() {
     assert_eq!(e.index(), 8);
     assert_eq!(e.kind(), UnexpectedChar);
 
+    let e = Uri::parse("(:").unwrap_err();
+    assert_eq!(e.index(), 1);
+    assert_eq!(e.kind(), UnexpectedChar);
+
     // Percent-encoded scheme
     let e = Uri::parse("a%20:foo").unwrap_err();
     assert_eq!(e.index(), 4);

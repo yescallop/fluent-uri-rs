@@ -185,20 +185,22 @@ impl<'a> Parser<'a> {
 
             // INVARIANT: Skipping ":" is fine.
             self.skip(1);
-            self.parse_from_authority()
+            return if self.read_str("//") {
+                self.parse_from_authority()
+            } else {
+                self.parse_from_path(PathKind::General)
+            };
         } else if self.marked_len() == 0 {
             // Nothing scanned.
-            self.parse_from_authority()
-        } else {
-            // Scheme chars are valid for path.
-            self.parse_from_path(PathKind::ContinuedNoScheme)
+            if self.read_str("//") {
+                return self.parse_from_authority();
+            }
         }
+        // Scheme chars are valid for path.
+        self.parse_from_path(PathKind::ContinuedNoScheme)
     }
 
     fn parse_from_authority(&mut self) -> Result<()> {
-        if !self.read_str("//") {
-            return self.parse_from_path(PathKind::General);
-        }
         let host_out;
 
         // This table contains userinfo, reg-name, ":", and port.
