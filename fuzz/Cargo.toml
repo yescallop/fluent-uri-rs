@@ -10,9 +10,12 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
+iref = { git = "https://github.com/timothee-haudebourg/iref" }
+iri-string = { git = "https://github.com/lo48576/iri-string" }
 
 [dependencies.fluent-uri]
 path = ".."
+features = ["ipv_future"]
 
 # Prevent this from interfering with workspaces
 [workspace]
@@ -45,5 +48,17 @@ doc = false
 [[bin]]
 name = "parse_v4"
 path = "fuzz_targets/parse_v4.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "against_iref"
+path = "fuzz_targets/against_iref.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "against_iri_string"
+path = "fuzz_targets/against_iri_string.rs"
 test = false
 doc = false

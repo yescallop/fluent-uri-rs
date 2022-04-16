@@ -1,7 +1,7 @@
 #![no_main]
 use libfuzzer_sys::fuzz_target;
 
-fuzz_target!(|data: &[u8]| {
+fuzz_target!(|data: &str| {
     if let Ok(u) = fluent_uri::Uri::parse(data) {
         let mut buf = String::with_capacity(data.len());
         if let Some(s) = u.scheme() {
@@ -10,6 +10,7 @@ fuzz_target!(|data: &[u8]| {
         }
         if let Some(a) = u.authority() {
             buf.push_str("//");
+            let start = buf.len();
             if let Some(ui) = a.userinfo() {
                 buf.push_str(ui.as_str());
                 buf.push('@');
@@ -19,6 +20,7 @@ fuzz_target!(|data: &[u8]| {
                 buf.push(':');
                 buf.push_str(p);
             }
+            assert_eq!(&buf[start..], a.as_str());
         }
         buf.push_str(u.path().as_str());
         if let Some(q) = u.query() {
