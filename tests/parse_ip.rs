@@ -138,4 +138,8 @@ fn test_parse_v4_in_v6() {
     assert!(parse_v6("1:2:3:4:5:127.0.0.1").is_none());
     // too many groups
     assert!(parse_v6("1:2:3:4:5:6:7:127.0.0.1").is_none());
+    // triple colons before v4
+    assert!(parse_v6(":::4.4.4.4").is_none());
+    // no colon before v4
+    assert!(parse_v6("::ffff4.4.4.4").is_none());
 }

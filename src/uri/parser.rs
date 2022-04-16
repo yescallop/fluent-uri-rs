@@ -54,7 +54,7 @@ enum Seg {
     // "::"
     Ellipsis,
     // *1":" 1*4HEXDIG "."
-    MaybeV4,
+    MaybeV4(bool),
     // ":"
     SingleColon,
 }
@@ -352,9 +352,9 @@ impl<'a> Parser<'a> {
                     }
                     ellipsis_i = i;
                 }
-                Some(Seg::MaybeV4) => {
-                    if i > 6 {
-                        // Not enough space.
+                Some(Seg::MaybeV4(colon)) => {
+                    if i > 6 || colon == (i == ellipsis_i) {
+                        // Not enough space, triple colons, or no colon.
                         return None;
                     }
                     let octets = self.scan_v4()?.octets();
@@ -421,7 +421,7 @@ impl<'a> Parser<'a> {
                         i += 1;
                         continue;
                     }
-                    _ if b == b'.' => return Some(Seg::MaybeV4),
+                    _ if b == b'.' => return Some(Seg::MaybeV4(colon)),
                     _ => break,
                 }
             } else {
