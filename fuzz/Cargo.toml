@@ -14,7 +14,7 @@ iref = { git = "https://github.com/timothee-haudebourg/iref" }
 iri-string = { git = "https://github.com/lo48576/iri-string" }
 oxiri = { git = "https://github.com/oxigraph/oxiri" }
 uriparse = { git = "https://github.com/sgodwincs/uriparse-rs" }
-
+uriparser-sys = { path = "uriparser-sys" }
 
 [dependencies.fluent-uri]
 path = ".."
@@ -81,3 +81,10 @@ name = "against_uriparse"
 path = "fuzz_targets/against_uriparse.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "against_uriparser"
+path = "fuzz_targets/against_uriparser.rs"
+test = false
+doc = false
+required-features = ["ipv_future"]
