@@ -12,10 +12,15 @@ cargo-fuzz = true
 libfuzzer-sys = "0.4"
 iref = { git = "https://github.com/timothee-haudebourg/iref" }
 iri-string = { git = "https://github.com/lo48576/iri-string" }
+oxiri = { git = "https://github.com/oxigraph/oxiri" }
+uriparse = { git = "https://github.com/sgodwincs/uriparse-rs" }
+
 
 [dependencies.fluent-uri]
 path = ".."
-features = ["ipv_future"]
+
+[features]
+ipv_future = ["fluent-uri/ipv_future"]
 
 # Prevent this from interfering with workspaces
 [workspace]
@@ -24,6 +29,12 @@ members = ["."]
 [[bin]]
 name = "parse"
 path = "fuzz_targets/parse.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "parse_v4"
+path = "fuzz_targets/parse_v4.rs"
 test = false
 doc = false
 
@@ -46,19 +57,27 @@ test = false
 doc = false
 
 [[bin]]
-name = "parse_v4"
-path = "fuzz_targets/parse_v4.rs"
-test = false
-doc = false
-
-[[bin]]
 name = "against_iref"
 path = "fuzz_targets/against_iref.rs"
 test = false
 doc = false
+required-features = ["ipv_future"]
 
 [[bin]]
 name = "against_iri_string"
 path = "fuzz_targets/against_iri_string.rs"
+test = false
+doc = false
+required-features = ["ipv_future"]
+
+[[bin]]
+name = "against_oxiri"
+path = "fuzz_targets/against_oxiri.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "against_uriparse"
+path = "fuzz_targets/against_uriparse.rs"
 test = false
 doc = false

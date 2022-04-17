@@ -3,7 +3,7 @@ use fluent_uri::{
     encoding::{table::*, *},
     *,
 };
-use iri_string::{spec::UriSpec, types::RiReferenceStr};
+use iri_string::types::UriReferenceStr;
 use uriparse::URIReference;
 use url::Url;
 
@@ -68,6 +68,6 @@ fn bench_parse_uriparse(c: &mut Criterion) {
 
 fn bench_parse_iri_string(c: &mut Criterion) {
     c.bench_function("parse_iri_string", |b| {
-        b.iter(|| <&RiReferenceStr<UriSpec>>::try_from(black_box(PARSE_CASE)))
+        b.iter(|| <&UriReferenceStr>::try_from(black_box(PARSE_CASE)))
     });
 }
