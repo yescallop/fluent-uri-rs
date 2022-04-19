@@ -1,9 +1,4 @@
-#![warn(
-    missing_debug_implementations,
-    missing_docs,
-    rust_2018_idioms,
-    unreachable_pub
-)]
+#![warn(missing_debug_implementations, missing_docs, rust_2018_idioms)]
 #![deny(unsafe_op_in_unsafe_fn)]
 
 //! A URI parser that strictly adheres to IETF [RFC 3986].

@@ -62,6 +62,7 @@ impl Table {
     /// by `self` but not allowed by `other`.
     ///
     /// The values in the returned table are each copied from `self` or set to 0.
+    #[cfg(feature = "unstable")]
     pub const fn sub(mut self, other: &Table) -> Table {
         let mut i = 0;
         while i < 128 {
@@ -78,6 +79,7 @@ impl Table {
 
     /// Returns `true` if the table is a subset of another, i.e., `other`
     /// allows at least all the byte patterns allowed by `self`.
+    #[cfg(feature = "unstable")]
     pub const fn is_subset(&self, other: &Table) -> bool {
         let mut i = 0;
         while i < 128 {
@@ -86,7 +88,7 @@ impl Table {
             }
             i += 1;
         }
-        !(self.allows_enc && !other.allows_enc)
+        !self.allows_enc || !other.allows_enc
     }
 
     /// Shifts the table values left.
@@ -158,6 +160,7 @@ pub const SCHEME: &Table = &ALPHA.or(DIGIT).or(&gen(b"+-."));
 pub const USERINFO: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b":")).enc();
 
 /// IPvFuture = "v" 1\*HEXDIG "." 1\*( unreserved / sub-delims / ":" )
+#[cfg(feature = "ipv_future")]
 pub const IPV_FUTURE: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b":"));
 
 /// reg-name = *( unreserved / pct-encoded / sub-delims )

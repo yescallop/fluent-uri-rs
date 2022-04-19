@@ -1,23 +1,24 @@
 use crate::{
     encoding::{err, table::*, OCTET_TABLE_LO},
+    uri::{HostData, HostTag},
     Result, Uri,
 };
 use std::{
     marker::PhantomData,
     net::{Ipv4Addr, Ipv6Addr},
     num::NonZeroU32,
-    str,
+    ptr::NonNull,
+    str, mem,
 };
 
 use super::HostInternal;
 
-pub(crate) fn parse(s: &[u8]) -> Result<Uri<'_>> {
-    assert!(s.len() <= i32::MAX as usize, "URI length exceeds i32::MAX");
-
+pub(crate) unsafe fn parse<T>(ptr: *mut u8, len: u32, cap: u32) -> Result<Uri<T>> {
     let mut parser = Parser {
         out: Uri {
-            ptr: s.as_ptr(),
-            len: s.len() as u32,
+            ptr: NonNull::new(ptr).unwrap(),
+            cap,
+            len,
             scheme_end: None,
             host: None,
             path: (0, 0),
@@ -29,15 +30,17 @@ pub(crate) fn parse(s: &[u8]) -> Result<Uri<'_>> {
         mark: 0,
     };
     parser.parse_from_scheme()?;
-    Ok(parser.out)
+    // SAFETY: `Uri` has a fixed layout.
+    Ok(unsafe { mem::transmute(parser.out) })
 }
 
 /// URI parser.
 ///
 /// The invariant holds that `mark <= pos <= len`,
 /// where `pos` is non-decreasing and `bytes[..pos]` is valid UTF-8.
-struct Parser<'a> {
-    out: Uri<'a>,
+struct Parser {
+    // Not generic to avoid code bloat.
+    out: Uri<()>,
     pos: u32,
     mark: u32,
 }
@@ -59,7 +62,7 @@ enum Seg {
     SingleColon,
 }
 
-impl<'a> Parser<'a> {
+impl Parser {
     fn has_remaining(&self) -> bool {
         self.pos < self.out.len
     }
@@ -67,7 +70,7 @@ impl<'a> Parser<'a> {
     unsafe fn get_unchecked(&self, i: u32) -> u8 {
         debug_assert!(i < self.out.len, "index out of bounds");
         // SAFETY: The caller must ensure that the index is within bounds.
-        unsafe { *self.out.ptr.add(i as usize) }
+        unsafe { *self.out.ptr.as_ptr().add(i as usize) }
     }
 
     fn get(&self, i: u32) -> u8 {
@@ -220,7 +223,10 @@ impl<'a> Parser<'a> {
             self.skip(1);
 
             self.mark();
-            let host = self.read_host()?;
+
+            let mut host = self.read_host()?;
+            host.tag |= HostTag::HAS_USERINFO;
+
             host_out = (self.mark, self.pos, host);
             self.read_port();
         } else if self.marked_len() == 0 {
@@ -230,7 +236,14 @@ impl<'a> Parser<'a> {
                 self.read_port();
             } else {
                 // Empty authority.
-                host_out = (self.pos, self.pos, HostInternal::RegName);
+                host_out = (
+                    self.pos,
+                    self.pos,
+                    HostInternal {
+                        tag: HostTag::REG_NAME,
+                        data: HostData { reg_name: () },
+                    },
+                );
             }
         } else {
             // The whole authority scanned. Try to parse the host and port.
@@ -283,8 +296,14 @@ impl<'a> Parser<'a> {
                 self.mark,
                 host_end,
                 match v4 {
-                    Some(addr) if !self.has_remaining() => HostInternal::Ipv4(addr),
-                    _ => HostInternal::RegName,
+                    Some(addr) if !self.has_remaining() => HostInternal {
+                        tag: HostTag::IPV4,
+                        data: HostData { ipv4_addr: addr },
+                    },
+                    _ => HostInternal {
+                        tag: HostTag::REG_NAME,
+                        data: HostData { reg_name: () },
+                    },
                 },
             );
 
@@ -314,7 +333,10 @@ impl<'a> Parser<'a> {
         }
 
         let host = if let Some(addr) = self.scan_v6() {
-            HostInternal::Ipv6(addr)
+            HostInternal {
+                tag: HostTag::IPV6,
+                data: HostData { ipv6_addr: addr },
+            }
         } else {
             #[cfg(feature = "ipv_future")]
             if self.marked_len() == 1 {
@@ -452,8 +474,14 @@ impl<'a> Parser<'a> {
         self.scan(REG_NAME)?;
 
         Ok(match v4 {
-            Some(addr) if self.pos == v4_end => HostInternal::Ipv4(addr),
-            _ => HostInternal::RegName,
+            Some(addr) if self.pos == v4_end => HostInternal {
+                tag: HostTag::IPV4,
+                data: HostData { ipv4_addr: addr },
+            },
+            _ => HostInternal {
+                tag: HostTag::REG_NAME,
+                data: HostData { reg_name: () },
+            },
         })
     }
 
@@ -519,7 +547,12 @@ impl<'a> Parser<'a> {
             let ver_read = self.read(HEXDIG)?;
             let dot_i = self.pos;
             if ver_read && self.read_str(".") && self.read(IPV_FUTURE)? {
-                return Ok(HostInternal::IpvFuture { dot_i });
+                return Ok(HostInternal {
+                    tag: HostTag::empty(),
+                    data: HostData {
+                        ipv_future_dot_i: dot_i,
+                    },
+                });
             }
         }
         err!(self.mark, InvalidIpLiteral);

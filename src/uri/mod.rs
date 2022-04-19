@@ -1,16 +1,58 @@
-mod path;
-pub use path::*;
+mod fmt;
+
+pub mod mutable;
+use mutable::*;
 
 mod parser;
 
-use crate::encoding::EStr;
+use crate::encoding::{EStr, EStrMut, Split};
+use bitflags::bitflags;
 use std::{
-    fmt,
     marker::PhantomData,
+    mem::ManuallyDrop,
     net::{Ipv4Addr, Ipv6Addr},
     num::NonZeroU32,
+    ptr::NonNull,
     slice, str,
 };
+
+mod internal {
+    pub trait Storage<'uri, 'out> {
+        type Output: 'out;
+    }
+
+    impl<'uri, 'a> Storage<'uri, 'a> for &'a str {
+        type Output = &'a str;
+    }
+
+    impl<'uri, 'a> Storage<'uri, 'a> for &'a mut [u8] {
+        type Output = &'a mut [u8];
+    }
+
+    impl<'uri> Storage<'uri, 'uri> for String {
+        type Output = &'uri str;
+    }
+
+    pub trait Buf {
+        fn as_raw_parts(&self) -> (*mut u8, usize, usize);
+    }
+
+    impl Buf for String {
+        #[inline]
+        fn as_raw_parts(&self) -> (*mut u8, usize, usize) {
+            (self.as_ptr() as _, self.len(), self.capacity())
+        }
+    }
+
+    impl Buf for Vec<u8> {
+        #[inline]
+        fn as_raw_parts(&self) -> (*mut u8, usize, usize) {
+            (self.as_ptr() as _, self.len(), self.capacity())
+        }
+    }
+}
+
+use internal::{Buf, Storage};
 
 /// Detailed cause of a [`SyntaxError`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -52,25 +94,15 @@ impl SyntaxError {
 
 impl std::error::Error for SyntaxError {}
 
-impl fmt::Display for SyntaxError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let msg = match self.kind {
-            SyntaxErrorKind::InvalidOctet => "invalid percent-encoded octet at index ",
-            SyntaxErrorKind::UnexpectedChar => "unexpected character at index ",
-            SyntaxErrorKind::InvalidIpLiteral => "invalid IP literal at index ",
-        };
-        write!(f, "{}{}", msg, self.index)
-    }
-}
-
 pub(crate) type Result<T, E = SyntaxError> = std::result::Result<T, E>;
 
 /// A URI reference defined in [RFC 3986].
 ///
 /// [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
-#[derive(Clone)]
-pub struct Uri<'a> {
-    ptr: *const u8,
+#[repr(C)]
+pub struct Uri<T> {
+    ptr: NonNull<u8>,
+    cap: u32,
     len: u32,
     // One byte past the trailing ':'.
     // This encoding is chosen so that no extra branch is introduced
@@ -82,11 +114,11 @@ pub struct Uri<'a> {
     query_end: Option<NonZeroU32>,
     // One byte past the preceding '#'.
     fragment_start: Option<NonZeroU32>,
-    _marker: PhantomData<&'a [u8]>,
+    _marker: PhantomData<T>,
 }
 
-impl<'a> Uri<'a> {
-    /// Parses a URI reference from a byte sequence into a `Uri`.
+impl Uri<&str> {
+    /// Parses a URI reference from a byte sequence into a `Uri<&str>`.
     ///
     /// This function validates the input strictly except that UTF-8 validation is not
     /// performed on a percent-encoded registered name (see [Section 3.2.2, RFC 3986][1]).
@@ -97,53 +129,71 @@ impl<'a> Uri<'a> {
     /// # Panics
     ///
     /// Panics if the input length is greater than `i32::MAX`.
-    #[inline]
-    pub fn parse<S: AsRef<[u8]> + ?Sized>(s: &S) -> Result<Uri<'_>> {
-        parser::parse(s.as_ref())
-    }
+    pub fn parse<S: AsRef<[u8]> + ?Sized>(s: &S) -> Result<Uri<&str>> {
+        #[cold]
+        fn len_overflow() -> ! {
+            panic!("input length exceeds i32::MAX");
+        }
 
+        let bytes = s.as_ref();
+        if bytes.len() > i32::MAX as usize {
+            len_overflow();
+        }
+        // SAFETY: We're using the right pointer, length, capacity, and generics.
+        unsafe { parser::parse(bytes.as_ptr() as *mut _, bytes.len() as u32, 0) }
+    }
+}
+
+impl<'uri, 'out, T: Storage<'uri, 'out, Output = &'out str>> Uri<T> {
     #[inline]
-    unsafe fn slice(&self, start: u32, end: u32) -> &'a str {
+    /// Returns the URI reference as a string slice.
+    pub fn as_str(&'uri self) -> &'out str {
+        // SAFETY: The indexes are within bounds.
+        unsafe { self.slice(0, self.len) }
+    }
+}
+
+impl<'uri, 'out, T: Storage<'uri, 'out>> Uri<T> {
+    #[inline]
+    unsafe fn slice(&'uri self, start: u32, end: u32) -> &'out str {
         debug_assert!(start <= end && end <= self.len);
         // SAFETY: The caller must ensure that the indexes are within bounds.
-        let bytes =
-            unsafe { slice::from_raw_parts(self.ptr.add(start as usize), (end - start) as usize) };
+        let bytes = unsafe {
+            slice::from_raw_parts(
+                self.ptr.as_ptr().add(start as usize),
+                (end - start) as usize,
+            )
+        };
         // SAFETY: The parser guarantees that the bytes are valid UTF-8.
         unsafe { str::from_utf8_unchecked(bytes) }
     }
 
     #[inline]
-    unsafe fn eslice(&self, start: u32, end: u32) -> &'a EStr {
+    unsafe fn eslice(&'uri self, start: u32, end: u32) -> &'out EStr {
         // SAFETY: The caller must ensure that the indexes are within bounds.
         let s = unsafe { self.slice(start, end) };
         // SAFETY: The caller must ensure that the subslice is properly encoded.
-        unsafe { EStr::new_unchecked(s) }
-    }
-
-    #[inline]
-    /// Returns the URI reference as a string slice.
-    pub fn as_str(&self) -> &'a str {
-        // SAFETY: The indexes are within bounds.
-        unsafe { self.slice(0, self.len) }
+        unsafe { EStr::new_unchecked(s.as_bytes()) }
     }
 
     /// Returns the [scheme] component.
     ///
     /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
     #[inline]
-    pub fn scheme(&self) -> Option<Scheme<'a>> {
+    pub fn scheme(&'uri self) -> Option<&'out Scheme> {
         // SAFETY: The indexes are within bounds.
         self.scheme_end
-            .map(|i| Scheme(unsafe { self.slice(0, i.get() - 1) }))
+            .map(|i| Scheme::new(unsafe { self.slice(0, i.get() - 1) }))
     }
 
     /// Returns the [authority] component.
     ///
     /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
     #[inline]
-    pub fn authority(&self) -> Option<Authority<'a, '_>> {
+    pub fn authority(&'uri self) -> Option<&'uri Authority<T>> {
         if self.host.is_some() {
-            Some(Authority(self))
+            // SAFETY: `host` is `Some`.
+            Some(unsafe { Authority::new(self) })
         } else {
             None
         }
@@ -153,16 +203,16 @@ impl<'a> Uri<'a> {
     ///
     /// [path]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
     #[inline]
-    pub fn path(&self) -> Path<'a> {
-        // SAFETY: The indexes are within bounds.
-        Path(unsafe { self.slice(self.path.0, self.path.1) })
+    pub fn path(&'uri self) -> &'out Path {
+        // SAFETY: The indexes are within bounds and we have done the validation.
+        Path::new(unsafe { self.eslice(self.path.0, self.path.1) })
     }
 
     /// Returns the [query] component.
     ///
     /// [query]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.4
     #[inline]
-    pub fn query(&self) -> Option<&'a EStr> {
+    pub fn query(&'uri self) -> Option<&'out EStr> {
         // SAFETY: The indexes are within bounds and we have done the validation.
         self.query_end
             .map(|i| unsafe { self.eslice(self.path.1 + 1, i.get()) })
@@ -172,7 +222,7 @@ impl<'a> Uri<'a> {
     ///
     /// [fragment]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.5
     #[inline]
-    pub fn fragment(&self) -> Option<&'a EStr> {
+    pub fn fragment(&'uri self) -> Option<&'out EStr> {
         // SAFETY: The indexes are within bounds and we have done the validation.
         self.fragment_start
             .map(|i| unsafe { self.eslice(i.get(), self.len) })
@@ -197,7 +247,7 @@ impl<'a> Uri<'a> {
     /// # Ok::<_, fluent_uri::SyntaxError>(())
     /// ```
     #[inline]
-    pub fn is_relative(&self) -> bool {
+    pub fn is_relative(&'uri self) -> bool {
         self.scheme_end.is_none()
     }
 
@@ -222,37 +272,163 @@ impl<'a> Uri<'a> {
     /// # Ok::<_, fluent_uri::SyntaxError>(())
     /// ```
     #[inline]
-    pub fn is_absolute(&self) -> bool {
+    pub fn is_absolute(&'uri self) -> bool {
         self.scheme_end.is_some() && self.fragment_start.is_none()
     }
 }
 
-impl<'a> fmt::Display for Uri<'a> {
+impl<'a> Uri<&'a mut [u8]> {
+    /// Parses a URI reference from a mutable byte sequence into a `Uri<&mut [u8]>`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the input length is greater than `i32::MAX`.
     #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self.as_str(), f)
+    pub fn parse_mut<S: AsMut<[u8]> + ?Sized>(s: &mut S) -> Result<Uri<&mut [u8]>> {
+        let bytes = s.as_mut();
+        assert!(
+            bytes.len() <= i32::MAX as usize,
+            "input length exceeds i32::MAX"
+        );
+        // SAFETY: We're using the right pointer, length, capacity, and generics.
+        unsafe { parser::parse(bytes.as_mut_ptr(), bytes.len() as u32, 0) }
+    }
+
+    #[inline]
+    unsafe fn slice_mut(&mut self, start: u32, end: u32) -> &'a mut [u8] {
+        debug_assert!(start <= end && end <= self.len);
+        // SAFETY: The caller must ensure that the indexes are within bounds.
+        unsafe {
+            slice::from_raw_parts_mut(
+                self.ptr.as_ptr().add(start as usize),
+                (end - start) as usize,
+            )
+        }
+    }
+
+    #[inline]
+    unsafe fn eslice_mut(&mut self, start: u32, end: u32) -> EStrMut<'a> {
+        // SAFETY: The caller must ensure that the indexes are within bounds.
+        let s = unsafe { self.slice_mut(start, end) };
+        // SAFETY: The caller must ensure that the subslice is properly encoded.
+        unsafe { EStrMut::new(s) }
+    }
+
+    /// Returns the mutable scheme component.
+    #[inline]
+    pub fn scheme_mut(&mut self) -> Option<&'a mut Scheme> {
+        // SAFETY: The indexes are within bounds. Scheme is valid UTF-8.
+        self.scheme_end
+            .map(|i| unsafe { Scheme::new_mut(self.slice_mut(0, i.get() - 1)) })
+    }
+
+    /// Takes the mutable authority component out of the `Uri`, leaving a `None` in its place.
+    #[inline]
+    pub fn take_authority_mut(&mut self) -> Option<AuthorityMut<'_, 'a>> {
+        if self.host.is_some() {
+            // SAFETY: `host` is `Some`.
+            // `AuthorityMut` will set `host` to `None` when it gets dropped.
+            Some(unsafe { AuthorityMut::new(self) })
+        } else {
+            None
+        }
+    }
+
+    /// Turns into the mutable path component.
+    #[inline]
+    pub fn into_path_mut(mut self) -> PathMut<'a> {
+        // SAFETY: The indexes are within bounds and we have done the validation.
+        PathMut::new(unsafe { self.eslice_mut(self.path.0, self.path.1) })
+    }
+
+    /// Takes the mutable query component out of the `Uri`, leaving a `None` in its place.
+    #[inline]
+    pub fn take_query_mut(&mut self) -> Option<EStrMut<'a>> {
+        // SAFETY: The indexes are within bounds and we have done the validation.
+        self.query_end
+            .take()
+            .map(|i| unsafe { self.eslice_mut(self.path.1 + 1, i.get()) })
+    }
+
+    /// Takes the mutable fragment component out of the `Uri`, leaving a `None` in its place.
+    #[inline]
+    pub fn take_fragment_mut(&mut self) -> Option<EStrMut<'a>> {
+        // SAFETY: The indexes are within bounds and we have done the validation.
+        self.fragment_start
+            .take()
+            .map(|i| unsafe { self.eslice_mut(i.get(), self.len) })
     }
 }
 
-impl<'a> fmt::Debug for Uri<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Uri")
-            .field("scheme", &self.scheme().map(|s| s.as_str()))
-            .field("authority", &self.authority())
-            .field("path", &self.path().as_str())
-            .field("query", &self.query())
-            .field("fragment", &self.fragment())
-            .finish()
+impl Uri<String> {
+    /// Parses a URI reference from a [`String`] or [`Vec<u8>`] into a `Uri<String>`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the input capacity is greater than `i32::MAX`.
+    #[inline]
+    pub fn parse_from<B: Buf>(buf: B) -> Result<Uri<String>, (B, SyntaxError)> {
+        #[cold]
+        fn capacity_overflow() -> ! {
+            panic!("input capacity exceeds i32::MAX");
+        }
+
+        let me = ManuallyDrop::new(buf);
+        let (ptr, len, cap) = me.as_raw_parts();
+        if cap > i32::MAX as usize {
+            capacity_overflow();
+        }
+
+        // SAFETY: We're using the right pointer, length, capacity, and generics.
+        match unsafe { parser::parse(ptr, len as u32, cap as u32) } {
+            Ok(out) => Ok(out),
+            Err(e) => Err((ManuallyDrop::into_inner(me), e)),
+        }
+    }
+
+    /// Consumes the `Uri` and yields the `String` storage.
+    #[inline]
+    pub fn into_string(self) -> String {
+        // SAFETY: Creating a `String` from the original raw parts is fine.
+        unsafe { String::from_raw_parts(self.ptr.as_ptr(), self.len as usize, self.cap as usize) }
+    }
+}
+
+impl<T> Drop for Uri<T> {
+    #[inline]
+    fn drop(&mut self) {
+        if self.cap != 0 {
+            // SAFETY: The capacity is nonzero iff `Self` is `Uri<String>`.
+            let _ = unsafe {
+                String::from_raw_parts(self.ptr.as_ptr(), self.len as usize, self.cap as usize)
+            };
+        }
     }
 }
 
 /// The [scheme] component of URI reference.
 ///
 /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
-#[derive(Debug, Clone, Copy)]
-pub struct Scheme<'a>(&'a str);
+#[derive(Debug)]
+#[repr(transparent)]
+pub struct Scheme(str);
 
-impl<'a> Scheme<'a> {
+const ASCII_CASE_MASK: u8 = 0b010_0000;
+
+impl Scheme {
+    #[inline]
+    fn new(scheme: &str) -> &Scheme {
+        // SAFETY: Transparency holds.
+        unsafe { &*(scheme as *const str as *const Scheme) }
+    }
+
+    #[inline]
+    unsafe fn new_mut(scheme: &mut [u8]) -> &mut Scheme {
+        // SAFETY: Transparency holds.
+        // The caller must guarantee that the bytes are valid UTF-8.
+        unsafe { &mut *(scheme as *mut [u8] as *mut Scheme) }
+    }
+
     /// Returns the scheme as a string slice in the raw form.
     ///
     /// # Examples
@@ -266,11 +442,11 @@ impl<'a> Scheme<'a> {
     /// # Ok::<_, fluent_uri::SyntaxError>(())
     /// ```
     #[inline]
-    pub fn as_str(self) -> &'a str {
-        self.0
+    pub fn as_str(&self) -> &str {
+        &self.0
     }
 
-    /// Returns the scheme as a string in the normalized (lowercase) form.
+    /// Returns the scheme as a string in the lowercase form.
     ///
     /// # Examples
     ///
@@ -279,12 +455,25 @@ impl<'a> Scheme<'a> {
     ///
     /// let uri = Uri::parse("Http://Example.Com/")?;
     /// let scheme = uri.scheme().unwrap();
-    /// assert_eq!(scheme.normalize(), "http");
+    /// assert_eq!(scheme.to_lowercase(), "http");
     /// # Ok::<_, fluent_uri::SyntaxError>(())
     /// ```
     #[inline]
-    pub fn normalize(self) -> String {
-        self.0.to_ascii_lowercase()
+    pub fn to_lowercase(&self) -> String {
+        let bytes = self.0.bytes().map(|x| x | ASCII_CASE_MASK).collect();
+        // SAFETY: Setting the sixth bit keeps UTF-8.
+        unsafe { String::from_utf8_unchecked(bytes) }
+    }
+
+    /// Converts the scheme to its lowercase equivalent in-place.
+    #[inline]
+    pub fn make_lowercase(&mut self) -> &str {
+        // SAFETY: Setting the sixth bit keeps UTF-8.
+        let bytes = unsafe { self.0.as_bytes_mut() };
+        for byte in bytes {
+            *byte |= ASCII_CASE_MASK;
+        }
+        &self.0
     }
 
     /// Checks if the scheme equals case-insensitively with a lowercase string.
@@ -305,10 +494,9 @@ impl<'a> Scheme<'a> {
     /// # Ok::<_, fluent_uri::SyntaxError>(())
     /// ```
     #[inline]
-    pub fn eq_lowercase(self, other: &str) -> bool {
+    pub fn eq_lowercase(&self, other: &str) -> bool {
         // The only characters allowed in a scheme are alphabets, digits, "+", "-" and ".",
         // the ASCII codes of which allow us to simply set the sixth bit and compare.
-        const ASCII_CASE_MASK: u8 = 0b010_0000;
         self.0.len() == other.len()
             && self
                 .0
@@ -318,32 +506,15 @@ impl<'a> Scheme<'a> {
     }
 }
 
-impl<'a> fmt::Display for Scheme<'a> {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self.as_str(), f)
-    }
-}
-
 /// The [authority] component of URI reference.
 ///
 /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
-#[derive(Clone, Copy)]
-pub struct Authority<'a, 'b>(&'b Uri<'a>);
+#[repr(transparent)]
+pub struct Authority<T> {
+    uri: Uri<T>,
+}
 
-impl<'a, 'b> Authority<'a, 'b> {
-    #[inline]
-    fn start(self) -> u32 {
-        self.0.scheme_end.map(|x| x.get()).unwrap_or(0) + 2
-    }
-
-    #[inline]
-    fn host_bounds(self) -> (u32, u32) {
-        // SAFETY: When authority is present, `host` must be `Some`.
-        let host = unsafe { self.0.host.as_ref().unwrap_unchecked() };
-        (host.0.get(), host.1)
-    }
-
+impl<'uri, 'out, T: Storage<'uri, 'out, Output = &'out str>> Authority<T> {
     /// Returns the raw authority component as a string slice.
     ///
     /// # Examples
@@ -357,9 +528,37 @@ impl<'a, 'b> Authority<'a, 'b> {
     /// # Ok::<_, fluent_uri::SyntaxError>(())
     /// ```
     #[inline]
-    pub fn as_str(self) -> &'a str {
+    pub fn as_str(&'uri self) -> &'out str {
         // SAFETY: The indexes are within bounds.
-        unsafe { self.0.slice(self.start(), self.0.path.0) }
+        unsafe { self.uri.slice(self.start(), self.uri.path.0) }
+    }
+}
+
+impl<'uri, 'out, T: Storage<'uri, 'out>> Authority<T> {
+    #[inline]
+    unsafe fn new(uri: &'uri Uri<T>) -> &'uri Authority<T> {
+        // SAFETY: Transparency holds.
+        // The caller must guarantee that `host` is `Some`.
+        unsafe { &*(uri as *const Uri<T> as *const Authority<T>) }
+    }
+
+    #[inline]
+    fn start(&self) -> u32 {
+        self.uri.scheme_end.map(|x| x.get()).unwrap_or(0) + 2
+    }
+
+    #[inline]
+    fn host_bounds(&self) -> (u32, u32) {
+        // SAFETY: When authority is present, `host` must be `Some`.
+        let host = unsafe { self.uri.host.as_ref().unwrap_unchecked() };
+        (host.0.get(), host.1)
+    }
+
+    #[inline]
+    fn host_internal(&self) -> &HostInternal {
+        // SAFETY: When authority is present, `host` must be `Some`.
+        let host = unsafe { self.uri.host.as_ref().unwrap_unchecked() };
+        &host.2
     }
 
     /// Returns the [userinfo] subcomponent.
@@ -377,11 +576,15 @@ impl<'a, 'b> Authority<'a, 'b> {
     /// # Ok::<_, fluent_uri::SyntaxError>(())
     /// ```
     #[inline]
-    pub fn userinfo(self) -> Option<&'a EStr> {
-        let start = self.start();
-        let host_start = self.host_bounds().0;
-        // SAFETY: The indexes are within bounds and we have done the validation.
-        (start != host_start).then(|| unsafe { self.0.eslice(start, host_start - 1) })
+    pub fn userinfo(&'uri self) -> Option<&'out EStr> {
+        if self.host_internal().tag.contains(HostTag::HAS_USERINFO) {
+            let start = self.start();
+            let host_start = self.host_bounds().0;
+            // SAFETY: The indexes are within bounds and we have done the validation.
+            Some(unsafe { self.uri.eslice(start, host_start - 1) })
+        } else {
+            None
+        }
     }
 
     /// Returns the raw [host] subcomponent as a string slice.
@@ -399,19 +602,17 @@ impl<'a, 'b> Authority<'a, 'b> {
     /// # Ok::<_, fluent_uri::SyntaxError>(())
     /// ```
     #[inline]
-    pub fn host_raw(self) -> &'a str {
+    pub fn host_raw(&'uri self) -> &'out str {
         let bounds = self.host_bounds();
         // SAFETY: The indexes are within bounds.
-        unsafe { self.0.slice(bounds.0, bounds.1) }
+        unsafe { self.uri.slice(bounds.0, bounds.1) }
     }
 
     /// Returns the parsed [host] subcomponent.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
-    pub fn host(self) -> Host<'a> {
-        // SAFETY: When authority is present, `host` must be `Some`.
-        let host = unsafe { self.0.host.as_ref().unwrap_unchecked() };
-        Host::from_internal(self, &host.2)
+    pub fn host(&'uri self) -> Host<'out> {
+        Host::from_authority(self)
     }
 
     /// Returns the raw [port] subcomponent as a string slice.
@@ -437,10 +638,11 @@ impl<'a, 'b> Authority<'a, 'b> {
     /// # Ok::<_, fluent_uri::SyntaxError>(())
     /// ```
     #[inline]
-    pub fn port_raw(self) -> Option<&'a str> {
+    pub fn port_raw(&'uri self) -> Option<&'out str> {
         let host_end = self.host_bounds().1;
         // SAFETY: The indexes are within bounds.
-        (host_end != self.0.path.0).then(|| unsafe { self.0.slice(host_end + 1, self.0.path.0) })
+        (host_end != self.uri.path.0)
+            .then(|| unsafe { self.uri.slice(host_end + 1, self.uri.path.0) })
     }
 
     /// Parses the [port] subcomponent as `u16`.
@@ -474,39 +676,33 @@ impl<'a, 'b> Authority<'a, 'b> {
     /// # Ok::<_, fluent_uri::SyntaxError>(())
     /// ```
     #[inline]
-    pub fn port(self) -> Option<Result<u16, &'a str>> {
+    pub fn port(&'uri self) -> Option<Result<u16, &'out str>> {
         self.port_raw()
             .filter(|s| !s.is_empty())
             .map(|s| s.parse().map_err(|_| s))
     }
 }
 
-impl<'a, 'b> fmt::Debug for Authority<'a, 'b> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Authority")
-            .field("userinfo", &self.userinfo())
-            .field("host", &self.host_raw())
-            .field("port", &self.port_raw())
-            .finish()
+struct HostInternal {
+    tag: HostTag,
+    data: HostData,
+}
+
+bitflags! {
+    struct HostTag: u32 {
+        const REG_NAME     = 0b0001;
+        const IPV4         = 0b0010;
+        const IPV6         = 0b0100;
+        const HAS_USERINFO = 0b1000;
     }
 }
 
-impl<'a, 'b> fmt::Display for Authority<'a, 'b> {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self.as_str(), f)
-    }
-}
-
-#[derive(Clone)]
-enum HostInternal {
-    Ipv4(Ipv4Addr),
-    Ipv6(Ipv6Addr),
+union HostData {
+    ipv4_addr: Ipv4Addr,
+    ipv6_addr: Ipv6Addr,
     #[cfg(feature = "ipv_future")]
-    IpvFuture {
-        dot_i: u32,
-    },
-    RegName,
+    ipv_future_dot_i: u32,
+    reg_name: (),
 }
 
 /// The [host] subcomponent of authority.
@@ -540,33 +736,111 @@ pub enum Host<'a> {
 }
 
 impl<'a> Host<'a> {
-    fn from_internal<'b>(auth: Authority<'a, 'b>, internal: &'b HostInternal) -> Host<'a> {
-        match *internal {
-            HostInternal::Ipv4(addr) => Host::Ipv4(addr),
-            HostInternal::Ipv6(addr) => Host::Ipv6 { addr },
+    fn from_authority<'uri, T: Storage<'uri, 'a>>(auth: &'uri Authority<T>) -> Host<'a> {
+        let HostInternal { tag, ref data } = *auth.host_internal();
+        // SAFETY: We only access the union after checking the tag.
+        unsafe {
+            if tag.contains(HostTag::REG_NAME) {
+                return Host::RegName(EStr::new_unchecked(auth.host_raw().as_bytes()));
+            } else if tag.contains(HostTag::IPV4) {
+                return Host::Ipv4(data.ipv4_addr);
+            }
             #[cfg(feature = "ipv_future")]
-            HostInternal::IpvFuture { dot_i } => unsafe {
+            if tag.contains(HostTag::IPV6) {
+                Host::Ipv6 {
+                    addr: data.ipv6_addr,
+                }
+            } else {
+                let dot_i = data.ipv_future_dot_i;
                 let bounds = auth.host_bounds();
                 // SAFETY: The indexes are within bounds.
                 Host::IpvFuture {
-                    ver: auth.0.slice(bounds.0 + 2, dot_i),
-                    addr: auth.0.slice(dot_i + 1, bounds.1 - 1),
+                    ver: auth.uri.slice(bounds.0 + 2, dot_i),
+                    addr: auth.uri.slice(dot_i + 1, bounds.1 - 1),
                 }
-            },
-            // SAFETY: We have done the validation.
-            HostInternal::RegName => Host::RegName(unsafe { EStr::new_unchecked(auth.host_raw()) }),
+            }
+            #[cfg(not(feature = "ipv_future"))]
+            Host::Ipv6 {
+                addr: data.ipv6_addr,
+            }
         }
     }
 }
 
-impl<'a> fmt::Display for Host<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            Host::Ipv4(addr) => write!(f, "{addr}"),
-            Host::Ipv6 { addr } => write!(f, "[{addr}]"),
-            Host::RegName(reg_name) => write!(f, "{reg_name}"),
-            #[cfg(feature = "ipv_future")]
-            Host::IpvFuture { ver, addr } => write!(f, "[v{ver}.{addr}]"),
+/// The [path] component of URI reference.
+///
+/// [path]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
+#[derive(Debug)]
+#[repr(transparent)]
+pub struct Path {
+    inner: EStr,
+}
+
+impl Path {
+    #[inline]
+    pub(super) fn new(path: &EStr) -> &Path {
+        // SAFETY: Transparency holds.
+        unsafe { &*(path as *const EStr as *const Path) }
+    }
+
+    /// Returns the path as an `EStr` slice.
+    #[inline]
+    pub fn as_estr(&self) -> &EStr {
+        &self.inner
+    }
+
+    /// Returns the path as a string slice.
+    #[inline]
+    pub fn as_str(&self) -> &str {
+        self.inner.as_str()
+    }
+
+    /// Returns `true` if the path is absolute, i.e., beginning with "/".
+    #[inline]
+    pub fn is_absolute(&self) -> bool {
+        self.as_str().starts_with('/')
+    }
+
+    /// Returns `true` if the path is rootless, i.e., not beginning with "/".
+    #[inline]
+    pub fn is_rootless(&self) -> bool {
+        !self.is_absolute()
+    }
+
+    /// Returns an iterator over the [segments] of the path.
+    ///
+    /// [segments]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::Uri;
+    ///
+    /// // An empty path has no segments.
+    /// let uri = Uri::parse("")?;
+    /// assert_eq!(uri.path().segments().next(), None);
+    ///
+    /// let uri = Uri::parse("a/b/c")?;
+    /// assert!(uri.path().segments().eq(["a", "b", "c"]));
+    ///
+    /// // The empty string before a preceding "/" is not a segment.
+    /// // However, segments can be empty in the other cases.
+    /// let uri = Uri::parse("/path/to//dir/")?;
+    /// assert!(uri.path().segments().eq(["path", "to", "", "dir", ""]));
+    /// # Ok::<_, fluent_uri::SyntaxError>(())
+    /// ```
+    #[inline]
+    pub fn segments(&self) -> Split<'_> {
+        let mut path = self.inner.as_str();
+        if self.is_absolute() {
+            // SAFETY: Skipping "/" is fine.
+            path = unsafe { path.get_unchecked(1..) };
         }
+        // SAFETY: We have done the validation.
+        let path = unsafe { EStr::new_unchecked(path.as_bytes()) };
+
+        let mut split = path.split('/');
+        split.finished = self.as_str().is_empty();
+        split
     }
 }
