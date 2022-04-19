@@ -7,8 +7,8 @@ on:
 name: CI
 
 jobs:
-  test:
-    name: test
+  test-and-doc:
+    name: Test & Doc
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -17,12 +17,23 @@ jobs:
           profile: minimal
           toolchain: nightly
           override: true
-      - name: test with no feature
+      - name: Test with no feature
         uses: actions-rs/cargo@v1
         with:
           command: test
-      - name: test with all features
+      - name: Test with all features
         uses: actions-rs/cargo@v1
         with:
           command: test
           args: --all-features
+      - name: Build docs
+        uses: actions-rs/cargo@v1
+        with:
+          command: doc
+          args: --no-deps --features ipv_future
+      - name: Deploy docs
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./target/doc
+          publish_branch: doc
