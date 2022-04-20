@@ -73,13 +73,13 @@ pub struct SyntaxError {
 impl SyntaxError {
     /// Returns the index where the error occurred in the input string.
     #[inline]
-    pub fn index(self) -> usize {
+    pub fn index(&self) -> usize {
         self.index
     }
 
     /// Returns the detailed cause of the error.
     #[inline]
-    pub fn kind(self) -> SyntaxErrorKind {
+    pub fn kind(&self) -> SyntaxErrorKind {
         self.kind
     }
 }
@@ -422,7 +422,7 @@ impl Uri<String> {
         }
     }
 
-    /// Consumes the `Uri` and yields the `String` storage.
+    /// Consumes this `Uri` and yields the underlying `String` storage.
     #[inline]
     pub fn into_string(self) -> String {
         // SAFETY: Creating a `String` from the original raw parts is fine.

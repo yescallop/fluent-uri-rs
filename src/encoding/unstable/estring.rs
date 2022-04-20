@@ -53,7 +53,7 @@ impl<E: Encoder> EString<E> {
         }
     }
 
-    /// Consumes the `EString` and yields the underlying `String`.
+    /// Consumes this `EString` and yields the underlying `String` storage.
     #[inline]
     pub fn into_string(self) -> String {
         self.string

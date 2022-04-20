@@ -1,7 +1,7 @@
 use crate::Result;
 
 use super::{err, table::HEXDIG};
-use std::{borrow::Cow, ptr};
+use std::ptr;
 
 const fn gen_octet_table(hi: bool) -> [u8; 256] {
     let mut out = [0xFF; 256];
@@ -120,18 +120,18 @@ pub(crate) unsafe fn push(v: &mut Vec<u8>, x: u8) {
 ///
 /// This function does not check that the string is properly encoded.
 /// Any invalid encoded octet in the string will result in undefined behavior.
-pub unsafe fn decode_unchecked(s: &[u8]) -> Cow<'_, [u8]> {
+pub unsafe fn decode_unchecked(s: &[u8]) -> Option<Vec<u8>> {
     // Skip bytes that are not '%'.
     let i = match s.iter().position(|&x| x == b'%') {
         Some(i) => i,
-        None => return Cow::Borrowed(s),
+        None => return None,
     };
     // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
     let mut buf = unsafe { copy_new(s, i, false) };
 
     // SAFETY: The caller must ensure that the string is properly encoded.
     unsafe { _decode(s, i, &mut buf, false).unwrap() }
-    Cow::Owned(buf)
+    Some(buf)
 }
 
 /// Decodes a percent-encoded string with a buffer assuming validity.
@@ -265,7 +265,7 @@ pub(crate) mod tests {
 
     #[test]
     fn dec_unchecked() {
-        assert_eq!(RAW, unsafe { &decode_unchecked(ENCODED)[..] });
+        assert_eq!(Some(RAW), unsafe { decode_unchecked(ENCODED).as_deref() });
 
         let mut buf = Vec::new();
         assert_eq!(Some(RAW), unsafe {

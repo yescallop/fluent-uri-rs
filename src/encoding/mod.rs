@@ -161,13 +161,15 @@ impl EStr {
     pub fn decode(&self) -> Decode<'_> {
         // SAFETY: An `EStr` may only be created through `new_unchecked`,
         // of which the caller must guarantee that the string is properly encoded.
-        Decode(unsafe { decode_unchecked(&self.inner) })
+        match unsafe { decode_unchecked(&self.inner) } {
+            Some(s) => Decode(Cow::Owned(s)),
+            None => Decode(Cow::Borrowed(self.as_str().as_bytes())),
+        }
     }
 
     /// Decodes the `EStr` with a buffer.
     ///
-    /// If the string needs no decoding, this function returns `None`
-    /// and no bytes will be appended to the buffer.
+    /// If the string needs no decoding, no bytes will be appended to the buffer.
     ///
     /// Note that the buffer is not cleared prior to decoding.
     ///
@@ -381,7 +383,7 @@ impl<'a> Decode<'a> {
         &self.0
     }
 
-    /// Yields the underlying decoded bytes.
+    /// Consumes this `Decode` and yields the underlying decoded bytes.
     #[inline]
     pub fn into_bytes(self) -> Cow<'a, [u8]> {
         self.0
@@ -436,7 +438,11 @@ pub enum DecodeRef<'src, 'dst> {
 impl<'src, 'dst> DecodeRef<'src, 'dst> {
     /// Returns a reference to the decoded bytes.
     #[inline]
-    pub fn as_bytes(&self) -> &[u8] {
+    pub fn as_bytes<'a>(&self) -> &'a [u8]
+    where
+        'src: 'a,
+        'dst: 'a,
+    {
         match *self {
             Self::Src(s) => s.as_str().as_bytes(),
             Self::Dst(s) => s,
@@ -453,7 +459,11 @@ impl<'src, 'dst> DecodeRef<'src, 'dst> {
     ///
     /// An error is returned if the decoded bytes are not valid UTF-8.
     #[inline]
-    pub fn to_str(&self) -> Result<&str, Utf8Error> {
+    pub fn to_str<'a>(&self) -> Result<&'a str, Utf8Error>
+    where
+        'src: 'a,
+        'dst: 'a,
+    {
         match *self {
             Self::Src(s) => Ok(s.as_str()),
             Self::Dst(s) => str::from_utf8(s),
@@ -462,7 +472,11 @@ impl<'src, 'dst> DecodeRef<'src, 'dst> {
 
     /// Converts the decoded bytes to a string lossily.
     #[inline]
-    pub fn to_string_lossy(&self) -> Cow<'_, str> {
+    pub fn to_string_lossy<'a>(&self) -> Cow<'a, str>
+    where
+        'src: 'a,
+        'dst: 'a,
+    {
         match *self {
             Self::Src(s) => Cow::Borrowed(s.as_str()),
             Self::Dst(s) => String::from_utf8_lossy(s),
