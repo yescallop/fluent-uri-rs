@@ -55,9 +55,7 @@ fn parse_absolute() {
     assert_eq!(a.host_raw(), "[2001:db8::7]");
     assert_eq!(
         a.host(),
-        Host::Ipv6 {
-            addr: Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 0x7),
-        }
+        Host::Ipv6(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 0x7))
     );
     assert_eq!(a.port_raw(), None);
     assert_eq!(a.port(), None);

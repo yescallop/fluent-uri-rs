@@ -15,7 +15,7 @@ fn parse_v6(s: &str) -> Option<Ipv6Addr> {
     let s = format!("//[{s}]");
     let uri = Uri::parse(&s).ok()?;
     match uri.authority()?.host() {
-        Host::Ipv6 { addr } => Some(addr),
+        Host::Ipv6(addr) => Some(addr),
         _ => None,
     }
 }

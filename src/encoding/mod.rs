@@ -196,11 +196,11 @@ impl EStr {
 
         match decoded {
             Some(s) => DecodeRef::Dst(s),
-            None => DecodeRef::Src(self.as_str()),
+            None => DecodeRef::Src(self),
         }
     }
 
-    /// Returns an iterator over subslices separated by `delim`.
+    /// Returns an iterator over subslices separated by the given delimiter.
     ///
     /// # Panics
     ///
@@ -238,8 +238,10 @@ impl EStr {
         }
     }
 
-    /// Splits the `EStr` on the first occurrence of the specified delimiter and
+    /// Splits the `EStr` on the first occurrence of the given delimiter and
     /// returns prefix before delimiter and suffix after delimiter.
+    ///
+    /// Returns `None` if the delimiter is not found.
     ///
     /// # Panics
     ///
@@ -294,7 +296,7 @@ impl<'a> EStrMut<'a> {
         EStrMut(unsafe { &mut *(s as *mut [u8] as *mut EStr) })
     }
 
-    /// Turns into the underlying mutable byte slice.
+    /// Consumes this `EStrMut` and yields the underlying mutable byte slice.
     #[inline]
     pub fn into_mut_bytes(self) -> &'a mut [u8] {
         &mut self.0.inner
@@ -308,15 +310,15 @@ impl<'a> EStrMut<'a> {
         // of which the caller must guarantee that the string is properly encoded.
         let len = unsafe { imp::decode_in_place_unchecked(bytes) };
         if len == bytes.len() {
-            // SAFETY: Nothing is decoded so the bytes are valid UTF-8.
-            DecodeInPlace::Src(unsafe { str::from_utf8_unchecked_mut(bytes) })
+            // SAFETY: Nothing is decoded so the bytes are valid percent-encoded UTF-8.
+            DecodeInPlace::Src(unsafe { EStrMut::new(bytes) })
         } else {
             // SAFETY: The length must be less.
             DecodeInPlace::Dst(unsafe { bytes.get_unchecked_mut(..len) })
         }
     }
 
-    /// Returns an iterator over mutable subslices separated by `delim`.
+    /// Returns an iterator over mutable subslices separated by the given delimiter.
     ///
     /// # Panics
     ///
@@ -337,8 +339,10 @@ impl<'a> EStrMut<'a> {
         }
     }
 
-    /// Splits the `EStrMut` on the first occurrence of the specified delimiter and
+    /// Splits the `EStrMut` on the first occurrence of the given delimiter and
     /// returns prefix before delimiter and suffix after delimiter.
+    ///
+    /// Returns `Err(self)` if the delimiter is not found.
     ///
     /// # Panics
     ///
@@ -346,22 +350,19 @@ impl<'a> EStrMut<'a> {
     ///
     /// [reserved]: https://datatracker.ietf.org/doc/html/rfc3986/#section-2.2
     #[inline]
-    pub fn split_once_mut(self, delim: char) -> Option<(EStrMut<'a>, EStrMut<'a>)> {
+    pub fn split_once_mut(self, delim: char) -> Result<(Self, Self), Self> {
         assert!(
             delim.is_ascii() && table::RESERVED.allows(delim as u8),
             "splitting with non-reserved character"
         );
-        let bytes = self.into_mut_bytes();
 
-        let i = bytes.iter().position(|&x| x == delim as u8)?;
-        let (head, tail) = bytes.split_at_mut(i);
+        let i = match self.as_str().bytes().position(|x| x == delim as u8) {
+            Some(i) => i,
+            None => return Err(self),
+        };
+        let (head, tail) = self.into_mut_bytes().split_at_mut(i);
         // SAFETY: Splitting at a reserved character leaves valid percent-encoded UTF-8.
-        unsafe {
-            Some((
-                EStrMut::new(head),
-                EStrMut::new(&mut tail[1..]),
-            ))
-        }
+        unsafe { Ok((EStrMut::new(head), EStrMut::new(&mut tail[1..]))) }
     }
 }
 
@@ -421,13 +422,13 @@ impl<'a> Decode<'a> {
 
 /// A wrapper of borrowed percent-decoded bytes.
 ///
-/// This struct is created by calling [`decode_with`] on an `EStr`.
+/// This enum is created by calling [`decode_with`] on an `EStr`.
 ///
 /// [`decode_with`]: EStr::decode_with
 #[derive(Clone, Copy, Debug)]
 pub enum DecodeRef<'src, 'dst> {
     /// Nothing decoded, i.e., borrowed from the source.
-    Src(&'src str),
+    Src(&'src EStr),
     /// Something decoded, i.e., borrowed from the buffer.
     Dst(&'dst [u8]),
 }
@@ -437,7 +438,7 @@ impl<'src, 'dst> DecodeRef<'src, 'dst> {
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
         match *self {
-            Self::Src(s) => s.as_bytes(),
+            Self::Src(s) => s.as_str().as_bytes(),
             Self::Dst(s) => s,
         }
     }
@@ -454,7 +455,7 @@ impl<'src, 'dst> DecodeRef<'src, 'dst> {
     #[inline]
     pub fn to_str(&self) -> Result<&str, Utf8Error> {
         match *self {
-            Self::Src(s) => Ok(s),
+            Self::Src(s) => Ok(s.as_str()),
             Self::Dst(s) => str::from_utf8(s),
         }
     }
@@ -463,7 +464,7 @@ impl<'src, 'dst> DecodeRef<'src, 'dst> {
     #[inline]
     pub fn to_string_lossy(&self) -> Cow<'_, str> {
         match *self {
-            Self::Src(s) => Cow::Borrowed(s),
+            Self::Src(s) => Cow::Borrowed(s.as_str()),
             Self::Dst(s) => String::from_utf8_lossy(s),
         }
     }
@@ -471,14 +472,14 @@ impl<'src, 'dst> DecodeRef<'src, 'dst> {
 
 /// A wrapper of in-place percent-decoded bytes.
 ///
-/// This struct is created by calling [`decode_in_place`] on an `EStrMut`.
+/// This enum is created by calling [`decode_in_place`] on an `EStrMut`.
 ///
 /// [`decode_in_place`]: EStrMut::decode_in_place
 #[derive(Debug)]
 pub enum DecodeInPlace<'a> {
-    /// Nothing is decoded.
-    Src(&'a mut str),
-    /// Something is decoded.
+    /// Nothing decoded.
+    Src(EStrMut<'a>),
+    /// Something decoded.
     Dst(&'a mut [u8]),
 }
 
@@ -487,7 +488,16 @@ impl<'a> DecodeInPlace<'a> {
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
         match self {
-            Self::Src(s) => s.as_bytes(),
+            Self::Src(s) => s.as_str().as_bytes(),
+            Self::Dst(s) => s,
+        }
+    }
+
+    /// Consumes this `DecodeInPlace` and yields the underlying mutable byte slice.
+    #[inline]
+    pub fn into_mut_bytes(self) -> &'a mut [u8] {
+        match self {
+            Self::Src(s) => s.into_mut_bytes(),
             Self::Dst(s) => s,
         }
     }
@@ -498,23 +508,13 @@ impl<'a> DecodeInPlace<'a> {
         matches!(self, Self::Dst(_))
     }
 
-    /// Returns a reference to the decoded bytes.
-    #[inline]
-    pub fn into_mut_bytes(self) -> &'a mut [u8] {
-        match self {
-            // SAFETY: We're decoding within an `&mut [u8]` which doesn't have an invariant.
-            Self::Src(s) => unsafe { s.as_bytes_mut() },
-            Self::Dst(s) => s,
-        }
-    }
-
     /// Converts the decoded bytes to a string slice.
     ///
     /// An error is returned if the decoded bytes are not valid UTF-8.
     #[inline]
     pub fn to_str(&self) -> Result<&str, Utf8Error> {
         match self {
-            Self::Src(s) => Ok(s),
+            Self::Src(s) => Ok(s.as_str()),
             Self::Dst(s) => str::from_utf8(s),
         }
     }
@@ -523,13 +523,17 @@ impl<'a> DecodeInPlace<'a> {
     #[inline]
     pub fn to_string_lossy(&self) -> Cow<'_, str> {
         match self {
-            Self::Src(s) => Cow::Borrowed(s),
+            Self::Src(s) => Cow::Borrowed(s.as_str()),
             Self::Dst(s) => String::from_utf8_lossy(s),
         }
     }
 }
 
 /// An iterator over subslices of an `EStr` separated by a delimiter.
+///
+/// This struct is created by calling [`split`] on an `EStr`.
+///
+/// [`split`]: EStr::split
 #[derive(Debug)]
 pub struct Split<'a> {
     s: &'a [u8],
@@ -595,6 +599,10 @@ impl<'a> DoubleEndedIterator for Split<'a> {
 }
 
 /// An iterator over mutable subslices of an `EStrMut` separated by a delimiter.
+///
+/// This struct is created by calling [`split_mut`] on an `EStrMut`.
+///
+/// [`split_mut`]: EStrMut::split_mut
 #[derive(Debug)]
 pub struct SplitMut<'a> {
     s: &'a mut [u8],

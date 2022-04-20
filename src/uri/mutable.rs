@@ -21,9 +21,7 @@ impl<'uri, 'out> Deref for AuthorityMut<'uri, 'out> {
 
 impl<'uri, 'out> AuthorityMut<'uri, 'out> {
     #[inline]
-    pub(super) unsafe fn new(
-        uri: &'uri mut Uri<&'out mut [u8]>,
-    ) -> AuthorityMut<'uri, 'out> {
+    pub(super) unsafe fn new(uri: &'uri mut Uri<&'out mut [u8]>) -> AuthorityMut<'uri, 'out> {
         // SAFETY: Transparency holds.
         AuthorityMut {
             inner: unsafe { &mut *(uri as *mut Uri<_> as *mut Authority<_>) },
@@ -37,7 +35,14 @@ impl<'uri, 'out> AuthorityMut<'uri, 'out> {
         &mut host.2
     }
 
-    /// Takes the userinfo subcomponent out of the `Authority`, leaving a `None` in its place.
+    /// Consumes this `AuthorityMut` and yields the underlying mutable byte slice.
+    #[inline]
+    pub fn into_mut_bytes(self) -> &'out mut [u8] {
+        // SAFETY: The indexes are within bounds.
+        unsafe { self.inner.uri.slice_mut(self.start(), self.uri.path.0) }
+    }
+
+    /// Takes the mutable userinfo subcomponent out of the `AuthorityMut`, leaving a `None` in its place.
     #[inline]
     pub fn take_userinfo_mut(&mut self) -> Option<EStrMut<'out>> {
         let tag = &mut self.host_internal_mut().tag;
@@ -53,7 +58,7 @@ impl<'uri, 'out> AuthorityMut<'uri, 'out> {
         }
     }
 
-    /// Turns into the mutable raw host subcomponent.
+    /// Consumes this `AuthorityMut` and returns the raw mutable host subcomponent.
     #[inline]
     pub fn into_host_raw_mut(self) -> &'out mut [u8] {
         let bounds = self.host_bounds();
@@ -61,7 +66,7 @@ impl<'uri, 'out> AuthorityMut<'uri, 'out> {
         unsafe { self.inner.uri.slice_mut(bounds.0, bounds.1) }
     }
 
-    /// Turns into the mutable parsed host subcomponent.
+    /// Consumes this `AuthorityMut` and returns the parsed mutable host subcomponent.
     pub fn into_host_mut(self) -> HostMut<'out> {
         HostMut::from_authority(self)
     }
@@ -82,21 +87,18 @@ pub enum HostMut<'a> {
     /// An IPv6 address.
     ///
     /// In the future an optional zone identifier may be supported.
-    Ipv6 {
-        /// The address.
-        addr: Ipv6Addr,
-        // /// The zone identifier.
-        // zone_id: Option<&'a EStr>,
-    },
+    Ipv6(Ipv6Addr),
     /// An IP address of future version.
+    ///
+    /// Note that neither `ver` nor `addr` is percent-encoded.
     ///
     /// This is supported on **crate feature `ipv_future`** only.
     #[cfg(feature = "ipv_future")]
     IpvFuture {
         /// The version.
-        ver: &'a mut [u8],
+        ver: EStrMut<'a>,
         /// The address.
-        addr: &'a mut [u8],
+        addr: EStrMut<'a>,
     },
     /// A registered name.
     RegName(EStrMut<'a>),
@@ -113,22 +115,18 @@ impl<'a> HostMut<'a> {
             }
             #[cfg(feature = "ipv_future")]
             if tag.contains(HostTag::IPV6) {
-                HostMut::Ipv6 {
-                    addr: data.ipv6_addr,
-                }
+                HostMut::Ipv6(data.ipv6_addr)
             } else {
                 let dot_i = data.ipv_future_dot_i;
                 let bounds = auth.host_bounds();
-                // SAFETY: The indexes are within bounds.
+                // SAFETY: The indexes are within bounds and we have done the validation.
                 HostMut::IpvFuture {
-                    ver: auth.inner.uri.slice_mut(bounds.0 + 2, dot_i),
-                    addr: auth.inner.uri.slice_mut(dot_i + 1, bounds.1 - 1),
+                    ver: auth.inner.uri.eslice_mut(bounds.0 + 2, dot_i),
+                    addr: auth.inner.uri.eslice_mut(dot_i + 1, bounds.1 - 1),
                 }
             }
             #[cfg(not(feature = "ipv_future"))]
-            HostMut::Ipv6 {
-                addr: data.ipv6_addr,
-            }
+            HostMut::Ipv6(data.ipv6_addr)
         }
     }
 }
@@ -153,18 +151,18 @@ impl<'a> PathMut<'a> {
         unsafe { mem::transmute(path) }
     }
 
-    /// Returns the path as a mutable `EStr` slice.
+    /// Consumes this `PathMut` and yields the underlying `EStrMut`.
     #[inline]
-    pub fn into_mut_estr(self) -> EStrMut<'a> {
+    pub fn into_estr_mut(self) -> EStrMut<'a> {
         // SAFETY: Transparency holds.
         unsafe { mem::transmute(self) }
     }
 
-    /// Turns into an iterator over the mutable segments of the path.
+    /// Returns an iterator over the mutable segments of the path.
     #[inline]
-    pub fn into_mut_segments(self) -> SplitMut<'a> {
+    pub fn segments_mut(self) -> SplitMut<'a> {
         let absolute = self.is_absolute();
-        let mut path = self.into_mut_estr().into_mut_bytes();
+        let mut path = self.into_estr_mut().into_mut_bytes();
         let empty = path.is_empty();
 
         if absolute {

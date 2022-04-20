@@ -17,21 +17,13 @@ use std::{
 };
 
 mod internal {
-    pub trait Storage<'uri, 'out> {
-        type Output: 'out;
-    }
+    pub trait Storage<'uri, 'out> {}
 
-    impl<'uri, 'a> Storage<'uri, 'a> for &'a str {
-        type Output = &'a str;
-    }
+    impl<'uri, 'a> Storage<'uri, 'a> for &'a str {}
 
-    impl<'uri, 'a> Storage<'uri, 'a> for &'a mut [u8] {
-        type Output = &'a mut [u8];
-    }
+    impl<'uri, 'a> Storage<'uri, 'a> for &'a mut [u8] {}
 
-    impl<'uri> Storage<'uri, 'uri> for String {
-        type Output = &'uri str;
-    }
+    impl<'uri> Storage<'uri, 'uri> for String {}
 
     pub trait Buf {
         fn as_raw_parts(&self) -> (*mut u8, usize, usize);
@@ -96,6 +88,11 @@ impl std::error::Error for SyntaxError {}
 
 pub(crate) type Result<T, E = SyntaxError> = std::result::Result<T, E>;
 
+#[cold]
+fn len_overflow() -> ! {
+    panic!("input length exceeds i32::MAX");
+}
+
 /// A URI reference defined in [RFC 3986].
 ///
 /// [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
@@ -130,11 +127,6 @@ impl Uri<&str> {
     ///
     /// Panics if the input length is greater than `i32::MAX`.
     pub fn parse<S: AsRef<[u8]> + ?Sized>(s: &S) -> Result<Uri<&str>> {
-        #[cold]
-        fn len_overflow() -> ! {
-            panic!("input length exceeds i32::MAX");
-        }
-
         let bytes = s.as_ref();
         if bytes.len() > i32::MAX as usize {
             len_overflow();
@@ -142,9 +134,47 @@ impl Uri<&str> {
         // SAFETY: We're using the right pointer, length, capacity, and generics.
         unsafe { parser::parse(bytes.as_ptr() as *mut _, bytes.len() as u32, 0) }
     }
+
+    /// Creates a new `Uri<String>` by cloning the contents of this `Uri<&str>`.
+    ///
+    /// Prefer [`into_owned`] if you have the ownership of the `Uri<&str>`.
+    ///
+    /// [`into_owned`]: Self::into_owned
+    pub fn to_owned(&self) -> Uri<String> {
+        Uri { ..*self }.into_owned()
+    }
+
+    /// Consumes this `Uri<&str>` and creates a new `Uri<String>` by cloning its contents.
+    #[inline]
+    pub fn into_owned(self) -> Uri<String> {
+        // Cannot drop `self` because `self.cap` might not be zero (via `Uri::<String>::clone`).
+        let me = ManuallyDrop::new(self);
+        // We're allocating manually because there is no guarantee that
+        // `String::to_owned` gives the exact capacity of `self.len`.
+        let mut vec = ManuallyDrop::new(Vec::with_capacity(me.len as usize));
+        let ptr = vec.as_mut_ptr();
+
+        // SAFETY: The capacity of `vec` is exactly `self.len`.
+        // Newly allocated `Vec` won't overlap with existing data.
+        unsafe {
+            me.ptr.as_ptr().copy_to_nonoverlapping(ptr, me.len as usize);
+        }
+
+        Uri {
+            ptr: NonNull::new(ptr).unwrap(),
+            cap: me.len,
+            len: me.len,
+            scheme_end: me.scheme_end,
+            host: me.host,
+            path: me.path,
+            query_end: me.query_end,
+            fragment_start: me.fragment_start,
+            _marker: PhantomData,
+        }
+    }
 }
 
-impl<'uri, 'out, T: Storage<'uri, 'out, Output = &'out str>> Uri<T> {
+impl<'uri, 'out, T: Storage<'uri, 'out> + AsRef<str>> Uri<T> {
     #[inline]
     /// Returns the URI reference as a string slice.
     pub fn as_str(&'uri self) -> &'out str {
@@ -190,7 +220,7 @@ impl<'uri, 'out, T: Storage<'uri, 'out>> Uri<T> {
     ///
     /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
     #[inline]
-    pub fn authority(&'uri self) -> Option<&'uri Authority<T>> {
+    pub fn authority(&self) -> Option<&Authority<T>> {
         if self.host.is_some() {
             // SAFETY: `host` is `Some`.
             Some(unsafe { Authority::new(self) })
@@ -247,7 +277,7 @@ impl<'uri, 'out, T: Storage<'uri, 'out>> Uri<T> {
     /// # Ok::<_, fluent_uri::SyntaxError>(())
     /// ```
     #[inline]
-    pub fn is_relative(&'uri self) -> bool {
+    pub fn is_relative(&self) -> bool {
         self.scheme_end.is_none()
     }
 
@@ -272,7 +302,7 @@ impl<'uri, 'out, T: Storage<'uri, 'out>> Uri<T> {
     /// # Ok::<_, fluent_uri::SyntaxError>(())
     /// ```
     #[inline]
-    pub fn is_absolute(&'uri self) -> bool {
+    pub fn is_absolute(&self) -> bool {
         self.scheme_end.is_some() && self.fragment_start.is_none()
     }
 }
@@ -286,12 +316,18 @@ impl<'a> Uri<&'a mut [u8]> {
     #[inline]
     pub fn parse_mut<S: AsMut<[u8]> + ?Sized>(s: &mut S) -> Result<Uri<&mut [u8]>> {
         let bytes = s.as_mut();
-        assert!(
-            bytes.len() <= i32::MAX as usize,
-            "input length exceeds i32::MAX"
-        );
+        if bytes.len() > i32::MAX as usize {
+            len_overflow();
+        }
         // SAFETY: We're using the right pointer, length, capacity, and generics.
         unsafe { parser::parse(bytes.as_mut_ptr(), bytes.len() as u32, 0) }
+    }
+
+    /// Consumes this `Uri` and yields the underlying mutable byte slice.
+    #[inline]
+    pub fn into_mut_bytes(mut self) -> &'a mut [u8] {
+        // SAFETY: The indexes are within bounds.
+        unsafe { self.slice_mut(0, self.len) }
     }
 
     #[inline]
@@ -334,7 +370,7 @@ impl<'a> Uri<&'a mut [u8]> {
         }
     }
 
-    /// Turns into the mutable path component.
+    /// Consumes this `Uri` and returns the mutable path component.
     #[inline]
     pub fn into_path_mut(mut self) -> PathMut<'a> {
         // SAFETY: The indexes are within bounds and we have done the validation.
@@ -369,20 +405,20 @@ impl Uri<String> {
     #[inline]
     pub fn parse_from<B: Buf>(buf: B) -> Result<Uri<String>, (B, SyntaxError)> {
         #[cold]
-        fn capacity_overflow() -> ! {
+        fn cap_overflow() -> ! {
             panic!("input capacity exceeds i32::MAX");
         }
 
-        let me = ManuallyDrop::new(buf);
-        let (ptr, len, cap) = me.as_raw_parts();
+        let buf = ManuallyDrop::new(buf);
+        let (ptr, len, cap) = buf.as_raw_parts();
         if cap > i32::MAX as usize {
-            capacity_overflow();
+            cap_overflow();
         }
 
         // SAFETY: We're using the right pointer, length, capacity, and generics.
         match unsafe { parser::parse(ptr, len as u32, cap as u32) } {
             Ok(out) => Ok(out),
-            Err(e) => Err((ManuallyDrop::into_inner(me), e)),
+            Err(e) => Err((ManuallyDrop::into_inner(buf), e)),
         }
     }
 
@@ -392,7 +428,31 @@ impl Uri<String> {
         // SAFETY: Creating a `String` from the original raw parts is fine.
         unsafe { String::from_raw_parts(self.ptr.as_ptr(), self.len as usize, self.cap as usize) }
     }
+
+    /// Borrows this `Uri<String>` as a reference to `Uri<&str>`.
+    #[inline]
+    // We can't impl `Borrow` due to the limitation of lifetimes.
+    #[allow(clippy::should_implement_trait)]
+    pub fn borrow(&self) -> &Uri<&str> {
+        // SAFETY: `Uri` has a fixed layout, `Uri<&str>` with a capacity is
+        // fine behind a reference and the lifetimes are correct.
+        // NOTE: Don't try to `impl Clone for Uri<&str>` because there'd be
+        // UB if the capacity isn't zeroed when cloning, and the impl would
+        // conflict with `Uri::<&str>::to_owned`.
+        unsafe { &*(self as *const Uri<String> as *const Uri<&str>) }
+    }
 }
+
+impl Clone for Uri<String> {
+    #[inline]
+    fn clone(&self) -> Self {
+        self.borrow().to_owned()
+    }
+}
+
+// SAFETY: `&str`, `&mut [u8]` and `String` are all Send and Sync.
+unsafe impl<T> Send for Uri<T> {}
+unsafe impl<T> Sync for Uri<T> {}
 
 impl<T> Drop for Uri<T> {
     #[inline]
@@ -514,7 +574,7 @@ pub struct Authority<T> {
     uri: Uri<T>,
 }
 
-impl<'uri, 'out, T: Storage<'uri, 'out, Output = &'out str>> Authority<T> {
+impl<'uri, 'out, T: Storage<'uri, 'out> + AsRef<str>> Authority<T> {
     /// Returns the raw authority component as a string slice.
     ///
     /// # Examples
@@ -536,7 +596,7 @@ impl<'uri, 'out, T: Storage<'uri, 'out, Output = &'out str>> Authority<T> {
 
 impl<'uri, 'out, T: Storage<'uri, 'out>> Authority<T> {
     #[inline]
-    unsafe fn new(uri: &'uri Uri<T>) -> &'uri Authority<T> {
+    unsafe fn new(uri: &Uri<T>) -> &Authority<T> {
         // SAFETY: Transparency holds.
         // The caller must guarantee that `host` is `Some`.
         unsafe { &*(uri as *const Uri<T> as *const Authority<T>) }
@@ -683,6 +743,7 @@ impl<'uri, 'out, T: Storage<'uri, 'out>> Authority<T> {
     }
 }
 
+#[derive(Clone, Copy)]
 struct HostInternal {
     tag: HostTag,
     data: HostData,
@@ -697,6 +758,7 @@ bitflags! {
     }
 }
 
+#[derive(Clone, Copy)]
 union HostData {
     ipv4_addr: Ipv4Addr,
     ipv6_addr: Ipv6Addr,
@@ -715,12 +777,7 @@ pub enum Host<'a> {
     /// An IPv6 address.
     ///
     /// In the future an optional zone identifier may be supported.
-    Ipv6 {
-        /// The address.
-        addr: Ipv6Addr,
-        // /// The zone identifier.
-        // zone_id: Option<&'a EStr>,
-    },
+    Ipv6(Ipv6Addr),
     /// An IP address of future version.
     ///
     /// This is supported on **crate feature `ipv_future`** only.
@@ -747,9 +804,7 @@ impl<'a> Host<'a> {
             }
             #[cfg(feature = "ipv_future")]
             if tag.contains(HostTag::IPV6) {
-                Host::Ipv6 {
-                    addr: data.ipv6_addr,
-                }
+                Host::Ipv6(data.ipv6_addr)
             } else {
                 let dot_i = data.ipv_future_dot_i;
                 let bounds = auth.host_bounds();
@@ -760,9 +815,7 @@ impl<'a> Host<'a> {
                 }
             }
             #[cfg(not(feature = "ipv_future"))]
-            Host::Ipv6 {
-                addr: data.ipv6_addr,
-            }
+            Host::Ipv6(data.ipv6_addr)
         }
     }
 }

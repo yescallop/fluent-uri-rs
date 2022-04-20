@@ -5,10 +5,11 @@ use crate::{
 };
 use std::{
     marker::PhantomData,
+    mem,
     net::{Ipv4Addr, Ipv6Addr},
     num::NonZeroU32,
     ptr::NonNull,
-    str, mem,
+    str,
 };
 
 use super::HostInternal;
