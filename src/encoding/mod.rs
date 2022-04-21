@@ -3,6 +3,7 @@ pub mod table;
 #[cfg(not(feature = "unstable"))]
 pub(crate) mod table;
 
+#[allow(dead_code)]
 mod imp;
 #[cfg(feature = "unstable")]
 pub use imp::*;
@@ -21,66 +22,6 @@ use std::{
     str::{self, Utf8Error},
     string::FromUtf8Error,
 };
-
-/// Returns immediately with an encoding error.
-macro_rules! err {
-    ($index:expr, $kind:ident) => {
-        return Err(crate::encoding::EncodingError {
-            index: $index as usize,
-            kind: crate::encoding::EncodingErrorKind::$kind,
-        })
-    };
-}
-
-pub(self) use err;
-
-/// Detailed cause of an [`EncodingError`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum EncodingErrorKind {
-    /// Invalid percent-encoded octet that is either non-hexadecimal or incomplete.
-    ///
-    /// The error index points to the percent character "%" of the octet.
-    InvalidOctet,
-    /// Unexpected character that is not allowed by the URI syntax.
-    ///
-    /// The error index points to the character.
-    UnexpectedChar,
-}
-
-/// An error occurred when decoding or validating strings.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct EncodingError {
-    index: usize,
-    kind: EncodingErrorKind,
-}
-
-impl EncodingError {
-    /// Returns the index where the error occurred in the input string.
-    #[inline]
-    pub fn index(&self) -> usize {
-        self.index
-    }
-
-    /// Returns the detailed cause of the error.
-    #[inline]
-    pub fn kind(&self) -> EncodingErrorKind {
-        self.kind
-    }
-}
-
-impl std::error::Error for EncodingError {}
-
-impl fmt::Display for EncodingError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let msg = match self.kind {
-            EncodingErrorKind::InvalidOctet => "invalid percent-encoded octet at index ",
-            EncodingErrorKind::UnexpectedChar => "unexpected character at index ",
-        };
-        write!(f, "{}{}", msg, self.index)
-    }
-}
-
-type Result<T, E = EncodingError> = std::result::Result<T, E>;
 
 /// Percent-encoded string slices.
 #[repr(transparent)]
