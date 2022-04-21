@@ -46,9 +46,9 @@ mod internal {
 
 use internal::{Buf, Storage};
 
-/// Detailed cause of a [`SyntaxError`].
+/// Detailed cause of a [`UriParseError`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SyntaxErrorKind {
+pub enum UriParseErrorKind {
     /// Invalid percent-encoded octet that is either non-hexadecimal or incomplete.
     ///
     /// The error index points to the percent character "%" of the octet.
@@ -63,14 +63,14 @@ pub enum SyntaxErrorKind {
     InvalidIpLiteral,
 }
 
-/// A syntax error occurred when parsing, decoding or validating strings.
+/// An error occurred when parsing URI references.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct SyntaxError {
-    pub(crate) index: usize,
-    pub(crate) kind: SyntaxErrorKind,
+pub struct UriParseError {
+    index: usize,
+    kind: UriParseErrorKind,
 }
 
-impl SyntaxError {
+impl UriParseError {
     /// Returns the index where the error occurred in the input string.
     #[inline]
     pub fn index(&self) -> usize {
@@ -79,14 +79,14 @@ impl SyntaxError {
 
     /// Returns the detailed cause of the error.
     #[inline]
-    pub fn kind(&self) -> SyntaxErrorKind {
+    pub fn kind(&self) -> UriParseErrorKind {
         self.kind
     }
 }
 
-impl std::error::Error for SyntaxError {}
+impl std::error::Error for UriParseError {}
 
-pub(crate) type Result<T, E = SyntaxError> = std::result::Result<T, E>;
+pub(super) type Result<T, E = UriParseError> = std::result::Result<T, E>;
 
 #[cold]
 fn len_overflow() -> ! {
@@ -274,7 +274,7 @@ impl<'uri, 'out, T: Storage<'uri, 'out>> Uri<T> {
     /// assert!(uri.is_relative());
     /// let uri = Uri::parse("http://example.com/")?;
     /// assert!(!uri.is_relative());
-    /// # Ok::<_, fluent_uri::SyntaxError>(())
+    /// # Ok::<_, fluent_uri::UriParseError>(())
     /// ```
     #[inline]
     pub fn is_relative(&self) -> bool {
@@ -299,7 +299,7 @@ impl<'uri, 'out, T: Storage<'uri, 'out>> Uri<T> {
     /// assert!(!uri.is_absolute());
     /// let uri = Uri::parse("/path/to/file")?;
     /// assert!(!uri.is_absolute());
-    /// # Ok::<_, fluent_uri::SyntaxError>(())
+    /// # Ok::<_, fluent_uri::UriParseError>(())
     /// ```
     #[inline]
     pub fn is_absolute(&self) -> bool {
@@ -403,7 +403,7 @@ impl Uri<String> {
     ///
     /// Panics if the input capacity is greater than `i32::MAX`.
     #[inline]
-    pub fn parse_from<B: Buf>(buf: B) -> Result<Uri<String>, (B, SyntaxError)> {
+    pub fn parse_from<B: Buf>(buf: B) -> Result<Uri<String>, (B, UriParseError)> {
         #[cold]
         fn cap_overflow() -> ! {
             panic!("input capacity exceeds i32::MAX");
@@ -499,7 +499,7 @@ impl Scheme {
     /// let uri = Uri::parse("Http://Example.Com/")?;
     /// let scheme = uri.scheme().unwrap();
     /// assert_eq!(scheme.as_str(), "Http");
-    /// # Ok::<_, fluent_uri::SyntaxError>(())
+    /// # Ok::<_, fluent_uri::UriParseError>(())
     /// ```
     #[inline]
     pub fn as_str(&self) -> &str {
@@ -516,7 +516,7 @@ impl Scheme {
     /// let uri = Uri::parse("Http://Example.Com/")?;
     /// let scheme = uri.scheme().unwrap();
     /// assert_eq!(scheme.to_lowercase(), "http");
-    /// # Ok::<_, fluent_uri::SyntaxError>(())
+    /// # Ok::<_, fluent_uri::UriParseError>(())
     /// ```
     #[inline]
     pub fn to_lowercase(&self) -> String {
@@ -551,7 +551,7 @@ impl Scheme {
     /// assert!(scheme.eq_lowercase("http"));
     /// // Always return `false` if there's any uppercase letter in the given string.
     /// assert!(!scheme.eq_lowercase("hTTp"));
-    /// # Ok::<_, fluent_uri::SyntaxError>(())
+    /// # Ok::<_, fluent_uri::UriParseError>(())
     /// ```
     #[inline]
     pub fn eq_lowercase(&self, other: &str) -> bool {
@@ -585,7 +585,7 @@ impl<'uri, 'out, T: Storage<'uri, 'out> + AsRef<str>> Authority<T> {
     /// let uri = Uri::parse("ftp://user@[fe80::abcd]:6780/")?;
     /// let authority = uri.authority().unwrap();
     /// assert_eq!(authority.as_str(), "user@[fe80::abcd]:6780");
-    /// # Ok::<_, fluent_uri::SyntaxError>(())
+    /// # Ok::<_, fluent_uri::UriParseError>(())
     /// ```
     #[inline]
     pub fn as_str(&'uri self) -> &'out str {
@@ -633,7 +633,7 @@ impl<'uri, 'out, T: Storage<'uri, 'out>> Authority<T> {
     /// let uri = Uri::parse("ftp://user@192.168.1.24/")?;
     /// let authority = uri.authority().unwrap();
     /// assert_eq!(authority.userinfo().unwrap(), "user");
-    /// # Ok::<_, fluent_uri::SyntaxError>(())
+    /// # Ok::<_, fluent_uri::UriParseError>(())
     /// ```
     #[inline]
     pub fn userinfo(&'uri self) -> Option<&'out EStr> {
@@ -659,7 +659,7 @@ impl<'uri, 'out, T: Storage<'uri, 'out>> Authority<T> {
     /// let uri = Uri::parse("ftp://user@[::1]/")?;
     /// let authority = uri.authority().unwrap();
     /// assert_eq!(authority.host_raw(), "[::1]");
-    /// # Ok::<_, fluent_uri::SyntaxError>(())
+    /// # Ok::<_, fluent_uri::UriParseError>(())
     /// ```
     #[inline]
     pub fn host_raw(&'uri self) -> &'out str {
@@ -695,7 +695,7 @@ impl<'uri, 'out, T: Storage<'uri, 'out>> Authority<T> {
     /// let uri = Uri::parse("ssh://device.local/")?;
     /// let authority = uri.authority().unwrap();
     /// assert_eq!(authority.port_raw(), None);
-    /// # Ok::<_, fluent_uri::SyntaxError>(())
+    /// # Ok::<_, fluent_uri::UriParseError>(())
     /// ```
     #[inline]
     pub fn port_raw(&'uri self) -> Option<&'out str> {
@@ -733,7 +733,7 @@ impl<'uri, 'out, T: Storage<'uri, 'out>> Authority<T> {
     /// let uri = Uri::parse("example://device.local:31415926/")?;
     /// let authority = uri.authority().unwrap();
     /// assert_eq!(authority.port(), Some(Err("31415926")));
-    /// # Ok::<_, fluent_uri::SyntaxError>(())
+    /// # Ok::<_, fluent_uri::UriParseError>(())
     /// ```
     #[inline]
     pub fn port(&'uri self) -> Option<Result<u16, &'out str>> {
@@ -880,7 +880,7 @@ impl Path {
     /// // However, segments can be empty in the other cases.
     /// let uri = Uri::parse("/path/to//dir/")?;
     /// assert!(uri.path().segments().eq(["path", "to", "", "dir", ""]));
-    /// # Ok::<_, fluent_uri::SyntaxError>(())
+    /// # Ok::<_, fluent_uri::UriParseError>(())
     /// ```
     #[inline]
     pub fn segments(&self) -> Split<'_> {

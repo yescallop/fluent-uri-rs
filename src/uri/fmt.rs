@@ -1,12 +1,12 @@
 use super::*;
 use std::fmt;
 
-impl fmt::Display for SyntaxError {
+impl fmt::Display for UriParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let msg = match self.kind {
-            SyntaxErrorKind::InvalidOctet => "invalid percent-encoded octet at index ",
-            SyntaxErrorKind::UnexpectedChar => "unexpected character at index ",
-            SyntaxErrorKind::InvalidIpLiteral => "invalid IP literal at index ",
+            UriParseErrorKind::InvalidOctet => "invalid percent-encoded octet at index ",
+            UriParseErrorKind::UnexpectedChar => "unexpected character at index ",
+            UriParseErrorKind::InvalidIpLiteral => "invalid IP literal at index ",
         };
         write!(f, "{}{}", msg, self.index)
     }

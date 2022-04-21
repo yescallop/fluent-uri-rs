@@ -1,6 +1,4 @@
-use crate::Result;
-
-use super::{err, table::HEXDIG};
+use super::{err, table::HEXDIG, Result};
 use std::ptr;
 
 const fn gen_octet_table(hi: bool) -> [u8; 256] {
@@ -84,6 +82,7 @@ pub(crate) unsafe fn copy_new(s: &[u8], i: usize, triple: bool) -> Vec<u8> {
 /// # Safety
 ///
 /// `i` must not exceed `s.len()`.
+#[cfg(feature = "unstable")]
 pub(crate) unsafe fn copy(s: &[u8], buf: &mut Vec<u8>, i: usize, triple: bool) {
     let cap = calc_capacity(s, triple);
     buf.reserve(cap);
@@ -132,34 +131,6 @@ pub unsafe fn decode_unchecked(s: &[u8]) -> Option<Vec<u8>> {
     // SAFETY: The caller must ensure that the string is properly encoded.
     unsafe { _decode(s, i, &mut buf, false).unwrap() }
     Some(buf)
-}
-
-/// Decodes a percent-encoded string with a buffer assuming validity.
-///
-/// If the string needs no decoding, this function returns `None`
-/// and no bytes will be appended to the buffer.
-///
-/// # Safety
-///
-/// This function does not check that the string is properly encoded.
-/// Any invalid encoded octet in the string will result in undefined behavior.
-pub unsafe fn decode_with_unchecked<'a>(s: &[u8], buf: &'a mut Vec<u8>) -> Option<&'a [u8]> {
-    // Skip bytes that are not '%'.
-    let i = match s.iter().position(|&x| x == b'%') {
-        Some(i) => i,
-        None => return None,
-    };
-
-    let start = buf.len();
-
-    unsafe {
-        // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
-        copy(s, buf, i, false);
-        // SAFETY: The caller must ensure that the string is properly encoded.
-        _decode(s, i, buf, false).unwrap();
-        // SAFETY: The length is non-decreasing.
-        Some(buf.get_unchecked(start..))
-    }
 }
 
 pub(crate) unsafe fn _decode(
@@ -254,23 +225,4 @@ pub(super) const fn validate_estr(s: &[u8]) -> bool {
         }
     }
     true
-}
-
-#[cfg(test)]
-pub(crate) mod tests {
-    use super::*;
-
-    pub const RAW: &[u8] = "te😃a 测1`~!@试#$%st^&+=".as_bytes();
-    pub const ENCODED: &[u8] = b"te%F0%9F%98%83a%20%E6%B5%8B1%60~!@%E8%AF%95%23$%25st%5E&+=";
-
-    #[test]
-    fn dec_unchecked() {
-        assert_eq!(Some(RAW), unsafe { decode_unchecked(ENCODED).as_deref() });
-
-        let mut buf = Vec::new();
-        assert_eq!(Some(RAW), unsafe {
-            decode_with_unchecked(ENCODED, &mut buf)
-        });
-        assert_eq!(buf, RAW);
-    }
 }

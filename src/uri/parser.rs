@@ -1,5 +1,5 @@
 use crate::{
-    encoding::{err, table::*, OCTET_TABLE_LO},
+    encoding::{table::*, OCTET_TABLE_LO},
     uri::{HostData, HostTag},
     Result, Uri,
 };
@@ -33,6 +33,16 @@ pub(crate) unsafe fn parse<T>(ptr: *mut u8, len: u32, cap: u32) -> Result<Uri<T>
     parser.parse_from_scheme()?;
     // SAFETY: `Uri` has a fixed layout.
     Ok(unsafe { mem::transmute(parser.out) })
+}
+
+/// Returns immediately with an error.
+macro_rules! err {
+    ($index:expr, $kind:ident) => {
+        return Err(crate::UriParseError {
+            index: $index as usize,
+            kind: crate::UriParseErrorKind::$kind,
+        })
+    };
 }
 
 /// URI parser.

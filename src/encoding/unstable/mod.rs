@@ -1,9 +1,12 @@
 use std::borrow::Cow;
 
-use super::{err, table::Table};
-use crate::Result;
+use super::{err, table::Table, Result};
 
 mod imp;
+pub use imp::*;
+
+/// A percent-encoded, growable string.
+pub mod estring;
 
 mod internal {
     pub trait Buf {

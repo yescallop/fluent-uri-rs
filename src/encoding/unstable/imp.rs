@@ -16,7 +16,7 @@ const fn gen_hex_table() -> [u8; 512] {
     out
 }
 
-pub(super) static HEX_TABLE: &[u8; 512] = &gen_hex_table();
+pub(crate) static HEX_TABLE: &[u8; 512] = &gen_hex_table();
 
 /// Pushes a percent-encoded byte without checking bounds.
 ///
@@ -113,6 +113,34 @@ pub(super) fn decode_with<'a>(s: &[u8], buf: &'a mut Vec<u8>) -> Result<Option<&
     }
 }
 
+/// Decodes a percent-encoded string with a buffer assuming validity.
+///
+/// If the string needs no decoding, this function returns `None`
+/// and no bytes will be appended to the buffer.
+///
+/// # Safety
+///
+/// This function does not check that the string is properly encoded.
+/// Any invalid encoded octet in the string will result in undefined behavior.
+pub unsafe fn decode_with_unchecked<'a>(s: &[u8], buf: &'a mut Vec<u8>) -> Option<&'a [u8]> {
+    // Skip bytes that are not '%'.
+    let i = match s.iter().position(|&x| x == b'%') {
+        Some(i) => i,
+        None => return None,
+    };
+
+    let start = buf.len();
+
+    unsafe {
+        // SAFETY: `i` cannot exceed `s.len()` since `i < s.len()`.
+        copy(s, buf, i, false);
+        // SAFETY: The caller must ensure that the string is properly encoded.
+        _decode(s, i, buf, false).unwrap();
+        // SAFETY: The length is non-decreasing.
+        Some(buf.get_unchecked(start..))
+    }
+}
+
 pub(super) fn validate_enc(s: &[u8], table: &Table) -> Result<()> {
     let mut i = 0;
     while i < s.len() {
@@ -142,7 +170,9 @@ pub(super) fn validate_enc(s: &[u8], table: &Table) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::encoding::tests::*;
+
+    pub const RAW: &[u8] = "te😃a 测1`~!@试#$%st^&+=".as_bytes();
+    pub const ENCODED: &[u8] = b"te%F0%9F%98%83a%20%E6%B5%8B1%60~!@%E8%AF%95%23$%25st%5E&+=";
 
     #[test]
     fn enc_dec_validate() {
@@ -159,6 +189,14 @@ mod tests {
 
         let mut buf = Vec::new();
         assert_eq!(Ok(Some(RAW)), decode_with(ENCODED, &mut buf));
+        assert_eq!(buf, RAW);
+
+        assert_eq!(Some(RAW), unsafe { decode_unchecked(ENCODED).as_deref() });
+
+        let mut buf = Vec::new();
+        assert_eq!(Some(RAW), unsafe {
+            decode_with_unchecked(ENCODED, &mut buf)
+        });
         assert_eq!(buf, RAW);
 
         assert_eq!(Ok(b"\x2d\xe6\xb5" as _), decode(b"%2D%E6%B5").as_deref());

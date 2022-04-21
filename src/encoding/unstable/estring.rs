@@ -1,10 +1,8 @@
 use std::{borrow::Borrow, fmt, hash, marker::PhantomData, ops::Deref};
 
-use crate::{Result, SyntaxError};
-
-use super::{
+use crate::encoding::{
     table::{self, Table},
-    EStr, HEX_TABLE,
+    EStr, EncodingError, Result, HEX_TABLE,
 };
 
 /// A trait used by [`EString`] to specify the table used for encoding.
@@ -63,7 +61,7 @@ impl<E: Encoder> EString<E> {
     #[inline]
     pub fn as_estr(&self) -> &EStr {
         // SAFETY: EString guarantees that it is properly encoded.
-        unsafe { EStr::new_unchecked(self.as_str()) }
+        unsafe { EStr::new_unchecked(self.as_str().as_bytes()) }
     }
 
     /// Encodes a byte sequence and appends the result onto the end of this `EString`.
@@ -181,7 +179,7 @@ impl<E: Encoder> EString<E> {
 }
 
 impl<E: Encoder> TryFrom<String> for EString<E> {
-    type Error = SyntaxError;
+    type Error = EncodingError;
 
     #[inline]
     fn try_from(string: String) -> Result<Self> {
@@ -192,7 +190,7 @@ impl<E: Encoder> TryFrom<String> for EString<E> {
 }
 
 impl<E: Encoder> TryFrom<Vec<u8>> for EString<E> {
-    type Error = SyntaxError;
+    type Error = EncodingError;
 
     #[inline]
     fn try_from(bytes: Vec<u8>) -> Result<Self> {
