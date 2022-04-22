@@ -192,6 +192,15 @@ impl<'a> Uri<&'a str> {
             _marker: PhantomData,
         }
     }
+}
+
+impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Uri<T> {
+    #[inline]
+    /// Returns the URI reference as a string slice.
+    pub fn as_str(&'i self) -> &'o str {
+        // SAFETY: The indexes are within bounds.
+        unsafe { self.slice(0, self.len) }
+    }
 
     /// Creates a mutable copy of this `Uri` in the given buffer.
     ///
@@ -230,15 +239,6 @@ impl<'a> Uri<&'a str> {
             fragment_start: self.fragment_start,
             _marker: PhantomData,
         })
-    }
-}
-
-impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Uri<T> {
-    #[inline]
-    /// Returns the URI reference as a string slice.
-    pub fn as_str(&'i self) -> &'o str {
-        // SAFETY: The indexes are within bounds.
-        unsafe { self.slice(0, self.len) }
     }
 }
 
