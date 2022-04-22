@@ -201,6 +201,8 @@ impl<'a> Uri<&'a str> {
     ///
     /// - `[u8]` or `[MaybeUninit<u8>]`: triggers a [`CapOverflowError`] when
     ///   the capacity is too small; bytes written from the start.
+    /// 
+    /// [`CapOverflowError`]: crate::encoding::CapOverflowError
     #[inline]
     pub fn to_mut_in<'b, B: Buf + ?Sized>(
         &self,
