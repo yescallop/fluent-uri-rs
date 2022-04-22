@@ -685,3 +685,64 @@ impl fmt::Display for CapOverflowError {
         write!(f, "buffer capacity overflow")
     }
 }
+
+pub(crate) mod internal {
+    use crate::encoding::CapOverflowError;
+    use std::{convert::Infallible, mem::MaybeUninit};
+
+    pub trait Buf {
+        type ReserveError;
+
+        fn reserve(&mut self, additional: usize) -> Result<*mut u8, Self::ReserveError>;
+
+        unsafe fn inc_len(&mut self, inc: usize);
+    }
+
+    impl Buf for Vec<u8> {
+        type ReserveError = Infallible;
+
+        #[inline]
+        fn reserve(&mut self, additional: usize) -> Result<*mut u8, Infallible> {
+            self.reserve(additional);
+            Ok(self.as_mut_ptr_range().end)
+        }
+
+        #[inline]
+        unsafe fn inc_len(&mut self, inc: usize) {
+            // SAFETY: The caller must ensure that the additional `inc` bytes are initialized.
+            unsafe { self.set_len(self.len() + inc) }
+        }
+    }
+
+    impl Buf for [u8] {
+        type ReserveError = CapOverflowError;
+
+        #[inline]
+        fn reserve(&mut self, len: usize) -> Result<*mut u8, CapOverflowError> {
+            if self.len() < len {
+                Err(CapOverflowError)
+            } else {
+                Ok(self.as_mut_ptr())
+            }
+        }
+
+        #[inline]
+        unsafe fn inc_len(&mut self, _inc: usize) {}
+    }
+
+    impl Buf for [MaybeUninit<u8>] {
+        type ReserveError = CapOverflowError;
+
+        #[inline]
+        fn reserve(&mut self, len: usize) -> Result<*mut u8, CapOverflowError> {
+            if self.len() < len {
+                Err(CapOverflowError)
+            } else {
+                Ok(self.as_mut_ptr().cast())
+            }
+        }
+
+        #[inline]
+        unsafe fn inc_len(&mut self, _inc: usize) {}
+    }
+}

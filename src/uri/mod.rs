@@ -1,11 +1,11 @@
 mod fmt;
 
 pub mod mutable;
-use mutable::{internal::Buf, *};
+use mutable::*;
 
 mod parser;
 
-use crate::encoding::{EStr, EStrMut, Split};
+use crate::encoding::{internal::Buf, EStr, EStrMut, Split};
 use bitflags::bitflags;
 use std::{
     marker::PhantomData,
@@ -206,7 +206,7 @@ impl<'a> Uri<&'a str> {
         &self,
         buf: &'b mut B,
     ) -> Result<Uri<&'b mut [u8]>, B::ReserveError> {
-        let ptr = buf.reserve(self.len)?;
+        let ptr = buf.reserve(self.len as usize)?;
 
         // SAFETY: We have reserved enough space in the buffer, and
         // mutable reference `buf` ensures exclusive access.
@@ -214,7 +214,7 @@ impl<'a> Uri<&'a str> {
             self.ptr
                 .as_ptr()
                 .copy_to_nonoverlapping(ptr, self.len as usize);
-            buf.inc_len(self.len);
+            buf.inc_len(self.len as usize);
         }
 
         Ok(Uri {
