@@ -7,21 +7,21 @@ use crate::encoding::{EStrMut, SplitMut};
 
 /// A mutable authority component.
 #[repr(transparent)]
-pub struct AuthorityMut<'uri, 'out> {
-    inner: &'uri mut Authority<&'out mut [u8]>,
+pub struct AuthorityMut<'i, 'a> {
+    inner: &'i mut Authority<&'a mut [u8]>,
 }
 
-impl<'uri, 'out> Deref for AuthorityMut<'uri, 'out> {
-    type Target = Authority<&'out mut [u8]>;
+impl<'i, 'a> Deref for AuthorityMut<'i, 'a> {
+    type Target = Authority<&'a mut [u8]>;
     #[inline]
-    fn deref(&self) -> &Authority<&'out mut [u8]> {
+    fn deref(&self) -> &Authority<&'a mut [u8]> {
         self.inner
     }
 }
 
-impl<'uri, 'out> AuthorityMut<'uri, 'out> {
+impl<'i, 'a> AuthorityMut<'i, 'a> {
     #[inline]
-    pub(super) unsafe fn new(uri: &'uri mut Uri<&'out mut [u8]>) -> AuthorityMut<'uri, 'out> {
+    pub(super) unsafe fn new(uri: &'i mut Uri<&'a mut [u8]>) -> AuthorityMut<'i, 'a> {
         // SAFETY: Transparency holds.
         AuthorityMut {
             inner: unsafe { &mut *(uri as *mut Uri<_> as *mut Authority<_>) },
@@ -37,14 +37,14 @@ impl<'uri, 'out> AuthorityMut<'uri, 'out> {
 
     /// Consumes this `AuthorityMut` and yields the underlying mutable byte slice.
     #[inline]
-    pub fn into_mut_bytes(self) -> &'out mut [u8] {
+    pub fn into_mut_bytes(self) -> &'a mut [u8] {
         // SAFETY: The indexes are within bounds.
         unsafe { self.inner.uri.slice_mut(self.start(), self.uri.path.0) }
     }
 
     /// Takes the mutable userinfo subcomponent out of the `AuthorityMut`, leaving a `None` in its place.
     #[inline]
-    pub fn take_userinfo_mut(&mut self) -> Option<EStrMut<'out>> {
+    pub fn take_userinfo_mut(&mut self) -> Option<EStrMut<'a>> {
         let tag = &mut self.host_internal_mut().tag;
         if tag.contains(HostTag::HAS_USERINFO) {
             tag.remove(HostTag::HAS_USERINFO);
@@ -60,19 +60,19 @@ impl<'uri, 'out> AuthorityMut<'uri, 'out> {
 
     /// Consumes this `AuthorityMut` and returns the raw mutable host subcomponent.
     #[inline]
-    pub fn into_host_raw_mut(self) -> &'out mut [u8] {
+    pub fn into_host_raw_mut(self) -> &'a mut [u8] {
         let bounds = self.host_bounds();
         // SAFETY: The indexes are within bounds.
         unsafe { self.inner.uri.slice_mut(bounds.0, bounds.1) }
     }
 
     /// Consumes this `AuthorityMut` and returns the parsed mutable host subcomponent.
-    pub fn into_host_mut(self) -> HostMut<'out> {
+    pub fn into_host_mut(self) -> HostMut<'a> {
         HostMut::from_authority(self)
     }
 }
 
-impl<'uri, 'out> Drop for AuthorityMut<'uri, 'out> {
+impl<'i, 'a> Drop for AuthorityMut<'i, 'a> {
     #[inline]
     fn drop(&mut self) {
         self.inner.uri.host = None;

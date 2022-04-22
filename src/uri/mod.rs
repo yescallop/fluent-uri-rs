@@ -17,13 +17,36 @@ use std::{
 };
 
 mod internal {
-    pub trait Storage<'uri, 'out> {}
+    pub trait Storage {
+        fn needs_drop() -> bool;
+    }
 
-    impl<'uri, 'a> Storage<'uri, 'a> for &'a str {}
+    impl Storage for &str {
+        #[inline]
+        fn needs_drop() -> bool {
+            false
+        }
+    }
+    impl Storage for &mut [u8] {
+        #[inline]
+        fn needs_drop() -> bool {
+            false
+        }
+    }
+    impl Storage for String {
+        #[inline]
+        fn needs_drop() -> bool {
+            true
+        }
+    }
 
-    impl<'uri, 'a> Storage<'uri, 'a> for &'a mut [u8] {}
+    pub trait Io<'i, 'o>: Storage {}
 
-    impl<'uri> Storage<'uri, 'uri> for String {}
+    impl<'i, 'a> Io<'i, 'a> for &'a str {}
+
+    impl<'i, 'a> Io<'i, 'a> for &'a mut [u8] {}
+
+    impl<'a> Io<'a, 'a> for String {}
 
     pub trait Buf {
         fn as_raw_parts(&self) -> (*mut u8, usize, usize);
@@ -44,7 +67,7 @@ mod internal {
     }
 }
 
-use internal::{Buf, Storage};
+use internal::*;
 
 /// Detailed cause of a [`UriParseError`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -66,14 +89,14 @@ pub enum UriParseErrorKind {
 /// An error occurred when parsing URI references.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UriParseError {
-    index: usize,
+    index: u32,
     kind: UriParseErrorKind,
 }
 
 impl UriParseError {
     /// Returns the index where the error occurred in the input string.
     #[inline]
-    pub fn index(&self) -> usize {
+    pub fn index(&self) -> u32 {
         self.index
     }
 
@@ -97,7 +120,7 @@ fn len_overflow() -> ! {
 ///
 /// [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
 #[repr(C)]
-pub struct Uri<T> {
+pub struct Uri<T: Storage> {
     ptr: NonNull<u8>,
     cap: u32,
     len: u32,
@@ -114,7 +137,7 @@ pub struct Uri<T> {
     _marker: PhantomData<T>,
 }
 
-impl Uri<&str> {
+impl<'a> Uri<&'a str> {
     /// Parses a URI reference from a byte sequence into a `Uri<&str>`.
     ///
     /// This function validates the input strictly except that UTF-8 validation is not
@@ -135,57 +158,54 @@ impl Uri<&str> {
         unsafe { parser::parse(bytes.as_ptr() as *mut _, bytes.len() as u32, 0) }
     }
 
-    /// Creates a new `Uri<String>` by cloning the contents of this `Uri<&str>`.
-    ///
-    /// Prefer [`into_owned`] if you have the ownership of the `Uri<&str>`.
-    ///
-    /// [`into_owned`]: Self::into_owned
-    pub fn to_owned(&self) -> Uri<String> {
-        Uri { ..*self }.into_owned()
+    /// Duplicates this `Uri<&str>`.
+    #[inline]
+    pub fn dup(&self) -> Uri<&'a str> {
+        Uri { ..*self }
     }
 
-    /// Consumes this `Uri<&str>` and creates a new `Uri<String>` by cloning its contents.
+    /// Creates a new `Uri<String>` by cloning the contents of this `Uri<&str>`.
     #[inline]
-    pub fn into_owned(self) -> Uri<String> {
-        // Cannot drop `self` because `self.cap` might not be zero (via `Uri::<String>::clone`).
-        let me = ManuallyDrop::new(self);
+    pub fn to_owned(&self) -> Uri<String> {
         // We're allocating manually because there is no guarantee that
         // `String::to_owned` gives the exact capacity of `self.len`.
-        let mut vec = ManuallyDrop::new(Vec::with_capacity(me.len as usize));
+        let mut vec = ManuallyDrop::new(Vec::with_capacity(self.len as usize));
         let ptr = vec.as_mut_ptr();
 
         // SAFETY: The capacity of `vec` is exactly `self.len`.
         // Newly allocated `Vec` won't overlap with existing data.
         unsafe {
-            me.ptr.as_ptr().copy_to_nonoverlapping(ptr, me.len as usize);
+            self.ptr
+                .as_ptr()
+                .copy_to_nonoverlapping(ptr, self.len as usize);
         }
 
         Uri {
             ptr: NonNull::new(ptr).unwrap(),
-            cap: me.len,
-            len: me.len,
-            scheme_end: me.scheme_end,
-            host: me.host,
-            path: me.path,
-            query_end: me.query_end,
-            fragment_start: me.fragment_start,
+            cap: self.len,
+            len: self.len,
+            scheme_end: self.scheme_end,
+            host: self.host,
+            path: self.path,
+            query_end: self.query_end,
+            fragment_start: self.fragment_start,
             _marker: PhantomData,
         }
     }
 }
 
-impl<'uri, 'out, T: Storage<'uri, 'out> + AsRef<str>> Uri<T> {
+impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Uri<T> {
     #[inline]
     /// Returns the URI reference as a string slice.
-    pub fn as_str(&'uri self) -> &'out str {
+    pub fn as_str(&'i self) -> &'o str {
         // SAFETY: The indexes are within bounds.
         unsafe { self.slice(0, self.len) }
     }
 }
 
-impl<'uri, 'out, T: Storage<'uri, 'out>> Uri<T> {
+impl<'i, 'o, T: Io<'i, 'o>> Uri<T> {
     #[inline]
-    unsafe fn slice(&'uri self, start: u32, end: u32) -> &'out str {
+    unsafe fn slice(&'i self, start: u32, end: u32) -> &'o str {
         debug_assert!(start <= end && end <= self.len);
         // SAFETY: The caller must ensure that the indexes are within bounds.
         let bytes = unsafe {
@@ -199,7 +219,7 @@ impl<'uri, 'out, T: Storage<'uri, 'out>> Uri<T> {
     }
 
     #[inline]
-    unsafe fn eslice(&'uri self, start: u32, end: u32) -> &'out EStr {
+    unsafe fn eslice(&'i self, start: u32, end: u32) -> &'o EStr {
         // SAFETY: The caller must ensure that the indexes are within bounds.
         let s = unsafe { self.slice(start, end) };
         // SAFETY: The caller must ensure that the subslice is properly encoded.
@@ -210,7 +230,7 @@ impl<'uri, 'out, T: Storage<'uri, 'out>> Uri<T> {
     ///
     /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
     #[inline]
-    pub fn scheme(&'uri self) -> Option<&'out Scheme> {
+    pub fn scheme(&'i self) -> Option<&'o Scheme> {
         // SAFETY: The indexes are within bounds.
         self.scheme_end
             .map(|i| Scheme::new(unsafe { self.slice(0, i.get() - 1) }))
@@ -233,7 +253,7 @@ impl<'uri, 'out, T: Storage<'uri, 'out>> Uri<T> {
     ///
     /// [path]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
     #[inline]
-    pub fn path(&'uri self) -> &'out Path {
+    pub fn path(&'i self) -> &'o Path {
         // SAFETY: The indexes are within bounds and we have done the validation.
         Path::new(unsafe { self.eslice(self.path.0, self.path.1) })
     }
@@ -242,7 +262,7 @@ impl<'uri, 'out, T: Storage<'uri, 'out>> Uri<T> {
     ///
     /// [query]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.4
     #[inline]
-    pub fn query(&'uri self) -> Option<&'out EStr> {
+    pub fn query(&'i self) -> Option<&'o EStr> {
         // SAFETY: The indexes are within bounds and we have done the validation.
         self.query_end
             .map(|i| unsafe { self.eslice(self.path.1 + 1, i.get()) })
@@ -252,7 +272,7 @@ impl<'uri, 'out, T: Storage<'uri, 'out>> Uri<T> {
     ///
     /// [fragment]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.5
     #[inline]
-    pub fn fragment(&'uri self) -> Option<&'out EStr> {
+    pub fn fragment(&'i self) -> Option<&'o EStr> {
         // SAFETY: The indexes are within bounds and we have done the validation.
         self.fragment_start
             .map(|i| unsafe { self.eslice(i.get(), self.len) })
@@ -435,10 +455,7 @@ impl Uri<String> {
     #[allow(clippy::should_implement_trait)]
     pub fn borrow(&self) -> &Uri<&str> {
         // SAFETY: `Uri` has a fixed layout, `Uri<&str>` with a capacity is
-        // fine behind a reference and the lifetimes are correct.
-        // NOTE: Don't try to `impl Clone for Uri<&str>` because there'd be
-        // UB if the capacity isn't zeroed when cloning, and the impl would
-        // conflict with `Uri::<&str>::to_owned`.
+        // always fine and the lifetimes are correct.
         unsafe { &*(self as *const Uri<String> as *const Uri<&str>) }
     }
 }
@@ -451,14 +468,15 @@ impl Clone for Uri<String> {
 }
 
 // SAFETY: `&str`, `&mut [u8]` and `String` are all Send and Sync.
-unsafe impl<T> Send for Uri<T> {}
-unsafe impl<T> Sync for Uri<T> {}
+unsafe impl<T: Storage> Send for Uri<T> {}
+unsafe impl<T: Storage> Sync for Uri<T> {}
 
-impl<T> Drop for Uri<T> {
+impl<T: Storage> Drop for Uri<T> {
     #[inline]
     fn drop(&mut self) {
-        if self.cap != 0 {
-            // SAFETY: The capacity is nonzero iff `Self` is `Uri<String>`.
+        // Can't use `mem::needs_drop` here because there's no guarantee of its return value.
+        if T::needs_drop() {
+            // SAFETY: `T::needs_drop()` returns true iff `T` is `String`.
             let _ = unsafe {
                 String::from_raw_parts(self.ptr.as_ptr(), self.len as usize, self.cap as usize)
             };
@@ -570,11 +588,11 @@ impl Scheme {
 ///
 /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
 #[repr(transparent)]
-pub struct Authority<T> {
+pub struct Authority<T: Storage> {
     uri: Uri<T>,
 }
 
-impl<'uri, 'out, T: Storage<'uri, 'out> + AsRef<str>> Authority<T> {
+impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Authority<T> {
     /// Returns the raw authority component as a string slice.
     ///
     /// # Examples
@@ -588,13 +606,13 @@ impl<'uri, 'out, T: Storage<'uri, 'out> + AsRef<str>> Authority<T> {
     /// # Ok::<_, fluent_uri::UriParseError>(())
     /// ```
     #[inline]
-    pub fn as_str(&'uri self) -> &'out str {
+    pub fn as_str(&'i self) -> &'o str {
         // SAFETY: The indexes are within bounds.
         unsafe { self.uri.slice(self.start(), self.uri.path.0) }
     }
 }
 
-impl<'uri, 'out, T: Storage<'uri, 'out>> Authority<T> {
+impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     #[inline]
     unsafe fn new(uri: &Uri<T>) -> &Authority<T> {
         // SAFETY: Transparency holds.
@@ -636,7 +654,7 @@ impl<'uri, 'out, T: Storage<'uri, 'out>> Authority<T> {
     /// # Ok::<_, fluent_uri::UriParseError>(())
     /// ```
     #[inline]
-    pub fn userinfo(&'uri self) -> Option<&'out EStr> {
+    pub fn userinfo(&'i self) -> Option<&'o EStr> {
         if self.host_internal().tag.contains(HostTag::HAS_USERINFO) {
             let start = self.start();
             let host_start = self.host_bounds().0;
@@ -662,7 +680,7 @@ impl<'uri, 'out, T: Storage<'uri, 'out>> Authority<T> {
     /// # Ok::<_, fluent_uri::UriParseError>(())
     /// ```
     #[inline]
-    pub fn host_raw(&'uri self) -> &'out str {
+    pub fn host_raw(&'i self) -> &'o str {
         let bounds = self.host_bounds();
         // SAFETY: The indexes are within bounds.
         unsafe { self.uri.slice(bounds.0, bounds.1) }
@@ -671,7 +689,7 @@ impl<'uri, 'out, T: Storage<'uri, 'out>> Authority<T> {
     /// Returns the parsed [host] subcomponent.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
-    pub fn host(&'uri self) -> Host<'out> {
+    pub fn host(&'i self) -> Host<'o> {
         Host::from_authority(self)
     }
 
@@ -698,7 +716,7 @@ impl<'uri, 'out, T: Storage<'uri, 'out>> Authority<T> {
     /// # Ok::<_, fluent_uri::UriParseError>(())
     /// ```
     #[inline]
-    pub fn port_raw(&'uri self) -> Option<&'out str> {
+    pub fn port_raw(&'i self) -> Option<&'o str> {
         let host_end = self.host_bounds().1;
         // SAFETY: The indexes are within bounds.
         (host_end != self.uri.path.0)
@@ -736,7 +754,7 @@ impl<'uri, 'out, T: Storage<'uri, 'out>> Authority<T> {
     /// # Ok::<_, fluent_uri::UriParseError>(())
     /// ```
     #[inline]
-    pub fn port(&'uri self) -> Option<Result<u16, &'out str>> {
+    pub fn port(&'i self) -> Option<Result<u16, &'o str>> {
         self.port_raw()
             .filter(|s| !s.is_empty())
             .map(|s| s.parse().map_err(|_| s))
@@ -793,7 +811,7 @@ pub enum Host<'a> {
 }
 
 impl<'a> Host<'a> {
-    fn from_authority<'uri, T: Storage<'uri, 'a>>(auth: &'uri Authority<T>) -> Host<'a> {
+    fn from_authority<'i, T: Io<'i, 'a>>(auth: &'i Authority<T>) -> Host<'a> {
         let HostInternal { tag, ref data } = *auth.host_internal();
         // SAFETY: We only access the union after checking the tag.
         unsafe {

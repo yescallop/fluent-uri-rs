@@ -12,9 +12,9 @@ use std::{
     str,
 };
 
-use super::HostInternal;
+use super::{internal::Storage, HostInternal};
 
-pub(crate) unsafe fn parse<T>(ptr: *mut u8, len: u32, cap: u32) -> Result<Uri<T>> {
+pub(crate) unsafe fn parse<T: Storage>(ptr: *mut u8, len: u32, cap: u32) -> Result<Uri<T>> {
     let mut parser = Parser {
         out: Uri {
             ptr: NonNull::new(ptr).unwrap(),
@@ -39,7 +39,7 @@ pub(crate) unsafe fn parse<T>(ptr: *mut u8, len: u32, cap: u32) -> Result<Uri<T>
 macro_rules! err {
     ($index:expr, $kind:ident) => {
         return Err(crate::UriParseError {
-            index: $index as usize,
+            index: $index,
             kind: crate::UriParseErrorKind::$kind,
         })
     };
@@ -51,7 +51,7 @@ macro_rules! err {
 /// where `pos` is non-decreasing and `bytes[..pos]` is valid UTF-8.
 struct Parser {
     // Not generic to avoid code bloat.
-    out: Uri<()>,
+    out: Uri<&'static str>,
     pos: u32,
     mark: u32,
 }

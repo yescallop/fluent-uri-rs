@@ -96,7 +96,7 @@ impl fmt::Debug for Authority<&mut [u8]> {
     }
 }
 
-impl<'uri, 'out> fmt::Debug for AuthorityMut<'uri, 'out> {
+impl<'i, 'a> fmt::Debug for AuthorityMut<'i, 'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("AuthorityMut")
             .field("userinfo", &self.userinfo())
