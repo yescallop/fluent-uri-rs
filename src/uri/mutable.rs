@@ -5,6 +5,67 @@ use std::{mem, ops::Deref};
 use super::*;
 use crate::encoding::{EStrMut, SplitMut};
 
+pub(super) mod internal {
+    use crate::encoding::CapOverflowError;
+    use std::{convert::Infallible, mem::MaybeUninit};
+
+    pub trait Buf {
+        type ReserveError;
+
+        fn reserve(&mut self, additional: u32) -> Result<*mut u8, Self::ReserveError>;
+
+        unsafe fn inc_len(&mut self, inc: u32);
+    }
+
+    impl Buf for Vec<u8> {
+        type ReserveError = Infallible;
+
+        #[inline]
+        fn reserve(&mut self, additional: u32) -> Result<*mut u8, Infallible> {
+            self.reserve(additional as usize);
+            Ok(self.as_mut_ptr_range().end)
+        }
+
+        #[inline]
+        unsafe fn inc_len(&mut self, inc: u32) {
+            // SAFETY: The caller must ensure that the additional `inc` bytes are initialized.
+            unsafe { self.set_len(self.len() + inc as usize) }
+        }
+    }
+
+    impl Buf for [u8] {
+        type ReserveError = CapOverflowError;
+
+        #[inline]
+        fn reserve(&mut self, len: u32) -> Result<*mut u8, CapOverflowError> {
+            if self.len() < len as usize {
+                Err(CapOverflowError)
+            } else {
+                Ok(self.as_mut_ptr())
+            }
+        }
+
+        #[inline]
+        unsafe fn inc_len(&mut self, _inc: u32) {}
+    }
+
+    impl Buf for [MaybeUninit<u8>] {
+        type ReserveError = CapOverflowError;
+
+        #[inline]
+        fn reserve(&mut self, len: u32) -> Result<*mut u8, CapOverflowError> {
+            if self.len() < len as usize {
+                Err(CapOverflowError)
+            } else {
+                Ok(self.as_mut_ptr().cast())
+            }
+        }
+
+        #[inline]
+        unsafe fn inc_len(&mut self, _inc: u32) {}
+    }
+}
+
 /// A mutable authority component.
 #[repr(transparent)]
 pub struct AuthorityMut<'i, 'a> {

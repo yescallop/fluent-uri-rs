@@ -673,3 +673,15 @@ impl<'a> DoubleEndedIterator for SplitMut<'a> {
         Some(unsafe { EStrMut::new(tail) })
     }
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// An error occurred at buffer capacity overflow.
+pub struct CapOverflowError;
+
+impl std::error::Error for CapOverflowError {}
+
+impl fmt::Display for CapOverflowError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "buffer capacity overflow")
+    }
+}

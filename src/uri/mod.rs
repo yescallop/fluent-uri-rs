@@ -1,7 +1,7 @@
 mod fmt;
 
 pub mod mutable;
-use mutable::*;
+use mutable::{internal::Buf, *};
 
 mod parser;
 
@@ -48,18 +48,18 @@ mod internal {
 
     impl<'a> Io<'a, 'a> for String {}
 
-    pub trait Buf {
+    pub trait IntoOwnedUri {
         fn as_raw_parts(&self) -> (*mut u8, usize, usize);
     }
 
-    impl Buf for String {
+    impl IntoOwnedUri for String {
         #[inline]
         fn as_raw_parts(&self) -> (*mut u8, usize, usize) {
             (self.as_ptr() as _, self.len(), self.capacity())
         }
     }
 
-    impl Buf for Vec<u8> {
+    impl IntoOwnedUri for Vec<u8> {
         #[inline]
         fn as_raw_parts(&self) -> (*mut u8, usize, usize) {
             (self.as_ptr() as _, self.len(), self.capacity())
@@ -191,6 +191,43 @@ impl<'a> Uri<&'a str> {
             fragment_start: self.fragment_start,
             _marker: PhantomData,
         }
+    }
+
+    /// Creates a mutable copy of this `Uri` in the given buffer.
+    ///
+    /// The type of a buffer may be:
+    ///
+    /// - `Vec<u8>`: grows automatically; bytes appended to the end.
+    ///
+    /// - `[u8]` or `[MaybeUninit<u8>]`: triggers a [`CapOverflowError`] when
+    ///   the capacity is too small; bytes written from the start.
+    #[inline]
+    pub fn to_mut_in<'b, B: Buf + ?Sized>(
+        &self,
+        buf: &'b mut B,
+    ) -> Result<Uri<&'b mut [u8]>, B::ReserveError> {
+        let ptr = buf.reserve(self.len)?;
+
+        // SAFETY: We have reserved enough space in the buffer, and
+        // mutable reference `buf` ensures exclusive access.
+        unsafe {
+            self.ptr
+                .as_ptr()
+                .copy_to_nonoverlapping(ptr, self.len as usize);
+            buf.inc_len(self.len);
+        }
+
+        Ok(Uri {
+            ptr: NonNull::new(ptr).unwrap(),
+            cap: 0,
+            len: self.len,
+            scheme_end: self.scheme_end,
+            host: self.host,
+            path: self.path,
+            query_end: self.query_end,
+            fragment_start: self.fragment_start,
+            _marker: PhantomData,
+        })
     }
 }
 
@@ -423,13 +460,13 @@ impl Uri<String> {
     ///
     /// Panics if the input capacity is greater than `i32::MAX`.
     #[inline]
-    pub fn parse_from<B: Buf>(buf: B) -> Result<Uri<String>, (B, UriParseError)> {
+    pub fn parse_from<T: IntoOwnedUri>(t: T) -> Result<Uri<String>, (T, UriParseError)> {
         #[cold]
         fn cap_overflow() -> ! {
             panic!("input capacity exceeds i32::MAX");
         }
 
-        let buf = ManuallyDrop::new(buf);
+        let buf = ManuallyDrop::new(t);
         let (ptr, len, cap) = buf.as_raw_parts();
         if cap > i32::MAX as usize {
             cap_overflow();
