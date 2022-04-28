@@ -57,7 +57,7 @@ impl<E: Encoder> EString<E> {
         self.string
     }
 
-    /// Coerces to an `EStr` slice.
+    /// Coerces to an `EStr`.
     #[inline]
     pub fn as_estr(&self) -> &EStr {
         // SAFETY: EString guarantees that it is properly encoded.

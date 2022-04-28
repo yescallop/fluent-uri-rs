@@ -32,9 +32,41 @@ A URI parser in Rust that strictly adheres to IETF [RFC 3986].
     assert_eq!(map["speech"], "¡Olé!");
     ```
 
+- Three variants of `Uri` for different use cases:
+  - `Uri<&str>`: borrowed; immutable.
+  - `Uri<&mut [u8]>`: borrowed; in-place mutable.
+  - `Uri<String>`: owned; immutable.
+  
+  Lifetimes are correctly handled in a way that `Uri<&'a str>` and `Uri<&'a mut [u8]>` both
+  output references with lifetime `'a`. This allows you to drop a temporary `Uri` while keeping
+  the output references.
+
+  ```rust
+  let uri = Uri::parse("foo:bar").expect("invalid URI reference");
+  let path = uri.path();
+  drop(uri);
+  assert_eq!(path.as_str(), "bar");
+  ```
+
+  Decode path segments in-place and collect them into a `Vec`.
+
+  ```rust
+  fn decode_path_segments(uri: &mut [u8]) -> Option<Vec<&str>> {
+      let mut uri = Uri::parse_mut(uri).ok()?;
+      let segs = uri.take_path_mut().segments_mut();
+      let mut out = Vec::new();
+      for seg in segs {
+          out.push(seg.decode_in_place().into_str().ok()?);
+      }
+      Some(out)
+  }
+     
+  let mut uri = b"/path/to/my%20music".to_vec();
+  assert_eq!(decode_path_segments(&mut uri).unwrap(), ["path", "to", "my music"]);
+  ```
+
 ## Roadmap
 
-- [ ] More tests.
 - [ ] URI building.
 - [ ] Reference resolution.
 - [ ] Normalization and comparison.

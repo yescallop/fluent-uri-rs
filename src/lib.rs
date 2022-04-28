@@ -4,6 +4,8 @@
 //! A URI parser that strictly adheres to IETF [RFC 3986].
 //!
 //! [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
+//!
+//! See the documentation of [`Uri`] struct for more details.
 
 /// Utilities for percent-encoding.
 pub mod encoding;

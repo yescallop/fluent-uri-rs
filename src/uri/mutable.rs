@@ -165,7 +165,7 @@ impl<'a> PathMut<'a> {
         unsafe { mem::transmute(path) }
     }
 
-    /// Consumes this `PathMut` and yields the underlying `EStrMut`.
+    /// Consumes this `PathMut` and yields the underlying [`EStrMut`].
     #[inline]
     pub fn into_estr_mut(self) -> EStrMut<'a> {
         // SAFETY: Transparency holds.

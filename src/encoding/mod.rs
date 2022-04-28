@@ -80,13 +80,6 @@ impl fmt::Display for EStr {
     }
 }
 
-impl Default for &EStr {
-    #[inline]
-    fn default() -> Self {
-        EStr::EMPTY
-    }
-}
-
 impl hash::Hash for EStr {
     #[inline]
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
@@ -102,9 +95,6 @@ impl borrow::Borrow<str> for &EStr {
 }
 
 impl EStr {
-    /// An empty `EStr`.
-    pub const EMPTY: &'static EStr = EStr::new("");
-
     /// Converts a string slice to an `EStr`.
     ///
     /// # Panics
@@ -266,7 +256,7 @@ impl EStr {
     }
 }
 
-/// A wrapper around a mutable `EStr` slice that allows in-place percent-decoding.
+/// A wrapper around a mutable [`EStr`] that allows in-place percent-decoding.
 #[repr(transparent)]
 #[derive(Debug)]
 pub struct EStrMut<'a>(&'a mut EStr);
@@ -291,6 +281,12 @@ impl<'a> EStrMut<'a> {
     #[inline]
     pub fn into_mut_bytes(self) -> &'a mut [u8] {
         &mut self.0.inner
+    }
+
+    /// Consumes this `EStrMut` and yields the underlying `EStr`.
+    #[inline]
+    pub fn into_ref(self) -> &'a EStr {
+        self.0
     }
 
     /// Decodes the `EStrMut` in-place.
@@ -359,7 +355,7 @@ impl<'a> EStrMut<'a> {
 
 /// A wrapper of percent-decoded bytes.
 ///
-/// This struct is created by calling [`decode`] on an `EStr`.
+/// This struct is created by calling [`decode`] on an [`EStr`].
 ///
 /// [`decode`]: EStr::decode
 #[derive(Debug)]
@@ -378,7 +374,7 @@ impl<'a> Decode<'a> {
         self.0
     }
 
-    /// Returns `true` if anything is decoded, i.e., the underlying `Cow` is owned.
+    /// Returns `true` if anything is decoded, i.e., the underlying [`Cow`] is owned.
     #[inline]
     pub fn decoded_any(&self) -> bool {
         matches!(self.0, Cow::Owned(_))
@@ -413,7 +409,7 @@ impl<'a> Decode<'a> {
 
 /// A wrapper of borrowed percent-decoded bytes.
 ///
-/// This enum is created by calling [`decode_with`] on an `EStr`.
+/// This enum is created by calling [`decode_with`] on an [`EStr`].
 ///
 /// [`decode_with`]: EStr::decode_with
 #[cfg(feature = "unstable")]
@@ -477,7 +473,7 @@ impl<'src, 'dst> DecodeRef<'src, 'dst> {
 
 /// A wrapper of in-place percent-decoded bytes.
 ///
-/// This enum is created by calling [`decode_in_place`] on an `EStrMut`.
+/// This enum is created by calling [`decode_in_place`] on an [`EStrMut`].
 ///
 /// [`decode_in_place`]: EStrMut::decode_in_place
 #[derive(Debug)]
@@ -489,13 +485,10 @@ pub enum DecodeInPlace<'a> {
 }
 
 impl<'a> DecodeInPlace<'a> {
-    /// Returns a reference to the decoded bytes.
+    /// Consumes this `DecodeInPlace` and yields the underlying byte slice.
     #[inline]
-    pub fn as_bytes(&self) -> &[u8] {
-        match self {
-            Self::Src(s) => s.as_str().as_bytes(),
-            Self::Dst(s) => s,
-        }
+    pub fn into_bytes(self) -> &'a [u8] {
+        self.into_mut_bytes()
     }
 
     /// Consumes this `DecodeInPlace` and yields the underlying mutable byte slice.
@@ -515,28 +508,36 @@ impl<'a> DecodeInPlace<'a> {
 
     /// Converts the decoded bytes to a string slice.
     ///
-    /// An error is returned if the decoded bytes are not valid UTF-8.
+    /// An error along with the decoded bytes is returned if the bytes are not valid UTF-8.
     #[inline]
-    pub fn to_str(&self) -> Result<&str, Utf8Error> {
+    pub fn into_str(self) -> Result<&'a str, (&'a mut [u8], Utf8Error)> {
         match self {
-            Self::Src(s) => Ok(s.as_str()),
-            Self::Dst(s) => str::from_utf8(s),
+            Self::Src(s) => Ok(s.into_ref().as_str()),
+            Self::Dst(s) => {
+                // Can't use a match here.
+                if let Err(e) = str::from_utf8(s) {
+                    Err((s, e))
+                } else {
+                    // SAFETY: We have done the validation.
+                    Ok(unsafe { str::from_utf8_unchecked(s) })
+                }
+            }
         }
     }
 
     /// Converts the decoded bytes to a string lossily.
     #[inline]
-    pub fn to_string_lossy(&self) -> Cow<'_, str> {
+    pub fn into_string_lossy(self) -> Cow<'a, str> {
         match self {
-            Self::Src(s) => Cow::Borrowed(s.as_str()),
+            Self::Src(s) => Cow::Borrowed(s.into_ref().as_str()),
             Self::Dst(s) => String::from_utf8_lossy(s),
         }
     }
 }
 
-/// An iterator over subslices of an `EStr` separated by a delimiter.
+/// An iterator over subslices of an [`EStr`] separated by a delimiter.
 ///
-/// This struct is created by calling [`split`] on an `EStr`.
+/// This struct is created by calling [`split`] on an [`EStr`].
 ///
 /// [`split`]: EStr::split
 #[derive(Debug)]
@@ -603,9 +604,9 @@ impl<'a> DoubleEndedIterator for Split<'a> {
     }
 }
 
-/// An iterator over mutable subslices of an `EStrMut` separated by a delimiter.
+/// An iterator over mutable subslices of an [`EStrMut`] separated by a delimiter.
 ///
-/// This struct is created by calling [`split_mut`] on an `EStrMut`.
+/// This struct is created by calling [`split_mut`] on an [`EStrMut`].
 ///
 /// [`split_mut`]: EStrMut::split_mut
 #[derive(Debug)]

@@ -137,6 +137,79 @@ fn len_overflow() -> ! {
 /// A URI reference defined in [RFC 3986].
 ///
 /// [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
+///
+/// # Variants
+///
+/// There are three variants of `Uri` in total:
+///
+/// - `Uri<&str>`: borrowed; immutable.
+/// - `Uri<&mut [u8]>`: borrowed; in-place mutable.
+/// - `Uri<String>`: owned; immutable.
+///
+/// Lifetimes are correctly handled in a way that `Uri<&'a str>` and `Uri<&'a mut [u8]>` both
+/// output references with lifetime `'a`. This allows you to drop a temporary `Uri` while keeping
+/// the output references.
+///
+/// ```
+/// use fluent_uri::Uri;
+///
+/// let uri = Uri::parse("foo:bar").expect("invalid URI reference");
+/// let path = uri.path();
+/// drop(uri);
+/// assert_eq!(path.as_str(), "bar");
+/// ```
+///
+/// # Examples
+///
+/// Create and convert between `Uri<&str>` and `Uri<String>`.
+///   
+/// ```
+/// use fluent_uri::Uri;
+///
+/// // Create a `Uri<&str>`.
+/// let uri_a: Uri<&str> = Uri::parse("").expect("invalid URI reference");
+///
+/// // Create a `Uri<String>`.
+/// let uri_b: Uri<String> = Uri::parse_from(String::new()).expect("invalid URI reference");
+///
+/// // Convert a `Uri<&str>` to a `Uri<String>`.
+/// let uri_c: Uri<String> = uri_a.to_owned();
+///
+/// // Borrow a `Uri<String>` as a `Uri<&str>`.
+/// let uri_d: &Uri<&str> = uri_b.borrow();
+/// ```
+///
+/// Decode path segments in-place and collect them into a `Vec`.
+///
+/// ```
+/// use fluent_uri::Uri;
+///
+/// fn decode_path_segments(uri: &mut [u8]) -> Option<Vec<&str>> {
+///     let mut uri = Uri::parse_mut(uri).ok()?;
+///     let segs = uri.take_path_mut().segments_mut();
+///     let mut out = Vec::new();
+///     for seg in segs {
+///         out.push(seg.decode_in_place().into_str().ok()?);
+///     }
+///     Some(out)
+/// }
+///   
+/// let mut uri = b"/path/to/my%20music".to_vec();
+/// assert_eq!(decode_path_segments(&mut uri).unwrap(), ["path", "to", "my music"]);
+/// ```
+///
+/// Create a mutable copy of an immutable `Uri` in a buffer.
+///
+/// ```
+/// use fluent_uri::Uri;
+/// use std::mem::MaybeUninit;
+///
+/// let uri = Uri::parse("https://www.rust-lang.org/").expect("invalid URI reference");
+/// let mut buf = [MaybeUninit::uninit(); 256];
+/// let uri_mut = uri
+///     .to_mut_in(&mut buf[..])
+///     .expect("buffer capacity overflow");
+/// ```
 #[repr(C)]
 pub struct Uri<T: Storage> {
     ptr: NonNull<u8>,
@@ -167,7 +240,7 @@ impl<'a> Uri<&'a str> {
     ///
     /// # Panics
     ///
-    /// Panics if the input length is greater than `i32::MAX`.
+    /// Panics if the input length is greater than [`i32::MAX`].
     pub fn parse<S: AsRef<[u8]> + ?Sized>(s: &S) -> Result<Uri<&str>> {
         let bytes = s.as_ref();
         if bytes.len() > i32::MAX as usize {
@@ -226,10 +299,10 @@ impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Uri<T> {
     ///
     /// The type of a buffer may be:
     ///
-    /// - `Vec<u8>`: grows automatically; bytes appended to the end.
+    /// - [`Vec<u8>`]: grows automatically; bytes appended to the end.
     ///
-    /// - `[u8]` or `[MaybeUninit<u8>]`: triggers a [`CapOverflowError`] when
-    ///   the capacity is too small; bytes written from the start.
+    /// - [`[u8]`](prim@slice) or [`[MaybeUninit<u8>]`](prim@slice): triggers a
+    /// [`CapOverflowError`] when the capacity is too small; bytes written from the start.
     ///
     /// [`CapOverflowError`]: crate::encoding::CapOverflowError
     #[inline]
@@ -413,7 +486,7 @@ impl<'a> Uri<&'a mut [u8]> {
     ///
     /// # Panics
     ///
-    /// Panics if the input length is greater than `i32::MAX`.
+    /// Panics if the input length is greater than [`i32::MAX`].
     #[inline]
     pub fn parse_mut<S: AsMut<[u8]> + ?Sized>(s: &mut S) -> Result<Uri<&mut [u8]>> {
         let bytes = s.as_mut();
@@ -511,7 +584,7 @@ impl Uri<String> {
     ///
     /// # Panics
     ///
-    /// Panics if the input capacity is greater than `i32::MAX`.
+    /// Panics if the input capacity is greater than [`i32::MAX`].
     #[inline]
     pub fn parse_from<T: IntoOwnedUri>(t: T) -> Result<Uri<String>, (T, UriParseError)> {
         #[cold]
@@ -532,7 +605,7 @@ impl Uri<String> {
         }
     }
 
-    /// Consumes this `Uri` and yields the underlying `String` storage.
+    /// Consumes this `Uri` and yields the underlying [`String`] storage.
     #[inline]
     pub fn into_string(self) -> String {
         // SAFETY: Creating a `String` from the original raw parts is fine.
@@ -964,7 +1037,7 @@ impl Path {
         unsafe { &*(path as *const EStr as *const Path) }
     }
 
-    /// Returns the path as an `EStr` slice.
+    /// Returns the path as an `EStr`.
     #[inline]
     pub fn as_estr(&self) -> &EStr {
         &self.inner
