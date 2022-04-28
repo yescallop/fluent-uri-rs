@@ -171,8 +171,8 @@ pub(super) fn validate_enc(s: &[u8], table: &Table) -> Result<()> {
 mod tests {
     use super::*;
 
-    pub const RAW: &[u8] = "te😃a 测1`~!@试#$%st^&+=".as_bytes();
-    pub const ENCODED: &[u8] = b"te%F0%9F%98%83a%20%E6%B5%8B1%60~!@%E8%AF%95%23$%25st%5E&+=";
+    const RAW: &[u8] = "te😃a 测1`~!@试#$%st^&+=".as_bytes();
+    const ENCODED: &[u8] = b"te%F0%9F%98%83a%20%E6%B5%8B1%60~!@%E8%AF%95%23$%25st%5E&+=";
 
     #[test]
     fn enc_dec_validate() {

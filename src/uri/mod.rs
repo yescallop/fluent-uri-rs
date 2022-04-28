@@ -19,6 +19,7 @@ use std::{
 mod internal {
     pub trait Storage {
         fn needs_drop() -> bool;
+        fn is_mut() -> bool;
     }
 
     impl Storage for &str {
@@ -26,17 +27,34 @@ mod internal {
         fn needs_drop() -> bool {
             false
         }
+
+        #[inline]
+        fn is_mut() -> bool {
+            false
+        }
     }
+
     impl Storage for &mut [u8] {
         #[inline]
         fn needs_drop() -> bool {
             false
         }
+
+        #[inline]
+        fn is_mut() -> bool {
+            true
+        }
     }
+
     impl Storage for String {
         #[inline]
         fn needs_drop() -> bool {
             true
+        }
+
+        #[inline]
+        fn is_mut() -> bool {
+            false
         }
     }
 
@@ -96,8 +114,8 @@ pub struct UriParseError {
 impl UriParseError {
     /// Returns the index where the error occurred in the input string.
     #[inline]
-    pub fn index(&self) -> u32 {
-        self.index
+    pub fn index(&self) -> usize {
+        self.index as usize
     }
 
     /// Returns the detailed cause of the error.
@@ -124,11 +142,12 @@ pub struct Uri<T: Storage> {
     ptr: NonNull<u8>,
     cap: u32,
     len: u32,
+    tag: Tag,
     // One byte past the trailing ':'.
     // This encoding is chosen so that no extra branch is introduced
     // when indexing the start of the authority.
     scheme_end: Option<NonZeroU32>,
-    host: Option<(NonZeroU32, u32, HostInternal)>,
+    host: Option<(NonZeroU32, u32, HostData)>,
     path: (u32, u32),
     // One byte past the last byte of query.
     query_end: Option<NonZeroU32>,
@@ -184,6 +203,7 @@ impl<'a> Uri<&'a str> {
             ptr: NonNull::new(ptr).unwrap(),
             cap: self.len,
             len: self.len,
+            tag: self.tag,
             scheme_end: self.scheme_end,
             host: self.host,
             path: self.path,
@@ -210,7 +230,7 @@ impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Uri<T> {
     ///
     /// - `[u8]` or `[MaybeUninit<u8>]`: triggers a [`CapOverflowError`] when
     ///   the capacity is too small; bytes written from the start.
-    /// 
+    ///
     /// [`CapOverflowError`]: crate::encoding::CapOverflowError
     #[inline]
     pub fn to_mut_in<'b, B: Buf + ?Sized>(
@@ -232,6 +252,7 @@ impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Uri<T> {
             ptr: NonNull::new(ptr).unwrap(),
             cap: 0,
             len: self.len,
+            tag: self.tag,
             scheme_end: self.scheme_end,
             host: self.host,
             path: self.path,
@@ -240,6 +261,11 @@ impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Uri<T> {
             _marker: PhantomData,
         })
     }
+}
+
+#[cold]
+fn component_taken() -> ! {
+    panic!("component already taken");
 }
 
 impl<'i, 'o, T: Io<'i, 'o>> Uri<T> {
@@ -288,13 +314,29 @@ impl<'i, 'o, T: Io<'i, 'o>> Uri<T> {
         }
     }
 
+    #[inline]
+    fn path_opt(&'i self) -> Option<&'o Path> {
+        if T::is_mut() && self.tag.contains(Tag::PATH_TAKEN) {
+            None
+        } else {
+            // SAFETY: The indexes are within bounds and we have done the validation.
+            Some(Path::new(unsafe { self.eslice(self.path.0, self.path.1) }))
+        }
+    }
+
     /// Returns the [path] component.
     ///
     /// [path]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
+    ///
+    /// # Panics
+    ///
+    /// Panics if the path component is already taken.
     #[inline]
     pub fn path(&'i self) -> &'o Path {
-        // SAFETY: The indexes are within bounds and we have done the validation.
-        Path::new(unsafe { self.eslice(self.path.0, self.path.1) })
+        match self.path_opt() {
+            Some(path) => path,
+            None => component_taken(),
+        }
     }
 
     /// Returns the [query] component.
@@ -417,7 +459,7 @@ impl<'a> Uri<&'a mut [u8]> {
             .map(|i| unsafe { Scheme::new_mut(self.slice_mut(0, i.get() - 1)) })
     }
 
-    /// Takes the mutable authority component out of the `Uri`, leaving a `None` in its place.
+    /// Takes the mutable authority component, leaving a `None` in its place.
     #[inline]
     pub fn take_authority_mut(&mut self) -> Option<AuthorityMut<'_, 'a>> {
         if self.host.is_some() {
@@ -429,14 +471,23 @@ impl<'a> Uri<&'a mut [u8]> {
         }
     }
 
-    /// Consumes this `Uri` and returns the mutable path component.
+    /// Takes the mutable path component.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the path component is already taken.
     #[inline]
-    pub fn into_path_mut(mut self) -> PathMut<'a> {
+    pub fn take_path_mut(&mut self) -> PathMut<'a> {
+        if self.tag.contains(Tag::PATH_TAKEN) {
+            component_taken();
+        }
+        self.tag |= Tag::PATH_TAKEN;
+
         // SAFETY: The indexes are within bounds and we have done the validation.
         PathMut::new(unsafe { self.eslice_mut(self.path.0, self.path.1) })
     }
 
-    /// Takes the mutable query component out of the `Uri`, leaving a `None` in its place.
+    /// Takes the mutable query component, leaving a `None` in its place.
     #[inline]
     pub fn take_query_mut(&mut self) -> Option<EStrMut<'a>> {
         // SAFETY: The indexes are within bounds and we have done the validation.
@@ -445,7 +496,7 @@ impl<'a> Uri<&'a mut [u8]> {
             .map(|i| unsafe { self.eslice_mut(self.path.1 + 1, i.get()) })
     }
 
-    /// Takes the mutable fragment component out of the `Uri`, leaving a `None` in its place.
+    /// Takes the mutable fragment component, leaving a `None` in its place.
     #[inline]
     pub fn take_fragment_mut(&mut self) -> Option<EStrMut<'a>> {
         // SAFETY: The indexes are within bounds and we have done the validation.
@@ -672,7 +723,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     }
 
     #[inline]
-    fn host_internal(&self) -> &HostInternal {
+    fn host_data(&self) -> &HostData {
         // SAFETY: When authority is present, `host` must be `Some`.
         let host = unsafe { self.uri.host.as_ref().unwrap_unchecked() };
         &host.2
@@ -694,7 +745,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     /// ```
     #[inline]
     pub fn userinfo(&'i self) -> Option<&'o EStr> {
-        if self.host_internal().tag.contains(HostTag::HAS_USERINFO) {
+        if self.uri.tag.contains(Tag::HAS_USERINFO) {
             let start = self.start();
             let host_start = self.host_bounds().0;
             // SAFETY: The indexes are within bounds and we have done the validation.
@@ -704,9 +755,24 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
         }
     }
 
+    #[inline]
+    fn host_raw_opt(&'i self) -> Option<&'o str> {
+        if T::is_mut() && self.uri.tag.contains(Tag::HOST_TAKEN) {
+            None
+        } else {
+            let bounds = self.host_bounds();
+            // SAFETY: The indexes are within bounds.
+            Some(unsafe { self.uri.slice(bounds.0, bounds.1) })
+        }
+    }
+
     /// Returns the raw [host] subcomponent as a string slice.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
+    ///
+    /// # Panics
+    ///
+    /// Panics if the host subcomponent is already taken.
     ///
     /// # Examples
     ///
@@ -720,15 +786,23 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     /// ```
     #[inline]
     pub fn host_raw(&'i self) -> &'o str {
-        let bounds = self.host_bounds();
-        // SAFETY: The indexes are within bounds.
-        unsafe { self.uri.slice(bounds.0, bounds.1) }
+        match self.host_raw_opt() {
+            Some(host) => host,
+            None => component_taken(),
+        }
     }
 
     /// Returns the parsed [host] subcomponent.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
+    ///
+    /// # Panics
+    ///
+    /// Panics if the host subcomponent is already taken.
     pub fn host(&'i self) -> Host<'o> {
+        if T::is_mut() && self.uri.tag.contains(Tag::HOST_TAKEN) {
+            component_taken();
+        }
         Host::from_authority(self)
     }
 
@@ -800,18 +874,14 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     }
 }
 
-#[derive(Clone, Copy)]
-struct HostInternal {
-    tag: HostTag,
-    data: HostData,
-}
-
 bitflags! {
-    struct HostTag: u32 {
-        const REG_NAME     = 0b0001;
-        const IPV4         = 0b0010;
-        const IPV6         = 0b0100;
-        const HAS_USERINFO = 0b1000;
+    struct Tag: u32 {
+        const HOST_REG_NAME = 0b000001;
+        const HOST_IPV4 = 0b000010;
+        const HOST_IPV6 = 0b000100;
+        const HAS_USERINFO = 0b001000;
+        const PATH_TAKEN = 0b010000;
+        const HOST_TAKEN = 0b100000;
     }
 }
 
@@ -851,16 +921,17 @@ pub enum Host<'a> {
 
 impl<'a> Host<'a> {
     fn from_authority<'i, T: Io<'i, 'a>>(auth: &'i Authority<T>) -> Host<'a> {
-        let HostInternal { tag, ref data } = *auth.host_internal();
+        let tag = auth.uri.tag;
+        let data = auth.host_data();
         // SAFETY: We only access the union after checking the tag.
         unsafe {
-            if tag.contains(HostTag::REG_NAME) {
+            if tag.contains(Tag::HOST_REG_NAME) {
                 return Host::RegName(EStr::new_unchecked(auth.host_raw().as_bytes()));
-            } else if tag.contains(HostTag::IPV4) {
+            } else if tag.contains(Tag::HOST_IPV4) {
                 return Host::Ipv4(data.ipv4_addr);
             }
             #[cfg(feature = "ipv_future")]
-            if tag.contains(HostTag::IPV6) {
+            if tag.contains(Tag::HOST_IPV6) {
                 Host::Ipv6(data.ipv6_addr)
             } else {
                 let dot_i = data.ipv_future_dot_i;

@@ -28,13 +28,6 @@ impl<'i, 'a> AuthorityMut<'i, 'a> {
         }
     }
 
-    #[inline]
-    fn host_internal_mut(&mut self) -> &mut HostInternal {
-        // SAFETY: When authority is present, `host` must be `Some`.
-        let host = unsafe { self.inner.uri.host.as_mut().unwrap_unchecked() };
-        &mut host.2
-    }
-
     /// Consumes this `AuthorityMut` and yields the underlying mutable byte slice.
     #[inline]
     pub fn into_mut_bytes(self) -> &'a mut [u8] {
@@ -42,12 +35,12 @@ impl<'i, 'a> AuthorityMut<'i, 'a> {
         unsafe { self.inner.uri.slice_mut(self.start(), self.uri.path.0) }
     }
 
-    /// Takes the mutable userinfo subcomponent out of the `AuthorityMut`, leaving a `None` in its place.
+    /// Takes the mutable userinfo subcomponent, leaving a `None` in its place.
     #[inline]
     pub fn take_userinfo_mut(&mut self) -> Option<EStrMut<'a>> {
-        let tag = &mut self.host_internal_mut().tag;
-        if tag.contains(HostTag::HAS_USERINFO) {
-            tag.remove(HostTag::HAS_USERINFO);
+        let tag = &mut self.inner.uri.tag;
+        if tag.contains(Tag::HAS_USERINFO) {
+            tag.remove(Tag::HAS_USERINFO);
 
             let start = self.start();
             let host_start = self.host_bounds().0;
@@ -58,16 +51,34 @@ impl<'i, 'a> AuthorityMut<'i, 'a> {
         }
     }
 
-    /// Consumes this `AuthorityMut` and returns the raw mutable host subcomponent.
+    /// Takes the raw mutable host subcomponent, leaving a `None` in its place.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the host subcomponent is already taken.
     #[inline]
-    pub fn into_host_raw_mut(self) -> &'a mut [u8] {
+    pub fn take_host_raw_mut(&mut self) -> &'a mut [u8] {
+        if self.uri.tag.contains(Tag::HOST_TAKEN) {
+            component_taken();
+        }
+        self.inner.uri.tag |= Tag::HOST_TAKEN;
+
         let bounds = self.host_bounds();
         // SAFETY: The indexes are within bounds.
         unsafe { self.inner.uri.slice_mut(bounds.0, bounds.1) }
     }
 
-    /// Consumes this `AuthorityMut` and returns the parsed mutable host subcomponent.
-    pub fn into_host_mut(self) -> HostMut<'a> {
+    /// Takes the parsed mutable host subcomponent, leaving a `None` in its place.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the host subcomponent is already taken.
+    pub fn take_host_mut(&mut self) -> HostMut<'a> {
+        if self.uri.tag.contains(Tag::HOST_TAKEN) {
+            component_taken();
+        }
+        self.inner.uri.tag |= Tag::HOST_TAKEN;
+
         HostMut::from_authority(self)
     }
 }
@@ -105,16 +116,19 @@ pub enum HostMut<'a> {
 }
 
 impl<'a> HostMut<'a> {
-    fn from_authority(auth: AuthorityMut<'_, 'a>) -> HostMut<'a> {
-        let HostInternal { tag, ref data } = *auth.host_internal();
+    fn from_authority(auth: &mut AuthorityMut<'_, 'a>) -> HostMut<'a> {
+        let tag = auth.uri.tag;
+        let data = auth.host_data();
         unsafe {
-            if tag.contains(HostTag::REG_NAME) {
-                return HostMut::RegName(EStrMut::new(auth.into_host_raw_mut()));
-            } else if tag.contains(HostTag::IPV4) {
+            if tag.contains(Tag::HOST_REG_NAME) {
+                let bounds = auth.host_bounds();
+                // SAFETY: The indexes are within bounds.
+                return HostMut::RegName(auth.inner.uri.eslice_mut(bounds.0, bounds.1));
+            } else if tag.contains(Tag::HOST_IPV4) {
                 return HostMut::Ipv4(data.ipv4_addr);
             }
             #[cfg(feature = "ipv_future")]
-            if tag.contains(HostTag::IPV6) {
+            if tag.contains(Tag::HOST_IPV6) {
                 HostMut::Ipv6(data.ipv6_addr)
             } else {
                 let dot_i = data.ipv_future_dot_i;

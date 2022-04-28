@@ -36,7 +36,7 @@ impl fmt::Debug for Uri<&mut [u8]> {
         f.debug_struct("Uri")
             .field("scheme", &self.scheme().map(|s| s.as_str()))
             .field("authority", &self.authority())
-            .field("path", &self.path().as_str())
+            .field("path", &self.path_opt().map(|s| s.as_str()))
             .field("query", &self.query())
             .field("fragment", &self.fragment())
             .finish()
@@ -90,7 +90,7 @@ impl fmt::Debug for Authority<&mut [u8]> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Authority")
             .field("userinfo", &self.userinfo())
-            .field("host", &self.host_raw())
+            .field("host", &self.host_raw_opt())
             .field("port", &self.port_raw())
             .finish()
     }
@@ -100,7 +100,7 @@ impl<'i, 'a> fmt::Debug for AuthorityMut<'i, 'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("AuthorityMut")
             .field("userinfo", &self.userinfo())
-            .field("host", &self.host_raw())
+            .field("host", &self.host_raw_opt())
             .field("port", &self.port_raw())
             .finish()
     }

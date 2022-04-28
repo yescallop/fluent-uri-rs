@@ -1,6 +1,6 @@
 use crate::{
     encoding::{table::*, OCTET_TABLE_LO},
-    uri::{HostData, HostTag},
+    uri::{HostData, Tag},
     Result, Uri,
 };
 use std::{
@@ -12,7 +12,7 @@ use std::{
     str,
 };
 
-use super::{internal::Storage, HostInternal};
+use super::internal::Storage;
 
 pub(crate) unsafe fn parse<T: Storage>(ptr: *mut u8, len: u32, cap: u32) -> Result<Uri<T>> {
     let mut parser = Parser {
@@ -20,6 +20,7 @@ pub(crate) unsafe fn parse<T: Storage>(ptr: *mut u8, len: u32, cap: u32) -> Resu
             ptr: NonNull::new(ptr).unwrap(),
             cap,
             len,
+            tag: Tag::empty(),
             scheme_end: None,
             host: None,
             path: (0, 0),
@@ -235,9 +236,8 @@ impl Parser {
 
             self.mark();
 
-            let mut host = self.read_host()?;
-            host.tag |= HostTag::HAS_USERINFO;
-
+            let host = self.read_host()?;
+            self.out.tag |= Tag::HAS_USERINFO;
             host_out = (self.mark, self.pos, host);
             self.read_port();
         } else if self.marked_len() == 0 {
@@ -247,14 +247,8 @@ impl Parser {
                 self.read_port();
             } else {
                 // Empty authority.
-                host_out = (
-                    self.pos,
-                    self.pos,
-                    HostInternal {
-                        tag: HostTag::REG_NAME,
-                        data: HostData { reg_name: () },
-                    },
-                );
+                self.out.tag = Tag::HOST_REG_NAME;
+                host_out = (self.pos, self.pos, HostData { reg_name: () });
             }
         } else {
             // The whole authority scanned. Try to parse the host and port.
@@ -302,21 +296,15 @@ impl Parser {
             self.pos = self.mark;
 
             let v4 = self.scan_v4();
+            let (tag, data) = match v4 {
+                Some(addr) if !self.has_remaining() => {
+                    (Tag::HOST_IPV4, HostData { ipv4_addr: addr })
+                }
+                _ => (Tag::HOST_REG_NAME, HostData { reg_name: () }),
+            };
 
-            host_out = (
-                self.mark,
-                host_end,
-                match v4 {
-                    Some(addr) if !self.has_remaining() => HostInternal {
-                        tag: HostTag::IPV4,
-                        data: HostData { ipv4_addr: addr },
-                    },
-                    _ => HostInternal {
-                        tag: HostTag::REG_NAME,
-                        data: HostData { reg_name: () },
-                    },
-                },
-            );
+            self.out.tag = tag;
+            host_out = (self.mark, host_end, data);
 
             // Restore the state.
             // INVARIANT: Restoring the state would not affect the invariant.
@@ -330,7 +318,7 @@ impl Parser {
     }
 
     // The marked length must be zero when this function is called.
-    fn read_host(&mut self) -> Result<HostInternal> {
+    fn read_host(&mut self) -> Result<HostData> {
         match self.read_ip_literal()? {
             Some(host) => Ok(host),
             None => self.read_v4_or_reg_name(),
@@ -338,16 +326,14 @@ impl Parser {
     }
 
     // The marked length must be zero when this function is called.
-    fn read_ip_literal(&mut self) -> Result<Option<HostInternal>> {
+    fn read_ip_literal(&mut self) -> Result<Option<HostData>> {
         if !self.read_str("[") {
             return Ok(None);
         }
 
         let host = if let Some(addr) = self.scan_v6() {
-            HostInternal {
-                tag: HostTag::IPV6,
-                data: HostData { ipv6_addr: addr },
-            }
+            self.out.tag = Tag::HOST_IPV6;
+            HostData { ipv6_addr: addr }
         } else {
             #[cfg(feature = "ipv_future")]
             if self.marked_len() == 1 {
@@ -479,21 +465,17 @@ impl Parser {
     }
 
     // The marked length must be zero when this function is called.
-    fn read_v4_or_reg_name(&mut self) -> Result<HostInternal> {
+    fn read_v4_or_reg_name(&mut self) -> Result<HostData> {
         let v4 = self.scan_v4();
         let v4_end = self.pos;
         self.scan(REG_NAME)?;
 
-        Ok(match v4 {
-            Some(addr) if self.pos == v4_end => HostInternal {
-                tag: HostTag::IPV4,
-                data: HostData { ipv4_addr: addr },
-            },
-            _ => HostInternal {
-                tag: HostTag::REG_NAME,
-                data: HostData { reg_name: () },
-            },
-        })
+        let (tag, data) = match v4 {
+            Some(addr) if self.pos == v4_end => (Tag::HOST_IPV4, HostData { ipv4_addr: addr }),
+            _ => (Tag::HOST_REG_NAME, HostData { reg_name: () }),
+        };
+        self.out.tag = tag;
+        Ok(data)
     }
 
     fn scan_v4(&mut self) -> Option<Ipv4Addr> {
@@ -551,18 +533,16 @@ impl Parser {
     }
 
     #[cfg(feature = "ipv_future")]
-    fn read_ipv_future(&mut self) -> Result<HostInternal> {
+    fn read_ipv_future(&mut self) -> Result<HostData> {
         if matches!(self.peek(0), Some(b'v' | b'V')) {
             // INVARIANT: Skipping "v" or "V" is fine.
             self.skip(1);
             let ver_read = self.read(HEXDIG)?;
             let dot_i = self.pos;
             if ver_read && self.read_str(".") && self.read(IPV_FUTURE)? {
-                return Ok(HostInternal {
-                    tag: HostTag::empty(),
-                    data: HostData {
-                        ipv_future_dot_i: dot_i,
-                    },
+                // Tag is empty for IPvFuture.
+                return Ok(HostData {
+                    ipv_future_dot_i: dot_i,
                 });
             }
         }
