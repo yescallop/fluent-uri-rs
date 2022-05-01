@@ -9,7 +9,7 @@
 //!
 //! # Feature flags
 //! 
-//! All the features are disabled by default.
+//! All these features are disabled by default.
 //!
 //! - `ipv_future`: Enables the parsing of [IPvFuture] literals,
 //!   which fails with [`InvalidIpLiteral`] when disabled.

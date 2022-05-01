@@ -30,7 +30,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: doc
-          args: --no-deps --features ipv_future
+          args: --no-deps --features ipv_future,rfc6874bis
       - name: Deploy docs
         uses: peaceiris/actions-gh-pages@v3
         with:
