@@ -12,7 +12,7 @@ use std::{
     str,
 };
 
-use super::internal::Storage;
+use super::{internal::Storage, Ipv6Data};
 
 pub(crate) unsafe fn parse<T: Storage>(ptr: *mut u8, len: u32, cap: u32) -> Result<Uri<T>> {
     let mut parser = Parser {
@@ -333,7 +333,13 @@ impl Parser {
 
         let host = if let Some(addr) = self.scan_v6() {
             self.out.tag = Tag::HOST_IPV6;
-            HostData { ipv6_addr: addr }
+            HostData {
+                ipv6: Ipv6Data {
+                    addr,
+                    #[cfg(feature = "rfc6874bis")]
+                    zone_id_start: self.read_zone_id()?,
+                },
+            }
         } else {
             #[cfg(feature = "ipv_future")]
             if self.marked_len() == 1 {
@@ -456,12 +462,17 @@ impl Parser {
         Some(Seg::Normal(x, colon))
     }
 
-    #[allow(unused)]
-    fn read_zone_id(&mut self) -> Result<()> {
-        if self.read_str("%25") && !self.read(ZONE_ID)? {
-            err!(self.mark, InvalidIpLiteral);
+    #[cfg(feature = "rfc6874bis")]
+    fn read_zone_id(&mut self) -> Result<Option<NonZeroU32>> {
+        if self.read_str("%") {
+            let start = self.pos;
+            if !self.read(ZONE_ID)? {
+                err!(self.mark, InvalidIpLiteral);
+            }
+            Ok(NonZeroU32::new(start))
+        } else {
+            Ok(None)
         }
-        Ok(())
     }
 
     // The marked length must be zero when this function is called.

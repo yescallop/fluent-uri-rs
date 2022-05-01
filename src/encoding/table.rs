@@ -172,5 +172,6 @@ pub const PATH: &Table = &PCHAR.or(&gen(b"/"));
 /// query = fragment = *( pchar / "/" / "?" )
 pub const QUERY_FRAGMENT: &Table = &PCHAR.or(&gen(b"/?"));
 
-/// RFC 6874: ZoneID = 1*( unreserved / pct-encoded )
-pub(crate) const ZONE_ID: &Table = &UNRESERVED.enc();
+/// RFC 6874bis: ZoneID = 1*( unreserved )
+#[cfg(feature = "rfc6874bis")]
+pub const ZONE_ID: &Table = UNRESERVED;

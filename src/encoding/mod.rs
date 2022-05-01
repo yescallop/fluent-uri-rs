@@ -257,6 +257,13 @@ impl EStr {
 }
 
 /// A wrapper around a mutable [`EStr`] that allows in-place percent-decoding.
+///
+/// This struct was introduced considering the fact that a bare `&mut EStr` wouldn't
+/// do for in-place decoding because such decoding breaks the invariant of [`EStr`].
+///
+/// For non-percent-encoded data to be in-place mutable, `EStrMut` also has an
+/// advantage over `&mut str` or `&mut [u8]` that you can first borrow it as an `&str`
+/// and then turn it into an `&mut [u8]`.
 #[repr(transparent)]
 #[derive(Debug)]
 pub struct EStrMut<'a>(&'a mut EStr);

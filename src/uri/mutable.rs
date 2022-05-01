@@ -91,17 +91,24 @@ impl<'i, 'a> Drop for AuthorityMut<'i, 'a> {
 }
 
 /// A mutable host subcomponent of authority.
+///
+/// A field is [`EStrMut`] not necessarily because it is percent-encoded.
+/// See the documentation of [`EStrMut`] for more details.
 #[derive(Debug)]
 pub enum HostMut<'a> {
     /// An IPv4 address.
     Ipv4(Ipv4Addr),
     /// An IPv6 address.
-    ///
-    /// In the future an optional zone identifier may be supported.
-    Ipv6(Ipv6Addr),
+    Ipv6 {
+        /// The address.
+        addr: Ipv6Addr,
+        /// An optional zone identifier.
+        ///
+        /// This is supported on **crate feature `rfc6874bis`** only.
+        #[cfg(feature = "rfc6874bis")]
+        zone_id: Option<EStrMut<'a>>,
+    },
     /// An IP address of future version.
-    ///
-    /// Note that neither `ver` nor `addr` is percent-encoded.
     ///
     /// This is supported on **crate feature `ipv_future`** only.
     #[cfg(feature = "ipv_future")]
@@ -128,19 +135,24 @@ impl<'a> HostMut<'a> {
                 return HostMut::Ipv4(data.ipv4_addr);
             }
             #[cfg(feature = "ipv_future")]
-            if tag.contains(Tag::HOST_IPV6) {
-                HostMut::Ipv6(data.ipv6_addr)
-            } else {
+            if !tag.contains(Tag::HOST_IPV6) {
                 let dot_i = data.ipv_future_dot_i;
                 let bounds = auth.host_bounds();
                 // SAFETY: The indexes are within bounds and we have done the validation.
-                HostMut::IpvFuture {
+                return HostMut::IpvFuture {
                     ver: auth.inner.uri.eslice_mut(bounds.0 + 2, dot_i),
                     addr: auth.inner.uri.eslice_mut(dot_i + 1, bounds.1 - 1),
-                }
+                };
             }
-            #[cfg(not(feature = "ipv_future"))]
-            HostMut::Ipv6(data.ipv6_addr)
+            HostMut::Ipv6 {
+                addr: data.ipv6.addr,
+                #[cfg(feature = "rfc6874bis")]
+                zone_id: data.ipv6.zone_id_start.map(|start| {
+                    auth.inner
+                        .uri
+                        .eslice_mut(start.get(), auth.host_bounds().1 - 1)
+                }),
+            }
         }
     }
 }

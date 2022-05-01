@@ -55,7 +55,11 @@ fn parse_absolute() {
     assert_eq!(a.host_raw(), "[2001:db8::7]");
     assert_eq!(
         a.host(),
-        Host::Ipv6(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 0x7))
+        Host::Ipv6 {
+            addr: Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 0x7),
+            #[cfg(feature = "rfc6874bis")]
+            zone_id: None
+        }
     );
     assert_eq!(a.port_raw(), None);
     assert_eq!(a.port(), None);
@@ -173,25 +177,28 @@ fn parse_absolute() {
         assert_eq!(u.fragment(), None);
     }
 
-    // let u = Uri::parse("http://[fe80::520f:f5ff:fe51:cf0%2517]").unwrap();
-    // assert_eq!(u.scheme().unwrap().as_str(), "http");
-    // let a = u.authority().unwrap();
-    // assert_eq!(a.as_str(), "[fe80::520f:f5ff:fe51:cf0%2517]");
-    // assert_eq!(a.userinfo(), None);
-    // assert_eq!(a.host_raw(), "[fe80::520f:f5ff:fe51:cf0%2517]");
-    // assert_eq!(
-    //     a.host(),
-    //     Host::Ipv6 {
-    //         addr: &Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 0x7),
-    //         zone_id: "17",
-    //     }
-    // );
-    // assert_eq!(a.port_raw(), None);
-    // assert_eq!(a.port(), None);
-    // assert_eq!(u.path().as_str(), "");
-    // assert!(u.path().segments().eq(None::<&str>));
-    // assert_eq!(u.query(), None);
-    // assert_eq!(u.fragment(), None);
+    #[cfg(feature = "rfc6874bis")]
+    {
+        let u = Uri::parse("http://[fe80::520f:f5ff:fe51:cf0%17]").unwrap();
+        assert_eq!(u.scheme().unwrap().as_str(), "http");
+        let a = u.authority().unwrap();
+        assert_eq!(a.as_str(), "[fe80::520f:f5ff:fe51:cf0%17]");
+        assert_eq!(a.userinfo(), None);
+        assert_eq!(a.host_raw(), "[fe80::520f:f5ff:fe51:cf0%17]");
+        assert_eq!(
+            a.host(),
+            Host::Ipv6 {
+                addr: Ipv6Addr::new(0xfe80, 0, 0, 0, 0x520f, 0xf5ff, 0xfe51, 0xcf0),
+                zone_id: Some("17"),
+            }
+        );
+        assert_eq!(a.port_raw(), None);
+        assert_eq!(a.port(), None);
+        assert_eq!(u.path().as_str(), "");
+        assert!(u.path().segments().eq(None::<&str>));
+        assert_eq!(u.query(), None);
+        assert_eq!(u.fragment(), None);
+    }
 
     let u = Uri::parse("http://127.0.0.1:/").unwrap();
     assert_eq!(u.scheme().unwrap().as_str(), "http");
@@ -403,15 +410,21 @@ fn parse_error() {
     assert_eq!(e.index(), 6);
     assert_eq!(e.kind(), InvalidIpLiteral);
 
-    // Ill-preceded Zone ID
-    let e = Uri::parse("ftp://[::1%240]").unwrap_err();
-    assert_eq!(e.index(), 6);
-    assert_eq!(e.kind(), InvalidIpLiteral);
-
     // Empty Zone ID
-    let e = Uri::parse("ftp://[::1%25]").unwrap_err();
-    assert_eq!(e.index(), 6);
-    assert_eq!(e.kind(), InvalidIpLiteral);
+    #[cfg(feature = "rfc6874bis")]
+    {
+        let e = Uri::parse("ftp://[fe80::abcd%]").unwrap_err();
+        assert_eq!(e.index(), 6);
+        assert_eq!(e.kind(), InvalidIpLiteral);
+    }
+
+    // Zone ID when the feature isn't enabled.
+    #[cfg(not(feature = "rfc6874bis"))]
+    {
+        let e = Uri::parse("ftp://[fe80::abcd%eth0]").unwrap_err();
+        assert_eq!(e.index(), 6);
+        assert_eq!(e.kind(), InvalidIpLiteral);
+    }
 
     // Invalid IPv6 address
     let e = Uri::parse("example://[44:55::66::77]").unwrap_err();

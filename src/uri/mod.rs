@@ -961,10 +961,17 @@ bitflags! {
 #[derive(Clone, Copy)]
 union HostData {
     ipv4_addr: Ipv4Addr,
-    ipv6_addr: Ipv6Addr,
+    ipv6: Ipv6Data,
     #[cfg(feature = "ipv_future")]
     ipv_future_dot_i: u32,
     reg_name: (),
+}
+
+#[derive(Clone, Copy)]
+struct Ipv6Data {
+    addr: Ipv6Addr,
+    #[cfg(feature = "rfc6874bis")]
+    zone_id_start: Option<NonZeroU32>,
 }
 
 /// The [host] subcomponent of authority.
@@ -975,9 +982,15 @@ pub enum Host<'a> {
     /// An IPv4 address.
     Ipv4(Ipv4Addr),
     /// An IPv6 address.
-    ///
-    /// In the future an optional zone identifier may be supported.
-    Ipv6(Ipv6Addr),
+    Ipv6 {
+        /// The address.
+        addr: Ipv6Addr,
+        /// An optional zone identifier.
+        ///
+        /// This is supported on **crate feature `rfc6874bis`** only.
+        #[cfg(feature = "rfc6874bis")]
+        zone_id: Option<&'a str>,
+    },
     /// An IP address of future version.
     ///
     /// This is supported on **crate feature `ipv_future`** only.
@@ -1004,19 +1017,23 @@ impl<'a> Host<'a> {
                 return Host::Ipv4(data.ipv4_addr);
             }
             #[cfg(feature = "ipv_future")]
-            if tag.contains(Tag::HOST_IPV6) {
-                Host::Ipv6(data.ipv6_addr)
-            } else {
+            if !tag.contains(Tag::HOST_IPV6) {
                 let dot_i = data.ipv_future_dot_i;
                 let bounds = auth.host_bounds();
                 // SAFETY: The indexes are within bounds.
-                Host::IpvFuture {
+                return Host::IpvFuture {
                     ver: auth.uri.slice(bounds.0 + 2, dot_i),
                     addr: auth.uri.slice(dot_i + 1, bounds.1 - 1),
-                }
+                };
             }
-            #[cfg(not(feature = "ipv_future"))]
-            Host::Ipv6(data.ipv6_addr)
+            Host::Ipv6 {
+                addr: data.ipv6.addr,
+                #[cfg(feature = "rfc6874bis")]
+                zone_id: data
+                    .ipv6
+                    .zone_id_start
+                    .map(|start| auth.uri.slice(start.get(), auth.host_bounds().1 - 1)),
+            }
         }
     }
 }
@@ -1037,7 +1054,7 @@ impl Path {
         unsafe { &*(path as *const EStr as *const Path) }
     }
 
-    /// Returns the path as an `EStr`.
+    /// Yields the underlying [`EStr`].
     #[inline]
     pub fn as_estr(&self) -> &EStr {
         &self.inner

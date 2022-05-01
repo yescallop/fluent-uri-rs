@@ -134,7 +134,16 @@ impl<'a> fmt::Display for Host<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Host::Ipv4(addr) => write!(f, "{addr}"),
-            Host::Ipv6(addr) => write!(f, "[{addr}]"),
+            #[cfg(feature = "rfc6874bis")]
+            Host::Ipv6 { addr, zone_id } => {
+                write!(f, "[{addr}")?;
+                if let Some(id) = zone_id {
+                    write!(f, "%{id}")?;
+                }
+                write!(f, "]")
+            }
+            #[cfg(not(feature = "rfc6874bis"))]
+            Host::Ipv6 { addr } => write!(f, "[{addr}]"),
             Host::RegName(reg_name) => write!(f, "{reg_name}"),
             #[cfg(feature = "ipv_future")]
             Host::IpvFuture { ver, addr } => write!(f, "[v{ver}.{addr}]"),
