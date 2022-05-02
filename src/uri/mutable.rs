@@ -35,7 +35,7 @@ impl<'i, 'a> AuthorityMut<'i, 'a> {
         unsafe { self.inner.uri.slice_mut(self.start(), self.uri.path.0) }
     }
 
-    /// Takes the mutable userinfo subcomponent.
+    /// Takes the mutable userinfo subcomponent, leaving a `None` in its place.
     #[inline]
     pub fn take_userinfo_mut(&mut self) -> Option<EStrMut<'a>> {
         let tag = &mut self.inner.uri.tag;
@@ -68,7 +68,7 @@ impl<'i, 'a> AuthorityMut<'i, 'a> {
         unsafe { self.inner.uri.slice_mut(bounds.0, bounds.1) }
     }
 
-    /// Takes the parsed mutable host subcomponent, leaving a `None` in its place.
+    /// Takes the parsed mutable host subcomponent.
     ///
     /// # Panics
     ///
