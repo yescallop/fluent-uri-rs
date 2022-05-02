@@ -21,6 +21,7 @@ path = ".."
 
 [features]
 ipv_future = ["fluent-uri/ipv_future"]
+unstable = ["fluent-uri/unstable"]
 
 # Prevent this from interfering with workspaces
 [workspace]

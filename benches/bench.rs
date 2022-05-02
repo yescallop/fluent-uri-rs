@@ -12,6 +12,7 @@ criterion_group!(
     bench_enc,
     bench_dec,
     bench_dec_unchecked,
+    bench_dec_in_place,
     bench_validate,
     bench_parse,
     bench_parse_url,
@@ -38,6 +39,16 @@ fn bench_dec_unchecked(c: &mut Criterion) {
     c.bench_function("dec_unchecked", |b| {
         b.iter(|| unsafe {
             decode_unchecked(black_box(DEC_CASE.as_bytes()));
+        })
+    });
+}
+
+fn bench_dec_in_place(c: &mut Criterion) {
+    let mut vec = DEC_CASE.as_bytes().to_vec();
+    c.bench_function("dec_in_place", |b| {
+        b.iter(|| unsafe {
+            decode_in_place_unchecked(&mut vec);
+            vec.copy_from_slice(DEC_CASE.as_bytes());
         })
     });
 }
