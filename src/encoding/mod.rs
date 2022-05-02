@@ -24,6 +24,25 @@ use std::{
 };
 
 /// Percent-encoded string slices.
+///
+/// # Examples
+///
+/// Parse key-value pairs from a query string into a hash map:
+///
+/// ```
+/// use std::collections::HashMap;
+/// use fluent_uri::encoding::EStr;
+///
+/// let s = "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21";
+/// let map: HashMap<_, _> = EStr::new(s)
+///     .split('&')
+///     .filter_map(|s| s.split_once('='))
+///     .map(|(k, v)| (k.decode(), v.decode()))
+///     .filter_map(|(k, v)| k.into_string().ok().zip(v.into_string().ok()))
+///     .collect();
+/// assert_eq!(map["name"], "张三");
+/// assert_eq!(map["speech"], "¡Olé!");
+/// ```
 #[repr(transparent)]
 pub struct EStr {
     inner: [u8],
@@ -192,18 +211,10 @@ impl EStr {
     /// # Examples
     ///
     /// ```
-    /// use std::collections::HashMap;
     /// use fluent_uri::encoding::EStr;
     ///
-    /// let s = "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21";
-    /// let map: HashMap<_, _> = EStr::new(s)
-    ///     .split('&')
-    ///     .filter_map(|s| s.split_once('='))
-    ///     .map(|(k, v)| (k.decode(), v.decode()))
-    ///     .filter_map(|(k, v)| k.into_string().ok().zip(v.into_string().ok()))
-    ///     .collect();
-    /// assert_eq!(map["name"], "张三");
-    /// assert_eq!(map["speech"], "¡Olé!");
+    /// assert!(EStr::new("a,b,c").split(',').eq(["a", "b", "c"]));
+    /// assert!(EStr::new(",").split(',').eq(["", ""]));
     /// ```
     #[inline]
     pub fn split(&self, delim: char) -> Split<'_> {
@@ -286,7 +297,7 @@ impl<'a> EStrMut<'a> {
 
     /// Consumes this `EStrMut` and yields the underlying mutable byte slice.
     #[inline]
-    pub fn into_mut_bytes(self) -> &'a mut [u8] {
+    pub fn into_bytes(self) -> &'a mut [u8] {
         &mut self.0.inner
     }
 
@@ -299,7 +310,7 @@ impl<'a> EStrMut<'a> {
     /// Decodes the `EStrMut` in-place.
     #[inline]
     pub fn decode_in_place(self) -> DecodeInPlace<'a> {
-        let bytes = self.into_mut_bytes();
+        let bytes = self.into_bytes();
         // SAFETY: An `EStrMut` may only be created through `new`,
         // of which the caller must guarantee that the string is properly encoded.
         let len = unsafe { imp::decode_in_place_unchecked(bytes) };
@@ -327,7 +338,7 @@ impl<'a> EStrMut<'a> {
         );
 
         SplitMut {
-            s: self.into_mut_bytes(),
+            s: self.into_bytes(),
             delim: delim as u8,
             finished: false,
         }
@@ -354,7 +365,7 @@ impl<'a> EStrMut<'a> {
             Some(i) => i,
             None => return Err(self),
         };
-        let (head, tail) = self.into_mut_bytes().split_at_mut(i);
+        let (head, tail) = self.into_bytes().split_at_mut(i);
         // SAFETY: Splitting at a reserved character leaves valid percent-encoded UTF-8.
         unsafe { Ok((EStrMut::new(head), EStrMut::new(&mut tail[1..]))) }
     }
@@ -362,7 +373,7 @@ impl<'a> EStrMut<'a> {
 
 /// A wrapper of percent-decoded bytes.
 ///
-/// This struct is created by calling [`decode`] on an [`EStr`].
+/// This struct is created by the [`decode`] method on [`EStr`].
 ///
 /// [`decode`]: EStr::decode
 #[derive(Debug)]
@@ -416,7 +427,7 @@ impl<'a> Decode<'a> {
 
 /// A wrapper of borrowed percent-decoded bytes.
 ///
-/// This enum is created by calling [`decode_with`] on an [`EStr`].
+/// This enum is created by the [`decode_with`] method on [`EStr`].
 ///
 /// [`decode_with`]: EStr::decode_with
 #[cfg(feature = "unstable")]
@@ -480,7 +491,7 @@ impl<'src, 'dst> DecodeRef<'src, 'dst> {
 
 /// A wrapper of in-place percent-decoded bytes.
 ///
-/// This enum is created by calling [`decode_in_place`] on an [`EStrMut`].
+/// This enum is created by the [`decode_in_place`] method on [`EStrMut`].
 ///
 /// [`decode_in_place`]: EStrMut::decode_in_place
 #[derive(Debug)]
@@ -492,17 +503,20 @@ pub enum DecodeInPlace<'a> {
 }
 
 impl<'a> DecodeInPlace<'a> {
-    /// Consumes this `DecodeInPlace` and yields the underlying byte slice.
+    /// Returns a reference to the decoded bytes.
     #[inline]
-    pub fn into_bytes(self) -> &'a [u8] {
-        self.into_mut_bytes()
+    pub fn as_bytes(&self) -> &[u8] {
+        match self {
+            Self::Src(s) => s.as_str().as_bytes(),
+            Self::Dst(s) => s,
+        }
     }
 
     /// Consumes this `DecodeInPlace` and yields the underlying mutable byte slice.
     #[inline]
-    pub fn into_mut_bytes(self) -> &'a mut [u8] {
+    pub fn into_bytes(self) -> &'a mut [u8] {
         match self {
-            Self::Src(s) => s.into_mut_bytes(),
+            Self::Src(s) => s.into_bytes(),
             Self::Dst(s) => s,
         }
     }
@@ -544,7 +558,7 @@ impl<'a> DecodeInPlace<'a> {
 
 /// An iterator over subslices of an [`EStr`] separated by a delimiter.
 ///
-/// This struct is created by calling [`split`] on an [`EStr`].
+/// This struct is created by the [`split`] method on [`EStr`].
 ///
 /// [`split`]: EStr::split
 #[derive(Debug)]
@@ -613,7 +627,7 @@ impl<'a> DoubleEndedIterator for Split<'a> {
 
 /// An iterator over mutable subslices of an [`EStrMut`] separated by a delimiter.
 ///
-/// This struct is created by calling [`split_mut`] on an [`EStrMut`].
+/// This struct is created by the [`split_mut`] method on [`EStrMut`].
 ///
 /// [`split_mut`]: EStrMut::split_mut
 #[derive(Debug)]
@@ -683,8 +697,14 @@ impl<'a> DoubleEndedIterator for SplitMut<'a> {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-/// An error occurred when the buffer is too small.
-pub struct BufferTooSmallError;
+/// An error occurred when attempting to write to a buffer that is too small.
+///
+/// This error is created by the [`to_mut_in`] method on [`Uri`].
+// FIXME: Add `EStr::decode_with` when it is stabilized.
+///
+/// [`to_mut_in`]: crate::Uri::to_mut_in
+/// [`Uri`]: crate::Uri
+pub struct BufferTooSmallError(());
 
 impl std::error::Error for BufferTooSmallError {}
 
@@ -728,7 +748,7 @@ pub(crate) mod internal {
         #[inline]
         fn prepare(&mut self, len: usize) -> Result<*mut u8, BufferTooSmallError> {
             if self.len() < len {
-                Err(BufferTooSmallError)
+                Err(BufferTooSmallError(()))
             } else {
                 Ok(self.as_mut_ptr())
             }
@@ -744,7 +764,7 @@ pub(crate) mod internal {
         #[inline]
         fn prepare(&mut self, len: usize) -> Result<*mut u8, BufferTooSmallError> {
             if self.len() < len {
-                Err(BufferTooSmallError)
+                Err(BufferTooSmallError(()))
             } else {
                 Ok(self.as_mut_ptr().cast())
             }

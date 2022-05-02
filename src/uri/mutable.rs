@@ -30,7 +30,7 @@ impl<'i, 'a> AuthorityMut<'i, 'a> {
 
     /// Consumes this `AuthorityMut` and yields the underlying mutable byte slice.
     #[inline]
-    pub fn into_mut_bytes(self) -> &'a mut [u8] {
+    pub fn into_bytes(self) -> &'a mut [u8] {
         // SAFETY: The indexes are within bounds.
         unsafe { self.inner.uri.slice_mut(self.start(), self.uri.path.0) }
     }
@@ -188,7 +188,7 @@ impl<'a> PathMut<'a> {
     #[inline]
     pub fn segments_mut(self) -> SplitMut<'a> {
         let absolute = self.is_absolute();
-        let mut path = self.into_estr_mut().into_mut_bytes();
+        let mut path = self.into_estr_mut().into_bytes();
         let empty = path.is_empty();
 
         if absolute {

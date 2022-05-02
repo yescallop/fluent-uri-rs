@@ -161,7 +161,7 @@ fn len_overflow() -> ! {
 ///
 /// # Examples
 ///
-/// Create and convert between `Uri<&str>` and `Uri<String>`.
+/// Create and convert between `Uri<&str>` and `Uri<String>`:
 ///   
 /// ```
 /// use fluent_uri::Uri;
@@ -179,7 +179,7 @@ fn len_overflow() -> ! {
 /// let uri_d: &Uri<&str> = uri_b.borrow();
 /// ```
 ///
-/// Decode path segments in-place and collect them into a `Vec`.
+/// Decode path segments in-place and collect them into a `Vec`:
 ///
 /// ```
 /// use fluent_uri::Uri;
@@ -198,7 +198,7 @@ fn len_overflow() -> ! {
 /// assert_eq!(decode_path_segments(&mut uri).unwrap(), ["path", "to", "my music"]);
 /// ```
 ///
-/// Create a mutable copy of an immutable `Uri` in a buffer.
+/// Create a mutable copy of an immutable `Uri` in a buffer:
 ///
 /// ```
 /// use fluent_uri::Uri;
@@ -299,11 +299,11 @@ impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Uri<T> {
     ///
     /// The type of a buffer may be:
     ///
-    /// - [`Vec<u8>`]: bytes appended to the end; triggers a [`TryReserveError`]
+    /// - [`Vec<u8>`]: bytes appended to the end; returns a [`TryReserveError`]
     ///   when the allocation fails.
     ///
     /// - [`[u8]`](prim@slice) or [`[MaybeUninit<u8>]`](prim@slice): bytes
-    ///   written from the start; triggers a [`BufferTooSmallError`] when
+    ///   written from the start; returns a [`BufferTooSmallError`] when
     ///   the buffer is too small.
     ///
     /// [`TryReserveError`]: std::collections::TryReserveError
@@ -502,7 +502,7 @@ impl<'a> Uri<&'a mut [u8]> {
 
     /// Consumes this `Uri` and yields the underlying mutable byte slice.
     #[inline]
-    pub fn into_mut_bytes(mut self) -> &'a mut [u8] {
+    pub fn into_bytes(mut self) -> &'a mut [u8] {
         // SAFETY: The indexes are within bounds.
         unsafe { self.slice_mut(0, self.len) }
     }
