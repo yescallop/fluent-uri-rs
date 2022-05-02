@@ -49,12 +49,14 @@ name = "enc_dec"
 path = "fuzz_targets/enc_dec.rs"
 test = false
 doc = false
+required-features = ["unstable"]
 
 [[bin]]
 name = "dec"
 path = "fuzz_targets/dec.rs"
 test = false
 doc = false
+required-features = ["unstable"]
 
 [[bin]]
 name = "against_iref"

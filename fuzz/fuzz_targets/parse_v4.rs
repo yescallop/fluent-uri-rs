@@ -13,7 +13,8 @@ fuzz_target!(|data: &str| {
 
 fn parse_v4(s: &str) -> Option<Ipv4Addr> {
     let s = format!("//user@{s}:81/");
-    match Uri::parse(s.as_bytes()).ok()?.authority()?.host() {
+    let uri = Uri::parse(s.as_bytes()).ok()?;
+    match uri.authority()?.host() {
         Host::Ipv4(addr) => Some(addr),
         _ => None,
     }
