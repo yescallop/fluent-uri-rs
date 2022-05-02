@@ -3,10 +3,10 @@ name = "fluent-uri"
 version = "0.1.2"
 authors = ["Scallop Ye <yescallop@gmail.com>"]
 edition = "2021"
-description = "A URI parser that strictly adheres to IETF RFC 3986"
+description = "A URI parser that strictly adheres to IETF RFC 3986."
 repository = "https://github.com/yescallop/fluent-uri-rs"
 license = "MIT"
-keywords = ["parser", "uri"]
+keywords = ["parser", "uri", "rfc3986"]
 categories = ["encoding", "parser-implementations"]
 
 [dependencies]

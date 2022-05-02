@@ -683,74 +683,74 @@ impl<'a> DoubleEndedIterator for SplitMut<'a> {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-/// An error occurred at buffer capacity overflow.
-pub struct CapOverflowError;
+/// An error occurred when the buffer is too small.
+pub struct BufferTooSmallError;
 
-impl std::error::Error for CapOverflowError {}
+impl std::error::Error for BufferTooSmallError {}
 
-impl fmt::Display for CapOverflowError {
+impl fmt::Display for BufferTooSmallError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "buffer capacity overflow")
+        write!(f, "buffer too small")
     }
 }
 
 pub(crate) mod internal {
-    use crate::encoding::CapOverflowError;
-    use std::{convert::Infallible, mem::MaybeUninit};
+    use crate::encoding::BufferTooSmallError;
+    use std::{collections::TryReserveError, mem::MaybeUninit};
 
     pub trait Buf {
-        type ReserveError;
+        type PrepareError;
 
-        fn reserve(&mut self, additional: usize) -> Result<*mut u8, Self::ReserveError>;
+        fn prepare(&mut self, len: usize) -> Result<*mut u8, Self::PrepareError>;
 
-        unsafe fn inc_len(&mut self, inc: usize);
+        unsafe fn finish(&mut self, len: usize);
     }
 
     impl Buf for Vec<u8> {
-        type ReserveError = Infallible;
+        type PrepareError = TryReserveError;
 
         #[inline]
-        fn reserve(&mut self, additional: usize) -> Result<*mut u8, Infallible> {
-            self.reserve(additional);
+        fn prepare(&mut self, len: usize) -> Result<*mut u8, TryReserveError> {
+            self.try_reserve(len)?;
             Ok(self.as_mut_ptr_range().end)
         }
 
         #[inline]
-        unsafe fn inc_len(&mut self, inc: usize) {
-            // SAFETY: The caller must ensure that the additional `inc` bytes are initialized.
-            unsafe { self.set_len(self.len() + inc) }
+        unsafe fn finish(&mut self, len: usize) {
+            // SAFETY: The caller must ensure that the additional `len` bytes are initialized.
+            unsafe { self.set_len(self.len() + len) }
         }
     }
 
     impl Buf for [u8] {
-        type ReserveError = CapOverflowError;
+        type PrepareError = BufferTooSmallError;
 
         #[inline]
-        fn reserve(&mut self, len: usize) -> Result<*mut u8, CapOverflowError> {
+        fn prepare(&mut self, len: usize) -> Result<*mut u8, BufferTooSmallError> {
             if self.len() < len {
-                Err(CapOverflowError)
+                Err(BufferTooSmallError)
             } else {
                 Ok(self.as_mut_ptr())
             }
         }
 
         #[inline]
-        unsafe fn inc_len(&mut self, _inc: usize) {}
+        unsafe fn finish(&mut self, _len: usize) {}
     }
 
     impl Buf for [MaybeUninit<u8>] {
-        type ReserveError = CapOverflowError;
+        type PrepareError = BufferTooSmallError;
 
         #[inline]
-        fn reserve(&mut self, len: usize) -> Result<*mut u8, CapOverflowError> {
+        fn prepare(&mut self, len: usize) -> Result<*mut u8, BufferTooSmallError> {
             if self.len() < len {
-                Err(CapOverflowError)
+                Err(BufferTooSmallError)
             } else {
                 Ok(self.as_mut_ptr().cast())
             }
         }
 
         #[inline]
-        unsafe fn inc_len(&mut self, _inc: usize) {}
+        unsafe fn finish(&mut self, _len: usize) {}
     }
 }

@@ -299,18 +299,21 @@ impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Uri<T> {
     ///
     /// The type of a buffer may be:
     ///
-    /// - [`Vec<u8>`]: grows automatically; bytes appended to the end.
+    /// - [`Vec<u8>`]: bytes appended to the end; triggers a [`TryReserveError`]
+    ///   when the allocation fails.
     ///
-    /// - [`[u8]`](prim@slice) or [`[MaybeUninit<u8>]`](prim@slice): triggers a
-    /// [`CapOverflowError`] when the capacity is too small; bytes written from the start.
+    /// - [`[u8]`](prim@slice) or [`[MaybeUninit<u8>]`](prim@slice): bytes
+    ///   written from the start; triggers a [`BufferTooSmallError`] when
+    ///   the buffer is too small.
     ///
-    /// [`CapOverflowError`]: crate::encoding::CapOverflowError
+    /// [`TryReserveError`]: std::collections::TryReserveError
+    /// [`BufferTooSmallError`]: crate::encoding::BufferTooSmallError
     #[inline]
     pub fn to_mut_in<'b, B: Buf + ?Sized>(
         &self,
         buf: &'b mut B,
-    ) -> Result<Uri<&'b mut [u8]>, B::ReserveError> {
-        let ptr = buf.reserve(self.len as usize)?;
+    ) -> Result<Uri<&'b mut [u8]>, B::PrepareError> {
+        let ptr = buf.prepare(self.len as usize)?;
 
         // SAFETY: We have reserved enough space in the buffer, and
         // mutable reference `buf` ensures exclusive access.
@@ -318,7 +321,7 @@ impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Uri<T> {
             self.ptr
                 .as_ptr()
                 .copy_to_nonoverlapping(ptr, self.len as usize);
-            buf.inc_len(self.len as usize);
+            buf.finish(self.len as usize);
         }
 
         Ok(Uri {

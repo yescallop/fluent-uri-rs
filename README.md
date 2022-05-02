@@ -10,7 +10,7 @@ A URI parser in Rust that strictly adheres to IETF [RFC 3986].
 - **Easy:** Carefully designed and documented APIs. Handy percent-encoding utilities.
 - **Strict:** Parses every possible URI defined in the RFC and denies anything else.
 
-[Latest API Docs](https://yescallop.cn/fluent-uri-rs/fluent_uri)
+API Docs: [docs.rs](https://docs.rs/fluent-uri) | [dev](https://yescallop.cn/fluent-uri-rs/fluent_uri)
 
 [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
 
