@@ -18,7 +18,7 @@ API Docs: [docs.rs](https://docs.rs/fluent-uri) | [dev](https://yescallop.cn/flu
 
 - `EStr` (Percent-encoded string slices):
 
-    All components in a URI that may be percent-encoded are parsed as `EStr`s, which allows easy splitting and fast decoding.
+    All components in a URI that may be percent-encoded are parsed as `EStr`s, which allows easy splitting and fast decoding:
 
     ```rust
     let s = "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21";
@@ -39,7 +39,7 @@ API Docs: [docs.rs](https://docs.rs/fluent-uri) | [dev](https://yescallop.cn/flu
   
   Lifetimes are correctly handled in a way that `Uri<&'a str>` and `Uri<&'a mut [u8]>` both
   output references with lifetime `'a`. This allows you to drop a temporary `Uri` while keeping
-  the output references.
+  the output references:
 
   ```rust
   let uri = Uri::parse("foo:bar").expect("invalid URI reference");
@@ -48,7 +48,7 @@ API Docs: [docs.rs](https://docs.rs/fluent-uri) | [dev](https://yescallop.cn/flu
   assert_eq!(path.as_str(), "bar");
   ```
 
-  Decode path segments in-place and collect them into a `Vec`.
+  Decode path segments in-place and collect them into a `Vec`:
 
   ```rust
   fn decode_path_segments(uri: &mut [u8]) -> Option<Vec<&str>> {

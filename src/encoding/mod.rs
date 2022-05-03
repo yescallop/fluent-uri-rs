@@ -512,7 +512,7 @@ impl<'a> DecodeInPlace<'a> {
         }
     }
 
-    /// Consumes this `DecodeInPlace` and yields the underlying mutable byte slice.
+    /// Consumes this `DecodeInPlace` and yields the underlying decoded bytes.
     #[inline]
     pub fn into_bytes(self) -> &'a mut [u8] {
         match self {

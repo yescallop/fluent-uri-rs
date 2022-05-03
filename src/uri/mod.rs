@@ -148,7 +148,7 @@ fn len_overflow() -> ! {
 ///
 /// Lifetimes are correctly handled in a way that `Uri<&'a str>` and `Uri<&'a mut [u8]>` both
 /// output references with lifetime `'a`. This allows you to drop a temporary `Uri` while keeping
-/// the output references.
+/// the output references:
 ///
 /// ```
 /// use fluent_uri::Uri;
@@ -179,7 +179,7 @@ fn len_overflow() -> ! {
 /// let uri_d: &Uri<&str> = uri_b.borrow();
 /// ```
 ///
-/// Decode path segments in-place and collect them into a `Vec`:
+/// Decode path segments in-place and collect them into a [`Vec`]:
 ///
 /// ```
 /// use fluent_uri::Uri;

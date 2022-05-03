@@ -184,6 +184,12 @@ impl<'a> PathMut<'a> {
         unsafe { mem::transmute(self) }
     }
 
+    /// Consumes this `PathMut` and yields the underlying [`Path`].
+    #[inline]
+    pub fn into_ref(self) -> &'a Path {
+        self.0
+    }
+
     /// Returns an iterator over the mutable segments of the path.
     #[inline]
     pub fn segments_mut(self) -> SplitMut<'a> {
