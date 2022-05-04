@@ -146,6 +146,7 @@ impl<'a> HostMut<'a> {
             }
             HostMut::Ipv6 {
                 addr: data.ipv6.addr,
+                // SAFETY: The indexes are within bounds and we have done the validation.
                 #[cfg(feature = "rfc6874bis")]
                 zone_id: data.ipv6.zone_id_start.map(|start| {
                     auth.inner
@@ -182,12 +183,6 @@ impl<'a> PathMut<'a> {
     pub fn into_estr_mut(self) -> EStrMut<'a> {
         // SAFETY: Transparency holds.
         unsafe { mem::transmute(self) }
-    }
-
-    /// Consumes this `PathMut` and yields the underlying [`Path`].
-    #[inline]
-    pub fn into_ref(self) -> &'a Path {
-        self.0
     }
 
     /// Returns an iterator over the mutable segments of the path.

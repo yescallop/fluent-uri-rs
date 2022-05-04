@@ -39,9 +39,9 @@ pub(crate) unsafe fn parse<T: Storage>(ptr: *mut u8, len: u32, cap: u32) -> Resu
 /// Returns immediately with an error.
 macro_rules! err {
     ($index:expr, $kind:ident) => {
-        return Err(crate::UriParseError {
+        return Err(crate::ParseError {
             index: $index,
-            kind: crate::UriParseErrorKind::$kind,
+            kind: crate::ParseErrorKind::$kind,
         })
     };
 }

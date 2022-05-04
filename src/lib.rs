@@ -20,7 +20,7 @@
 //!     This feature is based on the homonymous [draft] and is thus subject to change.
 //!
 //! [IPvFuture]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
-//! [`InvalidIpLiteral`]: UriParseErrorKind::InvalidIpLiteral
+//! [`InvalidIpLiteral`]: ParseErrorKind::InvalidIpLiteral
 //! [draft]: https://datatracker.ietf.org/doc/html/draft-ietf-6man-rfc6874bis-01
 
 /// Utilities for percent-encoding.

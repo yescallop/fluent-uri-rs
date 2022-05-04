@@ -393,6 +393,7 @@ impl<'a> Decode<'a> {
     }
 
     /// Returns `true` if anything is decoded, i.e., the underlying [`Cow`] is owned.
+    #[cfg(feature = "unstable")]
     #[inline]
     pub fn decoded_any(&self) -> bool {
         matches!(self.0, Cow::Owned(_))
@@ -496,9 +497,9 @@ impl<'src, 'dst> DecodeRef<'src, 'dst> {
 /// [`decode_in_place`]: EStrMut::decode_in_place
 #[derive(Debug)]
 pub enum DecodeInPlace<'a> {
-    /// Nothing decoded.
+    /// No percent-encoded octets are decoded.
     Src(EStrMut<'a>),
-    /// Something decoded.
+    /// One or more percent-encoded octets are decoded.
     Dst(&'a mut [u8]),
 }
 
@@ -522,6 +523,7 @@ impl<'a> DecodeInPlace<'a> {
     }
 
     /// Returns `true` if anything is decoded.
+    #[cfg(feature = "unstable")]
     #[inline]
     pub fn decoded_any(&self) -> bool {
         matches!(self, Self::Dst(_))
@@ -704,16 +706,20 @@ impl<'a> DoubleEndedIterator for SplitMut<'a> {
 ///
 /// [`to_mut_in`]: crate::Uri::to_mut_in
 /// [`Uri`]: crate::Uri
+#[cfg(feature = "unstable")]
 pub struct BufferTooSmallError(());
 
+#[cfg(feature = "unstable")]
 impl std::error::Error for BufferTooSmallError {}
 
+#[cfg(feature = "unstable")]
 impl fmt::Display for BufferTooSmallError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "buffer too small")
     }
 }
 
+#[cfg(feature = "unstable")]
 pub(crate) mod internal {
     use crate::encoding::BufferTooSmallError;
     use std::{collections::TryReserveError, mem::MaybeUninit};

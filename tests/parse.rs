@@ -1,6 +1,6 @@
 use std::net::{Ipv4Addr, Ipv6Addr};
 
-use fluent_uri::{encoding::EStr, UriParseErrorKind::*, *};
+use fluent_uri::{encoding::EStr, ParseErrorKind::*, *};
 
 #[test]
 fn parse_absolute() {

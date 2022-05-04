@@ -1,12 +1,12 @@
 use super::*;
 use std::fmt;
 
-impl fmt::Display for UriParseError {
+impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let msg = match self.kind {
-            UriParseErrorKind::InvalidOctet => "invalid percent-encoded octet at index ",
-            UriParseErrorKind::UnexpectedChar => "unexpected character at index ",
-            UriParseErrorKind::InvalidIpLiteral => "invalid IP literal at index ",
+            ParseErrorKind::InvalidOctet => "invalid percent-encoded octet at index ",
+            ParseErrorKind::UnexpectedChar => "unexpected character at index ",
+            ParseErrorKind::InvalidIpLiteral => "invalid IP literal at index ",
         };
         write!(f, "{}{}", msg, self.index)
     }

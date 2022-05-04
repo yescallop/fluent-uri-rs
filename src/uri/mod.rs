@@ -5,7 +5,7 @@ use mutable::*;
 
 mod parser;
 
-use crate::encoding::{internal::Buf, EStr, EStrMut, Split};
+use crate::encoding::{EStr, EStrMut, Split};
 use bitflags::bitflags;
 use std::{
     marker::PhantomData,
@@ -87,9 +87,9 @@ mod internal {
 
 use internal::*;
 
-/// Detailed cause of a [`UriParseError`].
+/// Detailed cause of a [`ParseError`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum UriParseErrorKind {
+pub enum ParseErrorKind {
     /// Invalid percent-encoded octet that is either non-hexadecimal or incomplete.
     ///
     /// The error index points to the percent character "%" of the octet.
@@ -106,12 +106,12 @@ pub enum UriParseErrorKind {
 
 /// An error occurred when parsing URI references.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct UriParseError {
+pub struct ParseError {
     index: u32,
-    kind: UriParseErrorKind,
+    kind: ParseErrorKind,
 }
 
-impl UriParseError {
+impl ParseError {
     /// Returns the index where the error occurred in the input string.
     #[inline]
     pub fn index(&self) -> usize {
@@ -120,14 +120,14 @@ impl UriParseError {
 
     /// Returns the detailed cause of the error.
     #[inline]
-    pub fn kind(&self) -> UriParseErrorKind {
+    pub fn kind(&self) -> ParseErrorKind {
         self.kind
     }
 }
 
-impl std::error::Error for UriParseError {}
+impl std::error::Error for ParseError {}
 
-pub(super) type Result<T, E = UriParseError> = std::result::Result<T, E>;
+pub(super) type Result<T, E = ParseError> = std::result::Result<T, E>;
 
 #[cold]
 fn len_overflow() -> ! {
@@ -153,10 +153,11 @@ fn len_overflow() -> ! {
 /// ```
 /// use fluent_uri::Uri;
 ///
-/// let uri = Uri::parse("foo:bar").expect("invalid URI reference");
+/// let uri = Uri::parse("foo:bar")?;
 /// let path = uri.path();
 /// drop(uri);
 /// assert_eq!(path.as_str(), "bar");
+/// # Ok::<_, fluent_uri::ParseError>(())
 /// ```
 ///
 /// # Examples
@@ -167,16 +168,17 @@ fn len_overflow() -> ! {
 /// use fluent_uri::Uri;
 ///
 /// // Create a `Uri<&str>`.
-/// let uri_a: Uri<&str> = Uri::parse("").expect("invalid URI reference");
+/// let uri_a: Uri<&str> = Uri::parse("")?;
 ///
 /// // Create a `Uri<String>`.
-/// let uri_b: Uri<String> = Uri::parse_from(String::new()).expect("invalid URI reference");
+/// let uri_b: Uri<String> = Uri::parse_from(String::new()).map_err(|e| e.1)?;
 ///
 /// // Convert a `Uri<&str>` to a `Uri<String>`.
 /// let uri_c: Uri<String> = uri_a.to_owned();
 ///
 /// // Borrow a `Uri<String>` as a `Uri<&str>`.
 /// let uri_d: &Uri<&str> = uri_b.borrow();
+/// # Ok::<_, fluent_uri::ParseError>(())
 /// ```
 ///
 /// Decode path segments in-place and collect them into a [`Vec`]:
@@ -197,19 +199,7 @@ fn len_overflow() -> ! {
 /// let mut uri = b"/path/to/my%20music".to_vec();
 /// assert_eq!(decode_path_segments(&mut uri).unwrap(), ["path", "to", "my music"]);
 /// ```
-///
-/// Create a mutable copy of an immutable `Uri` in a buffer:
-///
-/// ```
-/// use fluent_uri::Uri;
-/// use std::mem::MaybeUninit;
-///
-/// let uri = Uri::parse("https://www.rust-lang.org/").expect("invalid URI reference");
-/// let mut buf = [MaybeUninit::uninit(); 256];
-/// let uri_mut = uri
-///     .to_mut_in(&mut buf[..])
-///     .expect("buffer capacity overflow");
-/// ```
+// TODO: Create a mutable copy of an immutable `Uri` in a buffer:
 #[repr(C)]
 pub struct Uri<T: Storage> {
     ptr: NonNull<u8>,
@@ -307,9 +297,10 @@ impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Uri<T> {
     ///   the buffer is too small.
     ///
     /// [`TryReserveError`]: std::collections::TryReserveError
-    /// [`BufferTooSmallError`]: crate::encoding::BufferTooSmallError
+    /// [`BufferTooSmallError`]: crate::mutable::BufferTooSmallError
+    #[cfg(feature = "unstable")]
     #[inline]
-    pub fn to_mut_in<'b, B: Buf + ?Sized>(
+    pub fn to_mut_in<'b, B: crate::encoding::internal::Buf + ?Sized>(
         &self,
         buf: &'b mut B,
     ) -> Result<Uri<&'b mut [u8]>, B::PrepareError> {
@@ -451,7 +442,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Uri<T> {
     /// assert!(uri.is_relative());
     /// let uri = Uri::parse("http://example.com/")?;
     /// assert!(!uri.is_relative());
-    /// # Ok::<_, fluent_uri::UriParseError>(())
+    /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     #[inline]
     pub fn is_relative(&self) -> bool {
@@ -476,7 +467,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Uri<T> {
     /// assert!(!uri.is_absolute());
     /// let uri = Uri::parse("/path/to/file")?;
     /// assert!(!uri.is_absolute());
-    /// # Ok::<_, fluent_uri::UriParseError>(())
+    /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     #[inline]
     pub fn is_absolute(&self) -> bool {
@@ -486,6 +477,10 @@ impl<'i, 'o, T: Io<'i, 'o>> Uri<T> {
 
 impl<'a> Uri<&'a mut [u8]> {
     /// Parses a URI reference from a mutable byte sequence into a `Uri<&mut [u8]>`.
+    ///
+    /// See the [`parse`] method for more details.
+    ///
+    /// [`parse`]: Uri::parse
     ///
     /// # Panics
     ///
@@ -585,11 +580,15 @@ impl<'a> Uri<&'a mut [u8]> {
 impl Uri<String> {
     /// Parses a URI reference from a [`String`] or [`Vec<u8>`] into a `Uri<String>`.
     ///
+    /// See the [`parse`] method for more details.
+    ///
+    /// [`parse`]: Uri::parse
+    ///
     /// # Panics
     ///
     /// Panics if the input capacity is greater than [`i32::MAX`].
     #[inline]
-    pub fn parse_from<T: IntoOwnedUri>(t: T) -> Result<Uri<String>, (T, UriParseError)> {
+    pub fn parse_from<T: IntoOwnedUri>(t: T) -> Result<Uri<String>, (T, ParseError)> {
         #[cold]
         fn cap_overflow() -> ! {
             panic!("input capacity exceeds i32::MAX");
@@ -673,34 +672,34 @@ impl Scheme {
         unsafe { &mut *(scheme as *mut [u8] as *mut Scheme) }
     }
 
-    /// Returns the scheme as a string slice in the raw form.
+    /// Returns the raw scheme as a string slice.
     ///
     /// # Examples
     ///
     /// ```
     /// use fluent_uri::Uri;
     ///
-    /// let uri = Uri::parse("Http://Example.Com/")?;
+    /// let uri = Uri::parse("HTTP://example.com/")?;
     /// let scheme = uri.scheme().unwrap();
-    /// assert_eq!(scheme.as_str(), "Http");
-    /// # Ok::<_, fluent_uri::UriParseError>(())
+    /// assert_eq!(scheme.as_str(), "HTTP");
+    /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     #[inline]
     pub fn as_str(&self) -> &str {
         &self.0
     }
 
-    /// Returns the scheme as a string in the lowercase form.
+    /// Returns the scheme as a string in lower case.
     ///
     /// # Examples
     ///
     /// ```
     /// use fluent_uri::Uri;
     ///
-    /// let uri = Uri::parse("Http://Example.Com/")?;
+    /// let uri = Uri::parse("HTTP://example.com/")?;
     /// let scheme = uri.scheme().unwrap();
     /// assert_eq!(scheme.to_lowercase(), "http");
-    /// # Ok::<_, fluent_uri::UriParseError>(())
+    /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     #[inline]
     pub fn to_lowercase(&self) -> String {
@@ -709,7 +708,20 @@ impl Scheme {
         unsafe { String::from_utf8_unchecked(bytes) }
     }
 
-    /// Converts the scheme to its lowercase equivalent in-place.
+    /// Converts the scheme to lower case in-place.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::Uri;
+    ///
+    /// let mut uri = b"HTTP://example.com/".to_vec();
+    /// let mut uri = Uri::parse_mut(&mut uri)?;
+    /// let mut scheme = uri.scheme_mut().unwrap();
+    /// assert_eq!(scheme.make_lowercase(), "http");
+    /// assert_eq!(uri.into_bytes(), b"http://example.com/");
+    /// # Ok::<_, fluent_uri::ParseError>(())
+    /// ```
     #[inline]
     pub fn make_lowercase(&mut self) -> &str {
         // SAFETY: Setting the sixth bit keeps UTF-8.
@@ -730,12 +742,12 @@ impl Scheme {
     /// ```
     /// use fluent_uri::Uri;
     ///
-    /// let uri = Uri::parse("Http://Example.Com/")?;
+    /// let uri = Uri::parse("HTTP://example.com/")?;
     /// let scheme = uri.scheme().unwrap();
     /// assert!(scheme.eq_lowercase("http"));
     /// // Always return `false` if there's any uppercase letter in the given string.
     /// assert!(!scheme.eq_lowercase("hTTp"));
-    /// # Ok::<_, fluent_uri::UriParseError>(())
+    /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     #[inline]
     pub fn eq_lowercase(&self, other: &str) -> bool {
@@ -759,7 +771,7 @@ pub struct Authority<T: Storage> {
 }
 
 impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Authority<T> {
-    /// Returns the raw authority component as a string slice.
+    /// Returns the raw authority as a string slice.
     ///
     /// # Examples
     ///
@@ -769,7 +781,7 @@ impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Authority<T> {
     /// let uri = Uri::parse("ftp://user@[fe80::abcd]:6780/")?;
     /// let authority = uri.authority().unwrap();
     /// assert_eq!(authority.as_str(), "user@[fe80::abcd]:6780");
-    /// # Ok::<_, fluent_uri::UriParseError>(())
+    /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     #[inline]
     pub fn as_str(&'i self) -> &'o str {
@@ -817,7 +829,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     /// let uri = Uri::parse("ftp://user@192.168.1.24/")?;
     /// let authority = uri.authority().unwrap();
     /// assert_eq!(authority.userinfo().unwrap(), "user");
-    /// # Ok::<_, fluent_uri::UriParseError>(())
+    /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     #[inline]
     pub fn userinfo(&'i self) -> Option<&'o EStr> {
@@ -858,7 +870,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     /// let uri = Uri::parse("ftp://user@[::1]/")?;
     /// let authority = uri.authority().unwrap();
     /// assert_eq!(authority.host_raw(), "[::1]");
-    /// # Ok::<_, fluent_uri::UriParseError>(())
+    /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     #[inline]
     pub fn host_raw(&'i self) -> &'o str {
@@ -902,7 +914,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     /// let uri = Uri::parse("ssh://device.local/")?;
     /// let authority = uri.authority().unwrap();
     /// assert_eq!(authority.port_raw(), None);
-    /// # Ok::<_, fluent_uri::UriParseError>(())
+    /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     #[inline]
     pub fn port_raw(&'i self) -> Option<&'o str> {
@@ -940,7 +952,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     /// let uri = Uri::parse("example://device.local:31415926/")?;
     /// let authority = uri.authority().unwrap();
     /// assert_eq!(authority.port(), Some(Err("31415926")));
-    /// # Ok::<_, fluent_uri::UriParseError>(())
+    /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     #[inline]
     pub fn port(&'i self) -> Option<Result<u16, &'o str>> {
@@ -1031,6 +1043,7 @@ impl<'a> Host<'a> {
             }
             Host::Ipv6 {
                 addr: data.ipv6.addr,
+                // SAFETY: The indexes are within bounds.
                 #[cfg(feature = "rfc6874bis")]
                 zone_id: data
                     .ipv6
@@ -1101,7 +1114,7 @@ impl Path {
     /// // However, segments can be empty in the other cases.
     /// let uri = Uri::parse("/path/to//dir/")?;
     /// assert!(uri.path().segments().eq(["path", "to", "", "dir", ""]));
-    /// # Ok::<_, fluent_uri::UriParseError>(())
+    /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     #[inline]
     pub fn segments(&self) -> Split<'_> {
