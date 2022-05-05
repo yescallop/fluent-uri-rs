@@ -191,7 +191,7 @@ fn len_overflow() -> ! {
 ///     bytes: &mut [u8],
 /// ) -> Result<(Uri<&mut [u8]>, HashMap<&str, &str>), ParseError> {
 ///     let mut uri = Uri::parse_mut(bytes)?;
-///     let map = if let Some(query) = uri.take_query_mut() {
+///     let map = if let Some(query) = uri.take_query() {
 ///         query
 ///             .split_mut('&')
 ///             .flat_map(|pair| pair.split_once_mut('='))
@@ -535,7 +535,7 @@ impl<'a> Uri<&'a mut [u8]> {
 
     /// Takes the mutable scheme component, leaving a `None` in its place.
     #[inline]
-    pub fn take_scheme_mut(&mut self) -> Option<&'a mut Scheme> {
+    pub fn take_scheme(&mut self) -> Option<&'a mut Scheme> {
         // SAFETY: The indexes are within bounds and we have done the validation.
         self.scheme_end
             .take()
@@ -544,7 +544,7 @@ impl<'a> Uri<&'a mut [u8]> {
 
     /// Takes the mutable authority component, leaving a `None` in its place.
     #[inline]
-    pub fn take_authority_mut(&mut self) -> Option<AuthorityMut<'_, 'a>> {
+    pub fn take_authority(&mut self) -> Option<AuthorityMut<'_, 'a>> {
         if self.auth.is_some() {
             // SAFETY: `auth` is `Some`.
             // `AuthorityMut` will set `auth` to `None` when it gets dropped.
@@ -560,7 +560,7 @@ impl<'a> Uri<&'a mut [u8]> {
     ///
     /// Panics if the path component is already taken.
     #[inline]
-    pub fn take_path_mut(&mut self) -> PathMut<'a> {
+    pub fn take_path(&mut self) -> PathMut<'a> {
         if self.tag.contains(Tag::PATH_TAKEN) {
             component_taken();
         }
@@ -572,7 +572,7 @@ impl<'a> Uri<&'a mut [u8]> {
 
     /// Takes the mutable query component, leaving a `None` in its place.
     #[inline]
-    pub fn take_query_mut(&mut self) -> Option<EStrMut<'a>> {
+    pub fn take_query(&mut self) -> Option<EStrMut<'a>> {
         // SAFETY: The indexes are within bounds and we have done the validation.
         self.query_end
             .take()
@@ -581,7 +581,7 @@ impl<'a> Uri<&'a mut [u8]> {
 
     /// Takes the mutable fragment component, leaving a `None` in its place.
     #[inline]
-    pub fn take_fragment_mut(&mut self) -> Option<EStrMut<'a>> {
+    pub fn take_fragment(&mut self) -> Option<EStrMut<'a>> {
         // SAFETY: The indexes are within bounds and we have done the validation.
         self.fragment_start
             .take()
@@ -730,7 +730,7 @@ impl Scheme {
     /// let mut vec = b"HTTP://example.com/".to_vec();
     /// let mut uri = Uri::parse_mut(&mut vec)?;
     ///
-    /// let mut scheme = uri.take_scheme_mut().unwrap();
+    /// let mut scheme = uri.take_scheme().unwrap();
     /// assert_eq!(scheme.make_lowercase(), "http");
     /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```

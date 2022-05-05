@@ -50,7 +50,7 @@ impl<'i, 'a> AuthorityMut<'i, 'a> {
 
     /// Takes the mutable userinfo subcomponent, leaving a `None` in its place.
     #[inline]
-    pub fn take_userinfo_mut(&mut self) -> Option<EStrMut<'a>> {
+    pub fn take_userinfo(&mut self) -> Option<EStrMut<'a>> {
         let (start, host_start) = (self.start(), self.host_bounds().0);
         (start != host_start).then(|| unsafe {
             // SAFETY: Host won't start at index 0.
@@ -66,7 +66,7 @@ impl<'i, 'a> AuthorityMut<'i, 'a> {
     ///
     /// Panics if the host subcomponent is already taken.
     #[inline]
-    pub fn take_host_raw_mut(&mut self) -> &'a mut [u8] {
+    pub fn take_host_raw(&mut self) -> &'a mut [u8] {
         if self.uri.tag.contains(Tag::HOST_TAKEN) {
             component_taken();
         }
@@ -82,7 +82,7 @@ impl<'i, 'a> AuthorityMut<'i, 'a> {
     /// # Panics
     ///
     /// Panics if the host subcomponent is already taken.
-    pub fn take_host_mut(&mut self) -> HostMut<'a> {
+    pub fn take_host(&mut self) -> HostMut<'a> {
         if self.uri.tag.contains(Tag::HOST_TAKEN) {
             component_taken();
         }
