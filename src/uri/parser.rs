@@ -1,6 +1,6 @@
 use crate::{
     encoding::{table::*, OCTET_TABLE_LO},
-    uri::{HostData, Tag},
+    uri::{AuthorityInternal, HostData, Tag},
     Result, Uri,
 };
 use std::{
@@ -22,8 +22,8 @@ pub(crate) unsafe fn parse<T: Storage>(ptr: *mut u8, len: u32, cap: u32) -> Resu
             len,
             tag: Tag::empty(),
             scheme_end: None,
-            host: None,
-            path: (0, 0),
+            auth: None,
+            path_bounds: (0, 0),
             query_end: None,
             fragment_start: None,
             _marker: PhantomData,
@@ -193,7 +193,7 @@ impl Parser {
         if self.peek(0) == Some(b':') {
             // Scheme starts with a letter.
             if self.pos != 0 && self.get(0).is_ascii_alphabetic() {
-                self.out.scheme_end = NonZeroU32::new(self.pos + 1);
+                self.out.scheme_end = NonZeroU32::new(self.pos);
             } else {
                 err!(0, UnexpectedChar);
             }
@@ -216,7 +216,8 @@ impl Parser {
     }
 
     fn parse_from_authority(&mut self) -> Result<()> {
-        let host_out;
+        let start = self.pos;
+        let host;
 
         // This table contains userinfo, reg-name, ":", and port.
         static TABLE: &Table = &USERINFO.shl(1).or(&Table::gen(b":"));
@@ -236,19 +237,18 @@ impl Parser {
 
             self.mark();
 
-            let host = self.read_host()?;
-            self.out.tag |= Tag::HAS_USERINFO;
-            host_out = (self.mark, self.pos, host);
+            let data = self.read_host()?;
+            host = (self.mark, self.pos, data);
             self.read_port();
         } else if self.marked_len() == 0 {
             // Nothing scanned. We're now at the start of an IP literal or the path.
-            if let Some(host) = self.read_ip_literal()? {
-                host_out = (self.mark, self.pos, host);
+            if let Some(data) = self.read_ip_literal()? {
+                host = (self.mark, self.pos, data);
                 self.read_port();
             } else {
                 // Empty authority.
                 self.out.tag = Tag::HOST_REG_NAME;
-                host_out = (self.pos, self.pos, HostData { reg_name: () });
+                host = (self.pos, self.pos, HostData { reg_name: () });
             }
         } else {
             // The whole authority scanned. Try to parse the host and port.
@@ -304,16 +304,19 @@ impl Parser {
             };
 
             self.out.tag = tag;
-            host_out = (self.mark, host_end, data);
+            host = (self.mark, host_end, data);
 
             // Restore the state.
             // INVARIANT: Restoring the state would not affect the invariant.
             (self.out.len, self.pos) = state;
         }
 
-        // SAFETY: Host won't start at index 0.
-        let host_start = unsafe { NonZeroU32::new_unchecked(host_out.0) };
-        self.out.host = Some((host_start, host_out.1, host_out.2));
+        self.out.auth = Some(AuthorityInternal {
+            // SAFETY: Authority won't start at index 0.
+            start: unsafe { NonZeroU32::new_unchecked(start) },
+            host_bounds: (host.0, host.1),
+            host_data: host.2,
+        });
         self.parse_from_path(PathKind::AbEmpty)
     }
 
@@ -561,7 +564,7 @@ impl Parser {
     }
 
     fn parse_from_path(&mut self, kind: PathKind) -> Result<()> {
-        self.out.path = match kind {
+        self.out.path_bounds = match kind {
             PathKind::General => {
                 let start = self.pos;
                 self.read(PATH)?;

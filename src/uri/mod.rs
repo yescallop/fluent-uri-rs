@@ -62,7 +62,7 @@ mod internal {
 
     impl<'i, 'a> Io<'i, 'a> for &'a str {}
 
-    impl<'i, 'a> Io<'i, 'a> for &'a mut [u8] {}
+    impl<'a> Io<'a, 'a> for &mut [u8] {}
 
     impl<'a> Io<'a, 'a> for String {}
 
@@ -146,8 +146,8 @@ fn len_overflow() -> ! {
 /// - `Uri<&mut [u8]>`: borrowed; in-place mutable.
 /// - `Uri<String>`: owned; immutable.
 ///
-/// Lifetimes are correctly handled in a way that `Uri<&'a str>` and `Uri<&'a mut [u8]>` both
-/// output references with lifetime `'a`. This allows you to drop a temporary `Uri` while keeping
+/// Lifetimes are correctly handled in a way that `Uri<&'a str>` output references
+/// with lifetime `'a`. This allows you to drop a temporary `Uri<&str>` while keeping
 /// the output references:
 ///
 /// ```
@@ -181,23 +181,41 @@ fn len_overflow() -> ! {
 /// # Ok::<_, fluent_uri::ParseError>(())
 /// ```
 ///
-/// Decode path segments in-place and collect them into a [`Vec`]:
+/// Decode and extract query parameters in-place from a URI reference:
 ///
 /// ```
-/// use fluent_uri::Uri;
+/// use fluent_uri::{ParseError, Uri};
+/// use std::collections::HashMap;
 ///
-/// fn decode_path_segments(uri: &mut [u8]) -> Option<Vec<&str>> {
-///     let mut uri = Uri::parse_mut(uri).ok()?;
-///     let segs = uri.take_path_mut().segments_mut();
-///     let mut out = Vec::new();
-///     for seg in segs {
-///         out.push(seg.decode_in_place().into_str().ok()?);
-///     }
-///     Some(out)
+/// fn decode_and_extract_query(
+///     bytes: &mut [u8],
+/// ) -> Result<(Uri<&mut [u8]>, HashMap<&str, &str>), ParseError> {
+///     let mut uri = Uri::parse_mut(bytes)?;
+///     let map = if let Some(query) = uri.take_query_mut() {
+///         query
+///             .split_mut('&')
+///             .flat_map(|pair| pair.split_once_mut('='))
+///             .map(|(k, v)| (k.decode_in_place(), v.decode_in_place()))
+///             .flat_map(|(k, v)| k.into_str().ok().zip(v.into_str().ok()))
+///             .collect()
+///     } else {
+///         HashMap::new()
+///     };
+///     Ok((uri, map))
 /// }
-///   
-/// let mut uri = b"/path/to/my%20music".to_vec();
-/// assert_eq!(decode_path_segments(&mut uri).unwrap(), ["path", "to", "my music"]);
+///
+/// let mut vec = b"?name=Ferris%20the%20crab&color=%F0%9F%9F%A0".to_vec();
+/// let (uri, query) = decode_and_extract_query(&mut vec)?;
+///
+/// assert_eq!(query["name"], "Ferris the crab");
+/// assert_eq!(query["color"], "🟠");
+///
+/// // The query is taken from the `Uri`.
+/// assert!(uri.query().is_none());
+/// drop(uri);
+/// // In-place decoding is like this if you're interested:
+/// assert_eq!(vec, "?name=Ferris the crabcrab&color=🟠9F%9F%A0".as_bytes());
+/// # Ok::<_, fluent_uri::ParseError>(())
 /// ```
 // TODO: Create a mutable copy of an immutable `Uri` in a buffer:
 #[repr(C)]
@@ -206,12 +224,10 @@ pub struct Uri<T: Storage> {
     cap: u32,
     len: u32,
     tag: Tag,
-    // One byte past the trailing ':'.
-    // This encoding is chosen so that no extra branch is introduced
-    // when indexing the start of the authority.
+    // The index of the trailing ':'.
     scheme_end: Option<NonZeroU32>,
-    host: Option<(NonZeroU32, u32, HostData)>,
-    path: (u32, u32),
+    auth: Option<AuthorityInternal>,
+    path_bounds: (u32, u32),
     // One byte past the last byte of query.
     query_end: Option<NonZeroU32>,
     // One byte past the preceding '#'.
@@ -268,8 +284,8 @@ impl<'a> Uri<&'a str> {
             len: self.len,
             tag: self.tag,
             scheme_end: self.scheme_end,
-            host: self.host,
-            path: self.path,
+            auth: self.auth,
+            path_bounds: self.path_bounds,
             query_end: self.query_end,
             fragment_start: self.fragment_start,
             _marker: PhantomData,
@@ -321,8 +337,8 @@ impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Uri<T> {
             len: self.len,
             tag: self.tag,
             scheme_end: self.scheme_end,
-            host: self.host,
-            path: self.path,
+            auth: self.auth,
+            path_bounds: self.path_bounds,
             query_end: self.query_end,
             fragment_start: self.fragment_start,
             _marker: PhantomData,
@@ -365,7 +381,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Uri<T> {
     pub fn scheme(&'i self) -> Option<&'o Scheme> {
         // SAFETY: The indexes are within bounds.
         self.scheme_end
-            .map(|i| Scheme::new(unsafe { self.slice(0, i.get() - 1) }))
+            .map(|i| Scheme::new(unsafe { self.slice(0, i.get()) }))
     }
 
     /// Returns the [authority] component.
@@ -373,8 +389,8 @@ impl<'i, 'o, T: Io<'i, 'o>> Uri<T> {
     /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
     #[inline]
     pub fn authority(&self) -> Option<&Authority<T>> {
-        if self.host.is_some() {
-            // SAFETY: `host` is `Some`.
+        if self.auth.is_some() {
+            // SAFETY: `auth` is `Some`.
             Some(unsafe { Authority::new(self) })
         } else {
             None
@@ -387,7 +403,9 @@ impl<'i, 'o, T: Io<'i, 'o>> Uri<T> {
             None
         } else {
             // SAFETY: The indexes are within bounds and we have done the validation.
-            Some(Path::new(unsafe { self.eslice(self.path.0, self.path.1) }))
+            Some(Path::new(unsafe {
+                self.eslice(self.path_bounds.0, self.path_bounds.1)
+            }))
         }
     }
 
@@ -413,7 +431,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Uri<T> {
     pub fn query(&'i self) -> Option<&'o EStr> {
         // SAFETY: The indexes are within bounds and we have done the validation.
         self.query_end
-            .map(|i| unsafe { self.eslice(self.path.1 + 1, i.get()) })
+            .map(|i| unsafe { self.eslice(self.path_bounds.1 + 1, i.get()) })
     }
 
     /// Returns the [fragment] component.
@@ -495,13 +513,6 @@ impl<'a> Uri<&'a mut [u8]> {
         unsafe { parser::parse(bytes.as_mut_ptr(), bytes.len() as u32, 0) }
     }
 
-    /// Consumes this `Uri` and yields the underlying mutable byte slice.
-    #[inline]
-    pub fn into_bytes(mut self) -> &'a mut [u8] {
-        // SAFETY: The indexes are within bounds.
-        unsafe { self.slice_mut(0, self.len) }
-    }
-
     #[inline]
     unsafe fn slice_mut(&mut self, start: u32, end: u32) -> &'a mut [u8] {
         debug_assert!(start <= end && end <= self.len);
@@ -522,20 +533,21 @@ impl<'a> Uri<&'a mut [u8]> {
         unsafe { EStrMut::new(s) }
     }
 
-    /// Returns the mutable scheme component.
+    /// Takes the mutable scheme component, leaving a `None` in its place.
     #[inline]
-    pub fn scheme_mut(&mut self) -> Option<&'a mut Scheme> {
-        // SAFETY: The indexes are within bounds. Scheme is valid UTF-8.
+    pub fn take_scheme_mut(&mut self) -> Option<&'a mut Scheme> {
+        // SAFETY: The indexes are within bounds and we have done the validation.
         self.scheme_end
-            .map(|i| unsafe { Scheme::new_mut(self.slice_mut(0, i.get() - 1)) })
+            .take()
+            .map(|i| unsafe { Scheme::new_mut(self.slice_mut(0, i.get())) })
     }
 
     /// Takes the mutable authority component, leaving a `None` in its place.
     #[inline]
     pub fn take_authority_mut(&mut self) -> Option<AuthorityMut<'_, 'a>> {
-        if self.host.is_some() {
-            // SAFETY: `host` is `Some`.
-            // `AuthorityMut` will set `host` to `None` when it gets dropped.
+        if self.auth.is_some() {
+            // SAFETY: `auth` is `Some`.
+            // `AuthorityMut` will set `auth` to `None` when it gets dropped.
             Some(unsafe { AuthorityMut::new(self) })
         } else {
             None
@@ -555,7 +567,7 @@ impl<'a> Uri<&'a mut [u8]> {
         self.tag |= Tag::PATH_TAKEN;
 
         // SAFETY: The indexes are within bounds and we have done the validation.
-        PathMut::new(unsafe { self.eslice_mut(self.path.0, self.path.1) })
+        PathMut::new(unsafe { self.eslice_mut(self.path_bounds.0, self.path_bounds.1) })
     }
 
     /// Takes the mutable query component, leaving a `None` in its place.
@@ -564,7 +576,7 @@ impl<'a> Uri<&'a mut [u8]> {
         // SAFETY: The indexes are within bounds and we have done the validation.
         self.query_end
             .take()
-            .map(|i| unsafe { self.eslice_mut(self.path.1 + 1, i.get()) })
+            .map(|i| unsafe { self.eslice_mut(self.path_bounds.1 + 1, i.get()) })
     }
 
     /// Takes the mutable fragment component, leaving a `None` in its place.
@@ -668,7 +680,7 @@ impl Scheme {
     #[inline]
     unsafe fn new_mut(scheme: &mut [u8]) -> &mut Scheme {
         // SAFETY: Transparency holds.
-        // The caller must guarantee that the bytes are valid UTF-8.
+        // The caller must guarantee that the bytes are valid as a scheme.
         unsafe { &mut *(scheme as *mut [u8] as *mut Scheme) }
     }
 
@@ -715,11 +727,11 @@ impl Scheme {
     /// ```
     /// use fluent_uri::Uri;
     ///
-    /// let mut uri = b"HTTP://example.com/".to_vec();
-    /// let mut uri = Uri::parse_mut(&mut uri)?;
-    /// let mut scheme = uri.scheme_mut().unwrap();
+    /// let mut vec = b"HTTP://example.com/".to_vec();
+    /// let mut uri = Uri::parse_mut(&mut vec)?;
+    ///
+    /// let mut scheme = uri.take_scheme_mut().unwrap();
     /// assert_eq!(scheme.make_lowercase(), "http");
-    /// assert_eq!(uri.into_bytes(), b"http://example.com/");
     /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     #[inline]
@@ -762,6 +774,13 @@ impl Scheme {
     }
 }
 
+#[derive(Clone, Copy)]
+struct AuthorityInternal {
+    start: NonZeroU32,
+    host_bounds: (u32, u32),
+    host_data: HostData,
+}
+
 /// The [authority] component of URI reference.
 ///
 /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
@@ -786,7 +805,7 @@ impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Authority<T> {
     #[inline]
     pub fn as_str(&'i self) -> &'o str {
         // SAFETY: The indexes are within bounds.
-        unsafe { self.uri.slice(self.start(), self.uri.path.0) }
+        unsafe { self.uri.slice(self.start(), self.uri.path_bounds.0) }
     }
 }
 
@@ -794,27 +813,35 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     #[inline]
     unsafe fn new(uri: &Uri<T>) -> &Authority<T> {
         // SAFETY: Transparency holds.
-        // The caller must guarantee that `host` is `Some`.
+        // The caller must guarantee that `auth` is `Some`.
         unsafe { &*(uri as *const Uri<T> as *const Authority<T>) }
     }
 
     #[inline]
+    fn internal(&self) -> &AuthorityInternal {
+        // SAFETY: When authority is present, `auth` must be `Some`.
+        unsafe { self.uri.auth.as_ref().unwrap_unchecked() }
+    }
+
+    #[inline]
+    fn internal_mut(&mut self) -> &mut AuthorityInternal {
+        // SAFETY: When authority is present, `auth` must be `Some`.
+        unsafe { self.uri.auth.as_mut().unwrap_unchecked() }
+    }
+
+    #[inline]
     fn start(&self) -> u32 {
-        self.uri.scheme_end.map(|x| x.get()).unwrap_or(0) + 2
+        self.internal().start.get()
     }
 
     #[inline]
     fn host_bounds(&self) -> (u32, u32) {
-        // SAFETY: When authority is present, `host` must be `Some`.
-        let host = unsafe { self.uri.host.as_ref().unwrap_unchecked() };
-        (host.0.get(), host.1)
+        self.internal().host_bounds
     }
 
     #[inline]
     fn host_data(&self) -> &HostData {
-        // SAFETY: When authority is present, `host` must be `Some`.
-        let host = unsafe { self.uri.host.as_ref().unwrap_unchecked() };
-        &host.2
+        &self.internal().host_data
     }
 
     /// Returns the [userinfo] subcomponent.
@@ -833,14 +860,9 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     /// ```
     #[inline]
     pub fn userinfo(&'i self) -> Option<&'o EStr> {
-        if self.uri.tag.contains(Tag::HAS_USERINFO) {
-            let start = self.start();
-            let host_start = self.host_bounds().0;
-            // SAFETY: The indexes are within bounds and we have done the validation.
-            Some(unsafe { self.uri.eslice(start, host_start - 1) })
-        } else {
-            None
-        }
+        let (start, host_start) = (self.start(), self.host_bounds().0);
+        // SAFETY: The indexes are within bounds and we have done the validation.
+        (start != host_start).then(|| unsafe { self.uri.eslice(start, host_start - 1) })
     }
 
     #[inline]
@@ -920,8 +942,8 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     pub fn port_raw(&'i self) -> Option<&'o str> {
         let host_end = self.host_bounds().1;
         // SAFETY: The indexes are within bounds.
-        (host_end != self.uri.path.0)
-            .then(|| unsafe { self.uri.slice(host_end + 1, self.uri.path.0) })
+        (host_end != self.uri.path_bounds.0)
+            .then(|| unsafe { self.uri.slice(host_end + 1, self.uri.path_bounds.0) })
     }
 
     /// Parses the [port] subcomponent as `u16`.
@@ -964,12 +986,11 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
 
 bitflags! {
     struct Tag: u32 {
-        const HOST_REG_NAME = 0b000001;
-        const HOST_IPV4 = 0b000010;
-        const HOST_IPV6 = 0b000100;
-        const HAS_USERINFO = 0b001000;
-        const PATH_TAKEN = 0b010000;
-        const HOST_TAKEN = 0b100000;
+        const HOST_REG_NAME = 0b00000001;
+        const HOST_IPV4     = 0b00000010;
+        const HOST_IPV6     = 0b00000100;
+        const PATH_TAKEN    = 0b00001000;
+        const HOST_TAKEN    = 0b00010000;
     }
 }
 

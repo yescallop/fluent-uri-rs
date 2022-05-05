@@ -698,7 +698,6 @@ impl<'a> DoubleEndedIterator for SplitMut<'a> {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// An error occurred when attempting to write to a buffer that is too small.
 ///
 /// This error is created by the [`to_mut_in`] method on [`Uri`].
@@ -707,6 +706,7 @@ impl<'a> DoubleEndedIterator for SplitMut<'a> {
 /// [`to_mut_in`]: crate::Uri::to_mut_in
 /// [`Uri`]: crate::Uri
 #[cfg(feature = "unstable")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BufferTooSmallError(());
 
 #[cfg(feature = "unstable")]

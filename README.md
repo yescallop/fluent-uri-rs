@@ -37,32 +37,48 @@ API Docs: [docs.rs](https://docs.rs/fluent-uri) | [dev](https://yescallop.cn/flu
   - `Uri<&mut [u8]>`: borrowed; in-place mutable.
   - `Uri<String>`: owned; immutable.
   
-  Lifetimes are correctly handled in a way that `Uri<&'a str>` and `Uri<&'a mut [u8]>` both
-  output references with lifetime `'a`. This allows you to drop a temporary `Uri` while keeping
+  Lifetimes are correctly handled in a way that `Uri<&'a str>` output references
+  with lifetime `'a`. This allows you to drop a temporary `Uri<&str>` while keeping
   the output references:
 
   ```rust
-  let uri = Uri::parse("foo:bar").expect("invalid URI reference");
+  let uri = Uri::parse("foo:bar")?;
   let path = uri.path();
   drop(uri);
   assert_eq!(path.as_str(), "bar");
   ```
 
-  Decode path segments in-place and collect them into a `Vec`:
+  Decode and extract query parameters in-place from a URI reference:
 
   ```rust
-  fn decode_path_segments(uri: &mut [u8]) -> Option<Vec<&str>> {
-      let mut uri = Uri::parse_mut(uri).ok()?;
-      let segs = uri.take_path_mut().segments_mut();
-      let mut out = Vec::new();
-      for seg in segs {
-          out.push(seg.decode_in_place().into_str().ok()?);
-      }
-      Some(out)
+  fn decode_and_extract_query(
+      bytes: &mut [u8],
+  ) -> Result<(Uri<&mut [u8]>, HashMap<&str, &str>), ParseError> {
+      let mut uri = Uri::parse_mut(bytes)?;
+      let map = if let Some(query) = uri.take_query_mut() {
+          query
+              .split_mut('&')
+              .flat_map(|pair| pair.split_once_mut('='))
+              .map(|(k, v)| (k.decode_in_place(), v.decode_in_place()))
+              .flat_map(|(k, v)| k.into_str().ok().zip(v.into_str().ok()))
+              .collect()
+      } else {
+          HashMap::new()
+      };
+      Ok((uri, map))
   }
-     
-  let mut uri = b"/path/to/my%20music".to_vec();
-  assert_eq!(decode_path_segments(&mut uri).unwrap(), ["path", "to", "my music"]);
+
+  let mut vec = b"?name=Ferris%20the%20crab&color=orange".to_vec();
+  let (uri, query) = decode_and_extract_query(&mut vec)?;
+
+  assert_eq!(query["name"], "Ferris the crab");
+  assert_eq!(query["color"], "🟠");
+
+  // The query is taken from the `Uri`.
+  assert!(uri.query().is_none());
+  drop(uri);
+  // In-place decoding is like this if you're interested:
+  assert_eq!(vec, "?name=Ferris the crabcrab&color=🟠9F%9F%A0".as_bytes());
   ```
 
 ## Roadmap

@@ -29,26 +29,35 @@ impl<'i, 'a> AuthorityMut<'i, 'a> {
     }
 
     /// Consumes this `AuthorityMut` and yields the underlying mutable byte slice.
+    ///
+    /// The userinfo subcomponent is truncated if it is already taken.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the host subcomponent is already taken.
     #[inline]
     pub fn into_bytes(self) -> &'a mut [u8] {
+        if self.uri.tag.contains(Tag::HOST_TAKEN) {
+            component_taken();
+        }
         // SAFETY: The indexes are within bounds.
-        unsafe { self.inner.uri.slice_mut(self.start(), self.uri.path.0) }
+        unsafe {
+            self.inner
+                .uri
+                .slice_mut(self.start(), self.uri.path_bounds.0)
+        }
     }
 
     /// Takes the mutable userinfo subcomponent, leaving a `None` in its place.
     #[inline]
     pub fn take_userinfo_mut(&mut self) -> Option<EStrMut<'a>> {
-        let tag = &mut self.inner.uri.tag;
-        if tag.contains(Tag::HAS_USERINFO) {
-            tag.remove(Tag::HAS_USERINFO);
-
-            let start = self.start();
-            let host_start = self.host_bounds().0;
+        let (start, host_start) = (self.start(), self.host_bounds().0);
+        (start != host_start).then(|| unsafe {
+            // SAFETY: Host won't start at index 0.
+            self.inner.internal_mut().start = NonZeroU32::new_unchecked(host_start);
             // SAFETY: The indexes are within bounds and we have done the validation.
-            Some(unsafe { self.inner.uri.eslice_mut(start, host_start - 1) })
-        } else {
-            None
-        }
+            self.inner.uri.eslice_mut(start, host_start - 1)
+        })
     }
 
     /// Takes the raw mutable host subcomponent.
@@ -86,7 +95,7 @@ impl<'i, 'a> AuthorityMut<'i, 'a> {
 impl<'i, 'a> Drop for AuthorityMut<'i, 'a> {
     #[inline]
     fn drop(&mut self) {
-        self.inner.uri.host = None;
+        self.inner.uri.auth = None;
     }
 }
 
