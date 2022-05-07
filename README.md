@@ -55,7 +55,7 @@ API Docs: [docs.rs](https://docs.rs/fluent-uri) | [dev](https://yescallop.cn/flu
       bytes: &mut [u8],
   ) -> Result<(Uri<&mut [u8]>, HashMap<&str, &str>), ParseError> {
       let mut uri = Uri::parse_mut(bytes)?;
-      let map = if let Some(query) = uri.take_query_mut() {
+      let map = if let Some(query) = uri.take_query() {
           query
               .split_mut('&')
               .flat_map(|pair| pair.split_once_mut('='))
