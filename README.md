@@ -68,7 +68,7 @@ API Docs: [docs.rs](https://docs.rs/fluent-uri) | [dev](https://yescallop.cn/flu
       Ok((uri, map))
   }
 
-  let mut vec = b"?name=Ferris%20the%20crab&color=orange".to_vec();
+  let mut vec = b"?name=Ferris%20the%20crab&color=%F0%9F%9F%A0".to_vec();
   let (uri, query) = decode_and_extract_query(&mut vec)?;
 
   assert_eq!(query["name"], "Ferris the crab");
