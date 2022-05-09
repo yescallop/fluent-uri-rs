@@ -5,7 +5,7 @@ use std::{mem, ops::Deref};
 use super::*;
 use crate::encoding::SplitMut;
 
-/// A wrapper around a mutable reference that may be mutably used only once.
+/// A wrapper around a mutable reference that may not be mutably reborrowed.
 ///
 /// This struct was introduced considering the fact that a bare `&mut EStr` wouldn't
 /// do for in-place decoding because such decoding breaks the invariant of [`EStr`].
