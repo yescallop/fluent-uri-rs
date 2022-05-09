@@ -5,7 +5,7 @@ use mutable::*;
 
 mod parser;
 
-use crate::encoding::{EStr, EStrMut, Split};
+use crate::encoding::{EStr, Split};
 use bitflags::bitflags;
 use std::{
     marker::PhantomData,
@@ -224,7 +224,9 @@ pub struct Uri<T: Storage> {
     cap: u32,
     len: u32,
     tag: Tag,
-    // The index of the trailing ':'.
+    // One byte past the trailing ':'.
+    // This encoding is chosen so that no extra branch is introduced
+    // when indexing the start of the authority.
     scheme_end: Option<NonZeroU32>,
     auth: Option<AuthorityInternal>,
     path_bounds: (u32, u32),
@@ -379,9 +381,13 @@ impl<'i, 'o, T: Io<'i, 'o>> Uri<T> {
     /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
     #[inline]
     pub fn scheme(&'i self) -> Option<&'o Scheme> {
+        if T::is_mut() && self.tag.contains(Tag::SCHEME_TAKEN) {
+            return None;
+        }
+
         // SAFETY: The indexes are within bounds.
         self.scheme_end
-            .map(|i| Scheme::new(unsafe { self.slice(0, i.get()) }))
+            .map(|i| Scheme::new(unsafe { self.slice(0, i.get() - 1) }))
     }
 
     /// Returns the [authority] component.
@@ -526,20 +532,30 @@ impl<'a> Uri<&'a mut [u8]> {
     }
 
     #[inline]
-    unsafe fn eslice_mut(&mut self, start: u32, end: u32) -> EStrMut<'a> {
+    unsafe fn eslice_mut(&mut self, start: u32, end: u32) -> OnceMut<'a, EStr> {
         // SAFETY: The caller must ensure that the indexes are within bounds.
         let s = unsafe { self.slice_mut(start, end) };
         // SAFETY: The caller must ensure that the subslice is properly encoded.
-        unsafe { EStrMut::new(s) }
+        unsafe { OnceMut::new_estr(s) }
+    }
+
+    #[inline]
+    unsafe fn sslice_mut(&mut self, start: u32, end: u32) -> OnceMut<'a, str> {
+        // SAFETY: The caller must ensure that the indexes are within bounds and the bytes are valid UTF-8.
+        unsafe { OnceMut::new_str(self.slice_mut(start, end)) }
     }
 
     /// Takes the mutable scheme component, leaving a `None` in its place.
     #[inline]
-    pub fn take_scheme(&mut self) -> Option<&'a mut Scheme> {
+    pub fn take_scheme(&mut self) -> Option<OnceMut<'a, Scheme>> {
+        if self.tag.contains(Tag::SCHEME_TAKEN) {
+            return None;
+        }
+        self.tag |= Tag::SCHEME_TAKEN;
+
         // SAFETY: The indexes are within bounds and we have done the validation.
         self.scheme_end
-            .take()
-            .map(|i| unsafe { Scheme::new_mut(self.slice_mut(0, i.get())) })
+            .map(|i| unsafe { OnceMut::new_scheme(self.slice_mut(0, i.get() - 1)) })
     }
 
     /// Takes the mutable authority component, leaving a `None` in its place.
@@ -560,19 +576,19 @@ impl<'a> Uri<&'a mut [u8]> {
     ///
     /// Panics if the path component is already taken.
     #[inline]
-    pub fn take_path(&mut self) -> PathMut<'a> {
+    pub fn take_path(&mut self) -> OnceMut<'a, Path> {
         if self.tag.contains(Tag::PATH_TAKEN) {
             component_taken();
         }
         self.tag |= Tag::PATH_TAKEN;
 
         // SAFETY: The indexes are within bounds and we have done the validation.
-        PathMut::new(unsafe { self.eslice_mut(self.path_bounds.0, self.path_bounds.1) })
+        OnceMut::new_path(unsafe { self.eslice_mut(self.path_bounds.0, self.path_bounds.1) })
     }
 
     /// Takes the mutable query component, leaving a `None` in its place.
     #[inline]
-    pub fn take_query(&mut self) -> Option<EStrMut<'a>> {
+    pub fn take_query(&mut self) -> Option<OnceMut<'a, EStr>> {
         // SAFETY: The indexes are within bounds and we have done the validation.
         self.query_end
             .take()
@@ -581,7 +597,7 @@ impl<'a> Uri<&'a mut [u8]> {
 
     /// Takes the mutable fragment component, leaving a `None` in its place.
     #[inline]
-    pub fn take_fragment(&mut self) -> Option<EStrMut<'a>> {
+    pub fn take_fragment(&mut self) -> Option<OnceMut<'a, EStr>> {
         // SAFETY: The indexes are within bounds and we have done the validation.
         self.fragment_start
             .take()
@@ -677,13 +693,6 @@ impl Scheme {
         unsafe { &*(scheme as *const str as *const Scheme) }
     }
 
-    #[inline]
-    unsafe fn new_mut(scheme: &mut [u8]) -> &mut Scheme {
-        // SAFETY: Transparency holds.
-        // The caller must guarantee that the bytes are valid as a scheme.
-        unsafe { &mut *(scheme as *mut [u8] as *mut Scheme) }
-    }
-
     /// Returns the raw scheme as a string slice.
     ///
     /// # Examples
@@ -720,30 +729,6 @@ impl Scheme {
         unsafe { String::from_utf8_unchecked(bytes) }
     }
 
-    /// Converts the scheme to lower case in-place.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use fluent_uri::Uri;
-    ///
-    /// let mut vec = b"HTTP://example.com/".to_vec();
-    /// let mut uri = Uri::parse_mut(&mut vec)?;
-    ///
-    /// let mut scheme = uri.take_scheme().unwrap();
-    /// assert_eq!(scheme.make_lowercase(), "http");
-    /// # Ok::<_, fluent_uri::ParseError>(())
-    /// ```
-    #[inline]
-    pub fn make_lowercase(&mut self) -> &str {
-        // SAFETY: Setting the sixth bit keeps UTF-8.
-        let bytes = unsafe { self.0.as_bytes_mut() };
-        for byte in bytes {
-            *byte |= ASCII_CASE_MASK;
-        }
-        &self.0
-    }
-
     /// Checks if the scheme equals case-insensitively with a lowercase string.
     ///
     /// This function is faster than [`str::eq_ignore_ascii_case`] but will
@@ -776,8 +761,7 @@ impl Scheme {
 
 #[derive(Clone, Copy)]
 struct AuthorityInternal {
-    start: NonZeroU32,
-    host_bounds: (u32, u32),
+    host_bounds: (NonZeroU32, u32),
     host_data: HostData,
 }
 
@@ -824,19 +808,14 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     }
 
     #[inline]
-    fn internal_mut(&mut self) -> &mut AuthorityInternal {
-        // SAFETY: When authority is present, `auth` must be `Some`.
-        unsafe { self.uri.auth.as_mut().unwrap_unchecked() }
-    }
-
-    #[inline]
     fn start(&self) -> u32 {
-        self.internal().start.get()
+        self.uri.scheme_end.map(|x| x.get()).unwrap_or(0) + 2
     }
 
     #[inline]
     fn host_bounds(&self) -> (u32, u32) {
-        self.internal().host_bounds
+        let bounds = self.internal().host_bounds;
+        (bounds.0.get(), bounds.1)
     }
 
     #[inline]
@@ -860,6 +839,10 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     /// ```
     #[inline]
     pub fn userinfo(&'i self) -> Option<&'o EStr> {
+        if T::is_mut() && self.uri.tag.contains(Tag::USERINFO_TAKEN) {
+            return None;
+        }
+
         let (start, host_start) = (self.start(), self.host_bounds().0);
         // SAFETY: The indexes are within bounds and we have done the validation.
         (start != host_start).then(|| unsafe { self.uri.eslice(start, host_start - 1) })
@@ -940,6 +923,10 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     /// ```
     #[inline]
     pub fn port_raw(&'i self) -> Option<&'o str> {
+        if T::is_mut() && self.uri.tag.contains(Tag::PORT_TAKEN) {
+            return None;
+        }
+
         let host_end = self.host_bounds().1;
         // SAFETY: The indexes are within bounds.
         (host_end != self.uri.path_bounds.0)
@@ -986,11 +973,16 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
 
 bitflags! {
     struct Tag: u32 {
-        const HOST_REG_NAME = 0b00000001;
-        const HOST_IPV4     = 0b00000010;
-        const HOST_IPV6     = 0b00000100;
-        const PATH_TAKEN    = 0b00001000;
-        const HOST_TAKEN    = 0b00010000;
+        const HOST_REG_NAME  = 0b00000001;
+        const HOST_IPV4      = 0b00000010;
+        const HOST_IPV6      = 0b00000100;
+        const SCHEME_TAKEN   = 0b00001000;
+        const USERINFO_TAKEN = 0b00010000;
+        const HOST_TAKEN     = 0b00100000;
+        const PORT_TAKEN     = 0b01000000;
+        const PATH_TAKEN     = 0b10000000;
+
+        const AUTH_SUB_TAKEN = 0b01110000;
     }
 }
 

@@ -150,3 +150,10 @@ impl<'a> fmt::Display for Host<'a> {
         }
     }
 }
+
+impl<'a, T: ?Sized + fmt::Display> fmt::Display for OnceMut<'a, T> {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self.0, f)
+    }
+}

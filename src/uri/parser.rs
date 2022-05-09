@@ -193,7 +193,7 @@ impl Parser {
         if self.peek(0) == Some(b':') {
             // Scheme starts with a letter.
             if self.pos != 0 && self.get(0).is_ascii_alphabetic() {
-                self.out.scheme_end = NonZeroU32::new(self.pos);
+                self.out.scheme_end = NonZeroU32::new(self.pos + 1);
             } else {
                 err!(0, UnexpectedChar);
             }
@@ -216,7 +216,6 @@ impl Parser {
     }
 
     fn parse_from_authority(&mut self) -> Result<()> {
-        let start = self.pos;
         let host;
 
         // This table contains userinfo, reg-name, ":", and port.
@@ -312,9 +311,8 @@ impl Parser {
         }
 
         self.out.auth = Some(AuthorityInternal {
-            // SAFETY: Authority won't start at index 0.
-            start: unsafe { NonZeroU32::new_unchecked(start) },
-            host_bounds: (host.0, host.1),
+            // SAFETY: Host won't start at index 0.
+            host_bounds: (unsafe { NonZeroU32::new_unchecked(host.0) }, host.1),
             host_data: host.2,
         });
         self.parse_from_path(PathKind::AbEmpty)

@@ -18,10 +18,11 @@ pub use unstable::*;
 use std::{
     borrow::{self, Cow},
     fmt, hash, mem,
-    ops::Deref,
     str::{self, Utf8Error},
     string::FromUtf8Error,
 };
+
+use crate::mutable::OnceMut;
 
 /// Percent-encoded string slices.
 ///
@@ -131,7 +132,7 @@ impl EStr {
     /// Converts a byte slice into an `EStr` assuming validity.
     #[inline]
     pub(crate) const unsafe fn new_unchecked(s: &[u8]) -> &EStr {
-        // SAFETY: The caller must ensure that the byte slice is valid percent-encoded UTF-8.
+        // SAFETY: The caller must ensure that the bytes are valid percent-encoded UTF-8.
         unsafe { &*(s as *const [u8] as *const EStr) }
     }
 
@@ -159,8 +160,8 @@ impl EStr {
         // SAFETY: An `EStr` may only be created through `new_unchecked`,
         // of which the caller must guarantee that the string is properly encoded.
         match unsafe { decode_unchecked(&self.inner) } {
-            Some(s) => Decode(Cow::Owned(s)),
-            None => Decode(Cow::Borrowed(self.as_str().as_bytes())),
+            Some(s) => Decode::Dst(s),
+            None => Decode::Src(self.as_str()),
         }
     }
 
@@ -268,55 +269,30 @@ impl EStr {
 }
 
 /// A wrapper around a mutable [`EStr`] that allows in-place percent-decoding.
-///
-/// This struct was introduced considering the fact that a bare `&mut EStr` wouldn't
-/// do for in-place decoding because such decoding breaks the invariant of [`EStr`].
-///
-/// For non-percent-encoded data to be in-place mutable, `EStrMut` also has an
-/// advantage over `&mut str` or `&mut [u8]` that you can first borrow it as an `&str`
-/// and then turn it into an `&mut [u8]`.
-#[repr(transparent)]
-#[derive(Debug)]
-pub struct EStrMut<'a>(&'a mut EStr);
-
-impl<'a> Deref for EStrMut<'a> {
-    type Target = EStr;
+impl<'a> OnceMut<'a, EStr> {
+    /// Converts a byte slice into a `OnceMut<EStr>` assuming validity.
     #[inline]
-    fn deref(&self) -> &EStr {
-        self.0
-    }
-}
-
-impl<'a> EStrMut<'a> {
-    /// Converts a byte slice into an `EStrMut` assuming validity.
-    #[inline]
-    pub(crate) unsafe fn new(s: &mut [u8]) -> EStrMut<'_> {
-        // SAFETY: The caller must ensure that the byte slice is valid percent-encoded UTF-8.
-        EStrMut(unsafe { &mut *(s as *mut [u8] as *mut EStr) })
+    pub(crate) unsafe fn new_estr(s: &mut [u8]) -> OnceMut<'_, EStr> {
+        // SAFETY: The caller must ensure that the bytes are valid percent-encoded UTF-8.
+        OnceMut(unsafe { &mut *(s as *mut [u8] as *mut EStr) })
     }
 
-    /// Consumes this `EStrMut` and yields the underlying mutable byte slice.
+    /// Consumes this `OnceMut<EStr>` and yields the underlying mutable byte slice.
     #[inline]
     pub fn into_bytes(self) -> &'a mut [u8] {
         &mut self.0.inner
     }
 
-    /// Consumes this `EStrMut` and yields the underlying `EStr`.
-    #[inline]
-    pub fn into_ref(self) -> &'a EStr {
-        self.0
-    }
-
-    /// Decodes the `EStrMut` in-place.
+    /// Decodes the `OnceMut<EStr>` in-place.
     #[inline]
     pub fn decode_in_place(self) -> DecodeInPlace<'a> {
         let bytes = self.into_bytes();
-        // SAFETY: An `EStrMut` may only be created through `new`,
+        // SAFETY: An `OnceMut<EStr>` may only be created through `new_estr`,
         // of which the caller must guarantee that the string is properly encoded.
         let len = unsafe { imp::decode_in_place_unchecked(bytes) };
         if len == bytes.len() {
-            // SAFETY: Nothing is decoded so the bytes are valid percent-encoded UTF-8.
-            DecodeInPlace::Src(unsafe { EStrMut::new(bytes) })
+            // SAFETY: Nothing is decoded so the bytes are valid UTF-8.
+            DecodeInPlace::Src(unsafe { OnceMut::new_str(bytes) })
         } else {
             // SAFETY: The length must be less.
             DecodeInPlace::Dst(unsafe { bytes.get_unchecked_mut(..len) })
@@ -344,7 +320,7 @@ impl<'a> EStrMut<'a> {
         }
     }
 
-    /// Splits the `EStrMut` on the first occurrence of the given delimiter and
+    /// Splits the `OnceMut<EStr>` on the first occurrence of the given delimiter and
     /// returns prefix before delimiter and suffix after delimiter.
     ///
     /// Returns `Err(self)` if the delimiter is not found.
@@ -367,36 +343,47 @@ impl<'a> EStrMut<'a> {
         };
         let (head, tail) = self.into_bytes().split_at_mut(i);
         // SAFETY: Splitting at a reserved character leaves valid percent-encoded UTF-8.
-        unsafe { Ok((EStrMut::new(head), EStrMut::new(&mut tail[1..]))) }
+        unsafe { Ok((Self::new_estr(head), Self::new_estr(&mut tail[1..]))) }
     }
 }
 
 /// A wrapper of percent-decoded bytes.
 ///
-/// This struct is created by the [`decode`] method on [`EStr`].
+/// This enum is created by the [`decode`] method on [`EStr`].
 ///
 /// [`decode`]: EStr::decode
 #[derive(Debug)]
-pub struct Decode<'a>(Cow<'a, [u8]>);
+pub enum Decode<'a> {
+    /// No percent-encoded octets are decoded.
+    Src(&'a str),
+    /// One or more percent-encoded octets are decoded.
+    Dst(Vec<u8>),
+}
 
 impl<'a> Decode<'a> {
     /// Returns a reference to the decoded bytes.
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
-        &self.0
+        match self {
+            Self::Src(s) => s.as_bytes(),
+            Self::Dst(vec) => vec,
+        }
     }
 
     /// Consumes this `Decode` and yields the underlying decoded bytes.
     #[inline]
     pub fn into_bytes(self) -> Cow<'a, [u8]> {
-        self.0
+        match self {
+            Self::Src(s) => Cow::Borrowed(s.as_bytes()),
+            Self::Dst(vec) => Cow::Owned(vec),
+        }
     }
 
-    /// Returns `true` if anything is decoded, i.e., the underlying [`Cow`] is owned.
+    /// Returns `true` if anything is decoded.
     #[cfg(feature = "unstable")]
     #[inline]
     pub fn decoded_any(&self) -> bool {
-        matches!(self.0, Cow::Owned(_))
+        matches!(self, Self::Dst(_))
     }
 
     /// Converts the decoded bytes to a string.
@@ -405,23 +392,21 @@ impl<'a> Decode<'a> {
     #[inline]
     pub fn into_string(self) -> Result<Cow<'a, str>, FromUtf8Error> {
         // FIXME: A (maybe) more efficient approach: only validating encoded sequences.
-        match self.0 {
-            // SAFETY: If the bytes are borrowed, they must be valid UTF-8.
-            Cow::Borrowed(bytes) => Ok(Cow::Borrowed(unsafe { str::from_utf8_unchecked(bytes) })),
-            Cow::Owned(vec) => String::from_utf8(vec).map(Cow::Owned),
+        match self {
+            Self::Src(s) => Ok(Cow::Borrowed(s)),
+            Self::Dst(vec) => String::from_utf8(vec).map(Cow::Owned),
         }
     }
 
     /// Converts the decoded bytes to a string lossily.
     pub fn into_string_lossy(self) -> Cow<'a, str> {
-        match self.0 {
-            // SAFETY: If the bytes are borrowed, they must be valid UTF-8.
-            Cow::Borrowed(bytes) => Cow::Borrowed(unsafe { str::from_utf8_unchecked(bytes) }),
-            Cow::Owned(vec) => match String::from_utf8_lossy(&vec) {
+        match self {
+            Self::Src(s) => Cow::Borrowed(s),
+            Self::Dst(vec) => Cow::Owned(match String::from_utf8_lossy(&vec) {
                 // SAFETY: If a borrowed string slice is returned, the bytes must be valid UTF-8.
-                Cow::Borrowed(_) => Cow::Owned(unsafe { String::from_utf8_unchecked(vec) }),
-                Cow::Owned(string) => Cow::Owned(string),
-            },
+                Cow::Borrowed(_) => unsafe { String::from_utf8_unchecked(vec) },
+                Cow::Owned(string) => string,
+            }),
         }
     }
 }
@@ -492,13 +477,13 @@ impl<'src, 'dst> DecodeRef<'src, 'dst> {
 
 /// A wrapper of in-place percent-decoded bytes.
 ///
-/// This enum is created by the [`decode_in_place`] method on [`EStrMut`].
+/// This enum is created by the [`decode_in_place`] method on [`OnceMut<EStr>`].
 ///
-/// [`decode_in_place`]: EStrMut::decode_in_place
+/// [`decode_in_place`]: OnceMut::<EStr>::decode_in_place
 #[derive(Debug)]
 pub enum DecodeInPlace<'a> {
     /// No percent-encoded octets are decoded.
-    Src(EStrMut<'a>),
+    Src(OnceMut<'a, str>),
     /// One or more percent-encoded octets are decoded.
     Dst(&'a mut [u8]),
 }
@@ -508,7 +493,7 @@ impl<'a> DecodeInPlace<'a> {
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
         match self {
-            Self::Src(s) => s.as_str().as_bytes(),
+            Self::Src(s) => s.as_bytes(),
             Self::Dst(s) => s,
         }
     }
@@ -535,7 +520,7 @@ impl<'a> DecodeInPlace<'a> {
     #[inline]
     pub fn into_str(self) -> Result<&'a str, (&'a mut [u8], Utf8Error)> {
         match self {
-            Self::Src(s) => Ok(s.into_ref().as_str()),
+            Self::Src(s) => Ok(s.into_ref()),
             Self::Dst(s) => {
                 // Can't use a match here.
                 if let Err(e) = str::from_utf8(s) {
@@ -552,7 +537,7 @@ impl<'a> DecodeInPlace<'a> {
     #[inline]
     pub fn into_string_lossy(self) -> Cow<'a, str> {
         match self {
-            Self::Src(s) => Cow::Borrowed(s.into_ref().as_str()),
+            Self::Src(s) => Cow::Borrowed(s.into_ref()),
             Self::Dst(s) => String::from_utf8_lossy(s),
         }
     }
@@ -627,11 +612,11 @@ impl<'a> DoubleEndedIterator for Split<'a> {
     }
 }
 
-/// An iterator over mutable subslices of an [`EStrMut`] separated by a delimiter.
+/// An iterator over mutable subslices of a [`OnceMut<EStr>`] separated by a delimiter.
 ///
-/// This struct is created by the [`split_mut`] method on [`EStrMut`].
+/// This struct is created by the [`split_mut`] method on [`OnceMut<EStr>`].
 ///
-/// [`split_mut`]: EStrMut::split_mut
+/// [`split_mut`]: OnceMut::<EStr>::split_mut
 #[derive(Debug)]
 pub struct SplitMut<'a> {
     s: &'a mut [u8],
@@ -640,10 +625,10 @@ pub struct SplitMut<'a> {
 }
 
 impl<'a> Iterator for SplitMut<'a> {
-    type Item = EStrMut<'a>;
+    type Item = OnceMut<'a, EStr>;
 
     #[inline]
-    fn next(&mut self) -> Option<EStrMut<'a>> {
+    fn next(&mut self) -> Option<OnceMut<'a, EStr>> {
         if self.finished {
             return None;
         }
@@ -661,7 +646,7 @@ impl<'a> Iterator for SplitMut<'a> {
             }
         };
         // SAFETY: Splitting at a reserved character leaves valid percent-encoded UTF-8.
-        Some(unsafe { EStrMut::new(head) })
+        Some(unsafe { OnceMut::new_estr(head) })
     }
 
     #[inline]
@@ -676,7 +661,7 @@ impl<'a> Iterator for SplitMut<'a> {
 
 impl<'a> DoubleEndedIterator for SplitMut<'a> {
     #[inline]
-    fn next_back(&mut self) -> Option<EStrMut<'a>> {
+    fn next_back(&mut self) -> Option<OnceMut<'a, EStr>> {
         if self.finished {
             return None;
         }
@@ -694,7 +679,7 @@ impl<'a> DoubleEndedIterator for SplitMut<'a> {
             }
         };
         // SAFETY: Splitting at a reserved character leaves valid percent-encoded UTF-8.
-        Some(unsafe { EStrMut::new(tail) })
+        Some(unsafe { OnceMut::new_estr(tail) })
     }
 }
 
