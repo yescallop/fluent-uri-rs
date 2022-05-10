@@ -1,6 +1,6 @@
 use std::{borrow::Borrow, fmt, hash, marker::PhantomData, ops::Deref};
 
-use crate::encoding::{
+use crate::enc::{
     table::{self, Table},
     EStr, EncodingError, Result, HEX_TABLE,
 };

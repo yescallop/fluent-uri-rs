@@ -1,4 +1,4 @@
-use crate::encoding::{
+use crate::enc::{
     table::{Table, HEXDIG},
     *,
 };

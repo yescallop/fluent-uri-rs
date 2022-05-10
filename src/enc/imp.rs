@@ -4,9 +4,9 @@ use std::{fmt, ptr};
 /// Returns immediately with an encoding error.
 macro_rules! err {
     ($index:expr, $kind:ident) => {
-        return Err(crate::encoding::EncodingError {
+        return Err(crate::enc::EncodingError {
             index: $index as usize,
-            kind: crate::encoding::EncodingErrorKind::$kind,
+            kind: crate::enc::EncodingErrorKind::$kind,
         })
     };
 }

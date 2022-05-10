@@ -1,5 +1,5 @@
 use crate::{
-    encoding::{table::*, OCTET_TABLE_LO},
+    enc::{table::*, OCTET_TABLE_LO},
     uri::{AuthorityInternal, HostData, Tag},
     Result, Uri,
 };

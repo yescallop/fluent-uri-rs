@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use fluent_uri::{
-    encoding::{table::*, *},
+    enc::{table::*, *},
     *,
 };
 use iri_string::types::UriReferenceStr;

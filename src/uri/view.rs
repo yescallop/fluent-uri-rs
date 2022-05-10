@@ -3,7 +3,7 @@
 use std::ops::Deref;
 
 use super::*;
-use crate::encoding::SplitView;
+use crate::enc::SplitView;
 
 mod internal {
     use super::*;

@@ -24,7 +24,7 @@
 //! [draft]: https://datatracker.ietf.org/doc/html/draft-ietf-6man-rfc6874bis-01
 
 /// Utilities for percent-encoding.
-pub mod encoding;
+pub mod enc;
 
 mod uri;
 pub use uri::*;

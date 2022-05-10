@@ -5,7 +5,7 @@ use view::*;
 
 mod parser;
 
-use crate::encoding::{EStr, Split};
+use crate::enc::{EStr, Split};
 use bitflags::bitflags;
 use std::{
     marker::PhantomData,
@@ -318,7 +318,7 @@ impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Uri<T> {
     /// [`BufferTooSmallError`]: crate::mutable::BufferTooSmallError
     #[cfg(feature = "unstable")]
     #[inline]
-    pub fn to_mut_in<'b, B: crate::encoding::internal::Buf + ?Sized>(
+    pub fn to_mut_in<'b, B: crate::enc::internal::Buf + ?Sized>(
         &self,
         buf: &'b mut B,
     ) -> Result<Uri<&'b mut [u8]>, B::PrepareError> {

@@ -1,5 +1,5 @@
 #![no_main]
-use fluent_uri::encoding::*;
+use fluent_uri::enc::*;
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {

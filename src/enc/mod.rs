@@ -32,7 +32,7 @@ use crate::view::View;
 ///
 /// ```
 /// use std::collections::HashMap;
-/// use fluent_uri::encoding::EStr;
+/// use fluent_uri::enc::EStr;
 ///
 /// let s = "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21";
 /// let map: HashMap<_, _> = EStr::new(s)
@@ -148,7 +148,7 @@ impl EStr {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::encoding::EStr;
+    /// use fluent_uri::enc::EStr;
     ///
     /// let dec = EStr::new("%C2%BF").decode();
     /// assert_eq!(dec.as_bytes(), &[0xc2, 0xbf]);
@@ -174,7 +174,7 @@ impl EStr {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::encoding::EStr;
+    /// use fluent_uri::enc::EStr;
     ///
     /// let mut buf = Vec::new();
     /// let dec = EStr::new("233").decode_with(&mut buf);
@@ -212,7 +212,7 @@ impl EStr {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::encoding::EStr;
+    /// use fluent_uri::enc::EStr;
     ///
     /// assert!(EStr::new("a,b,c").split(',').eq(["a", "b", "c"]));
     /// assert!(EStr::new(",").split(',').eq(["", ""]));
@@ -245,7 +245,7 @@ impl EStr {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::encoding::EStr;
+    /// use fluent_uri::enc::EStr;
     ///
     /// let (k, v) = EStr::new("key=value").split_once('=').unwrap();
     /// assert_eq!(k, "key");
@@ -693,7 +693,7 @@ impl fmt::Display for BufferTooSmallError {
 
 #[cfg(feature = "unstable")]
 pub(crate) mod internal {
-    use crate::encoding::BufferTooSmallError;
+    use crate::enc::BufferTooSmallError;
     use std::{collections::TryReserveError, mem::MaybeUninit};
 
     pub trait Buf {
