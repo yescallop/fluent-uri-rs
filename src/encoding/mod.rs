@@ -22,7 +22,7 @@ use std::{
     string::FromUtf8Error,
 };
 
-use crate::mutable::OnceMut;
+use crate::view::View;
 
 /// Percent-encoded string slices.
 ///
@@ -201,7 +201,7 @@ impl EStr {
         }
     }
 
-    /// Returns an iterator over subslices separated by the given delimiter.
+    /// Returns an iterator over subslices of the `EStr` separated by the given delimiter.
     ///
     /// # Panics
     ///
@@ -268,38 +268,25 @@ impl EStr {
     }
 }
 
-/// A wrapper around a mutable [`EStr`] that allows in-place percent-decoding.
-impl<'a> OnceMut<'a, EStr> {
-    /// Converts a byte slice into a `OnceMut<EStr>` assuming validity.
-    #[inline]
-    pub(crate) unsafe fn new_estr(s: &mut [u8]) -> OnceMut<'_, EStr> {
-        // SAFETY: The caller must ensure that the bytes are valid percent-encoded UTF-8.
-        OnceMut(unsafe { &mut *(s as *mut [u8] as *mut EStr) })
-    }
-
-    /// Consumes this `OnceMut<EStr>` and yields the underlying mutable byte slice.
-    #[inline]
-    pub fn into_bytes(self) -> &'a mut [u8] {
-        &mut self.0.inner
-    }
-
-    /// Decodes the `OnceMut<EStr>` in-place.
+/// An [`EStr`] view into a mutable byte slice that allows in-place percent-decoding.
+impl<'a> View<'a, EStr> {
+    /// Decodes the `View<EStr>` in-place.
     #[inline]
     pub fn decode_in_place(self) -> DecodeInPlace<'a> {
         let bytes = self.into_bytes();
-        // SAFETY: An `OnceMut<EStr>` may only be created through `new_estr`,
-        // of which the caller must guarantee that the string is properly encoded.
+        // SAFETY: An `View<EStr>` may only be created through `new`,
+        // of which the caller must guarantee that the bytes are properly encoded.
         let len = unsafe { imp::decode_in_place_unchecked(bytes) };
         if len == bytes.len() {
             // SAFETY: Nothing is decoded so the bytes are valid UTF-8.
-            DecodeInPlace::Src(unsafe { OnceMut::new_str(bytes) })
+            DecodeInPlace::Src(unsafe { View::new(bytes) })
         } else {
             // SAFETY: The length must be less.
             DecodeInPlace::Dst(unsafe { bytes.get_unchecked_mut(..len) })
         }
     }
 
-    /// Returns an iterator over mutable subslices separated by the given delimiter.
+    /// Returns an iterator over subslices of the `View<EStr>` separated by the given delimiter.
     ///
     /// # Panics
     ///
@@ -307,20 +294,20 @@ impl<'a> OnceMut<'a, EStr> {
     ///
     /// [reserved]: https://datatracker.ietf.org/doc/html/rfc3986/#section-2.2
     #[inline]
-    pub fn split_mut(self, delim: char) -> SplitMut<'a> {
+    pub fn split_view(self, delim: char) -> SplitView<'a> {
         assert!(
             delim.is_ascii() && table::RESERVED.allows(delim as u8),
             "splitting with non-reserved character"
         );
 
-        SplitMut {
+        SplitView {
             s: self.into_bytes(),
             delim: delim as u8,
             finished: false,
         }
     }
 
-    /// Splits the `OnceMut<EStr>` on the first occurrence of the given delimiter and
+    /// Splits the `View<EStr>` on the first occurrence of the given delimiter and
     /// returns prefix before delimiter and suffix after delimiter.
     ///
     /// Returns `Err(self)` if the delimiter is not found.
@@ -331,7 +318,7 @@ impl<'a> OnceMut<'a, EStr> {
     ///
     /// [reserved]: https://datatracker.ietf.org/doc/html/rfc3986/#section-2.2
     #[inline]
-    pub fn split_once_mut(self, delim: char) -> Result<(Self, Self), Self> {
+    pub fn split_once_view(self, delim: char) -> Result<(Self, Self), Self> {
         assert!(
             delim.is_ascii() && table::RESERVED.allows(delim as u8),
             "splitting with non-reserved character"
@@ -343,7 +330,7 @@ impl<'a> OnceMut<'a, EStr> {
         };
         let (head, tail) = self.into_bytes().split_at_mut(i);
         // SAFETY: Splitting at a reserved character leaves valid percent-encoded UTF-8.
-        unsafe { Ok((Self::new_estr(head), Self::new_estr(&mut tail[1..]))) }
+        unsafe { Ok((View::new(head), View::new(&mut tail[1..]))) }
     }
 }
 
@@ -477,13 +464,13 @@ impl<'src, 'dst> DecodeRef<'src, 'dst> {
 
 /// A wrapper of in-place percent-decoded bytes.
 ///
-/// This enum is created by the [`decode_in_place`] method on [`OnceMut<EStr>`].
+/// This enum is created by the [`decode_in_place`] method on [`View<EStr>`].
 ///
-/// [`decode_in_place`]: OnceMut::<EStr>::decode_in_place
+/// [`decode_in_place`]: View::<EStr>::decode_in_place
 #[derive(Debug)]
 pub enum DecodeInPlace<'a> {
     /// No percent-encoded octets are decoded.
-    Src(OnceMut<'a, str>),
+    Src(View<'a, str>),
     /// One or more percent-encoded octets are decoded.
     Dst(&'a mut [u8]),
 }
@@ -612,23 +599,23 @@ impl<'a> DoubleEndedIterator for Split<'a> {
     }
 }
 
-/// An iterator over mutable subslices of a [`OnceMut<EStr>`] separated by a delimiter.
+/// An iterator over subslices of a [`View<EStr>`] separated by a delimiter.
 ///
-/// This struct is created by the [`split_mut`] method on [`OnceMut<EStr>`].
+/// This struct is created by the [`split_view`] method on [`View<EStr>`].
 ///
-/// [`split_mut`]: OnceMut::<EStr>::split_mut
+/// [`split_view`]: View::<EStr>::split_view
 #[derive(Debug)]
-pub struct SplitMut<'a> {
+pub struct SplitView<'a> {
     s: &'a mut [u8],
     delim: u8,
     pub(crate) finished: bool,
 }
 
-impl<'a> Iterator for SplitMut<'a> {
-    type Item = OnceMut<'a, EStr>;
+impl<'a> Iterator for SplitView<'a> {
+    type Item = View<'a, EStr>;
 
     #[inline]
-    fn next(&mut self) -> Option<OnceMut<'a, EStr>> {
+    fn next(&mut self) -> Option<View<'a, EStr>> {
         if self.finished {
             return None;
         }
@@ -646,7 +633,7 @@ impl<'a> Iterator for SplitMut<'a> {
             }
         };
         // SAFETY: Splitting at a reserved character leaves valid percent-encoded UTF-8.
-        Some(unsafe { OnceMut::new_estr(head) })
+        Some(unsafe { View::new(head) })
     }
 
     #[inline]
@@ -659,9 +646,9 @@ impl<'a> Iterator for SplitMut<'a> {
     }
 }
 
-impl<'a> DoubleEndedIterator for SplitMut<'a> {
+impl<'a> DoubleEndedIterator for SplitView<'a> {
     #[inline]
-    fn next_back(&mut self) -> Option<OnceMut<'a, EStr>> {
+    fn next_back(&mut self) -> Option<View<'a, EStr>> {
         if self.finished {
             return None;
         }
@@ -679,7 +666,7 @@ impl<'a> DoubleEndedIterator for SplitMut<'a> {
             }
         };
         // SAFETY: Splitting at a reserved character leaves valid percent-encoded UTF-8.
-        Some(unsafe { OnceMut::new_estr(tail) })
+        Some(unsafe { View::new(tail) })
     }
 }
 

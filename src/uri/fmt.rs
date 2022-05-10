@@ -96,9 +96,9 @@ impl fmt::Debug for Authority<&mut [u8]> {
     }
 }
 
-impl<'i, 'a> fmt::Debug for AuthorityMut<'i, 'a> {
+impl<'i, 'a> fmt::Debug for AuthorityView<'i, 'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("AuthorityMut")
+        f.debug_struct("AuthorityView")
             .field("userinfo", &self.userinfo())
             .field("host", &self.host_raw_opt())
             .field("port", &self.port_raw())
@@ -151,9 +151,9 @@ impl<'a> fmt::Display for Host<'a> {
     }
 }
 
-impl<'a, T: ?Sized + fmt::Display> fmt::Display for OnceMut<'a, T> {
+impl<'a, T: ?Sized + fmt::Display + Lens> fmt::Display for View<'a, T> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self.0, f)
+        fmt::Display::fmt(self.as_ref(), f)
     }
 }

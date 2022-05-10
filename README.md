@@ -57,8 +57,8 @@ API Docs: [docs.rs](https://docs.rs/fluent-uri) | [dev](https://yescallop.cn/flu
       let mut uri = Uri::parse_mut(bytes)?;
       let map = if let Some(query) = uri.take_query() {
           query
-              .split_mut('&')
-              .flat_map(|pair| pair.split_once_mut('='))
+              .split_view('&')
+              .flat_map(|pair| pair.split_once_view('='))
               .map(|(k, v)| (k.decode_in_place(), v.decode_in_place()))
               .flat_map(|(k, v)| k.into_str().ok().zip(v.into_str().ok()))
               .collect()

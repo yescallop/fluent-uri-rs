@@ -1,7 +1,7 @@
 mod fmt;
 
-pub mod mutable;
-use mutable::*;
+pub mod view;
+use view::*;
 
 mod parser;
 
@@ -193,8 +193,8 @@ fn len_overflow() -> ! {
 ///     let mut uri = Uri::parse_mut(bytes)?;
 ///     let map = if let Some(query) = uri.take_query() {
 ///         query
-///             .split_mut('&')
-///             .flat_map(|pair| pair.split_once_mut('='))
+///             .split_view('&')
+///             .flat_map(|pair| pair.split_once_view('='))
 ///             .map(|(k, v)| (k.decode_in_place(), v.decode_in_place()))
 ///             .flat_map(|(k, v)| k.into_str().ok().zip(v.into_str().ok()))
 ///             .collect()
@@ -299,7 +299,7 @@ impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Uri<T> {
     #[inline]
     /// Returns the URI reference as a string slice.
     pub fn as_str(&'i self) -> &'o str {
-        // SAFETY: The indexes are within bounds.
+        // SAFETY: The indexes are within bounds and the validation is done.
         unsafe { self.slice(0, self.len) }
     }
 
@@ -385,7 +385,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Uri<T> {
             return None;
         }
 
-        // SAFETY: The indexes are within bounds.
+        // SAFETY: The indexes are within bounds and the validation is done.
         self.scheme_end
             .map(|i| Scheme::new(unsafe { self.slice(0, i.get() - 1) }))
     }
@@ -408,7 +408,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Uri<T> {
         if T::is_mut() && self.tag.contains(Tag::PATH_TAKEN) {
             None
         } else {
-            // SAFETY: The indexes are within bounds and we have done the validation.
+            // SAFETY: The indexes are within bounds and the validation is done.
             Some(Path::new(unsafe {
                 self.eslice(self.path_bounds.0, self.path_bounds.1)
             }))
@@ -435,7 +435,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Uri<T> {
     /// [query]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.4
     #[inline]
     pub fn query(&'i self) -> Option<&'o EStr> {
-        // SAFETY: The indexes are within bounds and we have done the validation.
+        // SAFETY: The indexes are within bounds and the validation is done.
         self.query_end
             .map(|i| unsafe { self.eslice(self.path_bounds.1 + 1, i.get()) })
     }
@@ -445,7 +445,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Uri<T> {
     /// [fragment]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.5
     #[inline]
     pub fn fragment(&'i self) -> Option<&'o EStr> {
-        // SAFETY: The indexes are within bounds and we have done the validation.
+        // SAFETY: The indexes are within bounds and the validation is done.
         self.fragment_start
             .map(|i| unsafe { self.eslice(i.get(), self.len) })
     }
@@ -520,88 +520,76 @@ impl<'a> Uri<&'a mut [u8]> {
     }
 
     #[inline]
-    unsafe fn slice_mut(&mut self, start: u32, end: u32) -> &'a mut [u8] {
+    unsafe fn view<T: ?Sized + Lens>(&mut self, start: u32, end: u32) -> View<'a, T> {
         debug_assert!(start <= end && end <= self.len);
         // SAFETY: The caller must ensure that the indexes are within bounds.
-        unsafe {
+        let bytes = unsafe {
             slice::from_raw_parts_mut(
                 self.ptr.as_ptr().add(start as usize),
                 (end - start) as usize,
             )
-        }
+        };
+        // SAFETY: The caller must ensure that the bytes are properly encoded.
+        unsafe { View::new(bytes) }
     }
 
+    /// Takes a view of the scheme component, leaving a `None` in its place.
     #[inline]
-    unsafe fn eslice_mut(&mut self, start: u32, end: u32) -> OnceMut<'a, EStr> {
-        // SAFETY: The caller must ensure that the indexes are within bounds.
-        let s = unsafe { self.slice_mut(start, end) };
-        // SAFETY: The caller must ensure that the subslice is properly encoded.
-        unsafe { OnceMut::new_estr(s) }
-    }
-
-    #[inline]
-    unsafe fn sslice_mut(&mut self, start: u32, end: u32) -> OnceMut<'a, str> {
-        // SAFETY: The caller must ensure that the indexes are within bounds and the bytes are valid UTF-8.
-        unsafe { OnceMut::new_str(self.slice_mut(start, end)) }
-    }
-
-    /// Takes the mutable scheme component, leaving a `None` in its place.
-    #[inline]
-    pub fn take_scheme(&mut self) -> Option<OnceMut<'a, Scheme>> {
+    pub fn take_scheme(&mut self) -> Option<View<'a, Scheme>> {
         if self.tag.contains(Tag::SCHEME_TAKEN) {
             return None;
         }
         self.tag |= Tag::SCHEME_TAKEN;
 
-        // SAFETY: The indexes are within bounds and we have done the validation.
+        // SAFETY: The indexes are within bounds and the validation is done.
         self.scheme_end
-            .map(|i| unsafe { OnceMut::new_scheme(self.slice_mut(0, i.get() - 1)) })
+            .map(|i| unsafe { self.view(0, i.get() - 1) })
     }
 
-    /// Takes the mutable authority component, leaving a `None` in its place.
+    /// Takes a view of the authority component, leaving a `None` in its place.
     #[inline]
-    pub fn take_authority(&mut self) -> Option<AuthorityMut<'_, 'a>> {
+    pub fn take_authority(&mut self) -> Option<AuthorityView<'_, 'a>> {
         if self.auth.is_some() {
             // SAFETY: `auth` is `Some`.
-            // `AuthorityMut` will set `auth` to `None` when it gets dropped.
-            Some(unsafe { AuthorityMut::new(self) })
+            // `AuthorityView` will set `auth` to `None` when it gets dropped.
+            Some(unsafe { AuthorityView::new(self) })
         } else {
             None
         }
     }
 
-    /// Takes the mutable path component.
+    /// Takes a view of the path component.
     ///
     /// # Panics
     ///
     /// Panics if the path component is already taken.
     #[inline]
-    pub fn take_path(&mut self) -> OnceMut<'a, Path> {
+    pub fn take_path(&mut self) -> View<'a, Path> {
         if self.tag.contains(Tag::PATH_TAKEN) {
             component_taken();
         }
         self.tag |= Tag::PATH_TAKEN;
 
-        // SAFETY: The indexes are within bounds and we have done the validation.
-        OnceMut::new_path(unsafe { self.eslice_mut(self.path_bounds.0, self.path_bounds.1) })
+        // SAFETY: The indexes are within bounds and the validation is done.
+        unsafe { self.view(self.path_bounds.0, self.path_bounds.1) }
     }
 
-    /// Takes the mutable query component, leaving a `None` in its place.
+    /// Takes a view of the query component, leaving a `None` in its place.
     #[inline]
-    pub fn take_query(&mut self) -> Option<OnceMut<'a, EStr>> {
-        // SAFETY: The indexes are within bounds and we have done the validation.
+    pub fn take_query(&mut self) -> Option<View<'a, EStr>> {
+        // SAFETY: The indexes are within bounds and the validation is done.
         self.query_end
             .take()
-            .map(|i| unsafe { self.eslice_mut(self.path_bounds.1 + 1, i.get()) })
+            .map(|i| unsafe { self.view(self.path_bounds.1 + 1, i.get()) })
     }
 
-    /// Takes the mutable fragment component, leaving a `None` in its place.
+    /// Takes a view of the fragment component, leaving a `None` in its place.
     #[inline]
-    pub fn take_fragment(&mut self) -> Option<OnceMut<'a, EStr>> {
-        // SAFETY: The indexes are within bounds and we have done the validation.
+    pub fn take_fragment(&mut self) -> Option<View<'a, EStr>> {
+        // SAFETY: The indexes are within bounds and the validation is done.
         self.fragment_start
             .take()
-            .map(|i| unsafe { self.eslice_mut(i.get(), self.len) })
+            .map(|i| unsafe { self.view(i.get(), self.len) })
     }
 }
 
@@ -788,7 +776,7 @@ impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Authority<T> {
     /// ```
     #[inline]
     pub fn as_str(&'i self) -> &'o str {
-        // SAFETY: The indexes are within bounds.
+        // SAFETY: The indexes are within bounds and the validation is done.
         unsafe { self.uri.slice(self.start(), self.uri.path_bounds.0) }
     }
 }
@@ -844,7 +832,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
         }
 
         let (start, host_start) = (self.start(), self.host_bounds().0);
-        // SAFETY: The indexes are within bounds and we have done the validation.
+        // SAFETY: The indexes are within bounds and the validation is done.
         (start != host_start).then(|| unsafe { self.uri.eslice(start, host_start - 1) })
     }
 
@@ -854,7 +842,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
             None
         } else {
             let bounds = self.host_bounds();
-            // SAFETY: The indexes are within bounds.
+            // SAFETY: The indexes are within bounds and the validation is done.
             Some(unsafe { self.uri.slice(bounds.0, bounds.1) })
         }
     }
@@ -928,7 +916,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
         }
 
         let host_end = self.host_bounds().1;
-        // SAFETY: The indexes are within bounds.
+        // SAFETY: The indexes are within bounds and the validation is done.
         (host_end != self.uri.path_bounds.0)
             .then(|| unsafe { self.uri.slice(host_end + 1, self.uri.path_bounds.0) })
     }
@@ -1048,7 +1036,7 @@ impl<'a> Host<'a> {
             if !tag.contains(Tag::HOST_IPV6) {
                 let dot_i = data.ipv_future_dot_i;
                 let bounds = auth.host_bounds();
-                // SAFETY: The indexes are within bounds.
+                // SAFETY: The indexes are within bounds and the validation is done.
                 return Host::IpvFuture {
                     ver: auth.uri.slice(bounds.0 + 2, dot_i),
                     addr: auth.uri.slice(dot_i + 1, bounds.1 - 1),
@@ -1056,7 +1044,7 @@ impl<'a> Host<'a> {
             }
             Host::Ipv6 {
                 addr: data.ipv6.addr,
-                // SAFETY: The indexes are within bounds.
+                // SAFETY: The indexes are within bounds and the validation is done.
                 #[cfg(feature = "rfc6874bis")]
                 zone_id: data
                     .ipv6
@@ -1107,7 +1095,7 @@ impl Path {
         !self.is_absolute()
     }
 
-    /// Returns an iterator over the [segments] of the path.
+    /// Returns an iterator over the path [segments].
     ///
     /// [segments]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
     ///
