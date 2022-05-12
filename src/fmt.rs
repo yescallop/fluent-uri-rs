@@ -33,13 +33,7 @@ impl fmt::Display for Uri<&str> {
 
 impl fmt::Debug for Uri<&mut [u8]> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Uri")
-            .field("scheme", &self.scheme().map(|s| s.as_str()))
-            .field("authority", &self.authority())
-            .field("path", &self.path_opt().map(|s| s.as_str()))
-            .field("query", &self.query())
-            .field("fragment", &self.fragment())
-            .finish()
+        f.debug_struct("Uri").finish_non_exhaustive()
     }
 }
 
@@ -73,8 +67,8 @@ impl fmt::Debug for Authority<&str> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Authority")
             .field("userinfo", &self.userinfo())
-            .field("host", &self.host_raw())
-            .field("port", &self.port_raw())
+            .field("host", &self.host().as_str())
+            .field("port", &self.port())
             .finish()
     }
 }
@@ -88,21 +82,7 @@ impl fmt::Display for Authority<&str> {
 
 impl fmt::Debug for Authority<&mut [u8]> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Authority")
-            .field("userinfo", &self.userinfo())
-            .field("host", &self.host_raw_opt())
-            .field("port", &self.port_raw())
-            .finish()
-    }
-}
-
-impl<'i, 'a> fmt::Debug for AuthorityView<'i, 'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("AuthorityView")
-            .field("userinfo", &self.userinfo())
-            .field("host", &self.host_raw_opt())
-            .field("port", &self.port_raw())
-            .finish()
+        f.debug_struct("Authority").finish_non_exhaustive()
     }
 }
 
@@ -110,13 +90,52 @@ impl fmt::Debug for Authority<String> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Authority")
             .field("userinfo", &self.userinfo())
-            .field("host", &self.host_raw())
-            .field("port", &self.port_raw())
+            .field("host", &self.host().as_str())
+            .field("port", &self.port())
             .finish()
     }
 }
 
 impl fmt::Display for Authority<String> {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self.as_str(), f)
+    }
+}
+
+impl fmt::Debug for Host<&str> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Host").field("raw", &self.as_str()).finish()
+    }
+}
+
+impl fmt::Display for Host<&str> {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self.as_str(), f)
+    }
+}
+
+impl fmt::Debug for Host<String> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Host").field("raw", &self.as_str()).finish()
+    }
+}
+
+impl fmt::Display for Host<String> {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self.as_str(), f)
+    }
+}
+
+impl fmt::Debug for Host<&mut [u8]> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Host").field("raw", &self.as_str()).finish()
+    }
+}
+
+impl fmt::Display for Host<&mut [u8]> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self.as_str(), f)
@@ -130,28 +149,7 @@ impl fmt::Display for Path {
     }
 }
 
-impl<'a> fmt::Display for Host<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            Host::Ipv4(addr) => write!(f, "{addr}"),
-            #[cfg(feature = "rfc6874bis")]
-            Host::Ipv6 { addr, zone_id } => {
-                write!(f, "[{addr}")?;
-                if let Some(id) = zone_id {
-                    write!(f, "%{id}")?;
-                }
-                write!(f, "]")
-            }
-            #[cfg(not(feature = "rfc6874bis"))]
-            Host::Ipv6 { addr } => write!(f, "[{addr}]"),
-            Host::RegName(reg_name) => write!(f, "{reg_name}"),
-            #[cfg(feature = "ipv_future")]
-            Host::IpvFuture { ver, addr } => write!(f, "[v{ver}.{addr}]"),
-        }
-    }
-}
-
-impl<'a, T: ?Sized + fmt::Display + Lens> fmt::Display for View<'a, T> {
+impl<'a, T: ?Sized + fmt::Display + Lens<'a>> fmt::Display for View<'a, T> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self.as_ref(), f)

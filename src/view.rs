@@ -1,5 +1,3 @@
-//! In-place mutable views of URI components.
-
 use std::ops::Deref;
 
 use super::*;
@@ -8,12 +6,14 @@ use crate::enc::SplitView;
 mod internal {
     use super::*;
 
-    pub trait Lens {
-        /// Views the inner bytes of a `View<Self>` as `&Self`.
-        fn view(bytes: &[u8]) -> &Self;
+    pub trait Lens<'a> {
+        type Ptr: Deref;
+        /// Views the inner representation of a `View<Self>` as `&Self`.
+        fn view(target: &<Self::Ptr as Deref>::Target) -> &Self;
     }
 
-    impl Lens for EStr {
+    impl<'a> Lens<'a> for EStr {
+        type Ptr = &'a mut [u8];
         #[inline]
         fn view(bytes: &[u8]) -> &Self {
             // SAFETY: A `View` may only be created through `new`,
@@ -22,7 +22,8 @@ mod internal {
         }
     }
 
-    impl Lens for str {
+    impl<'a> Lens<'a> for str {
+        type Ptr = &'a mut [u8];
         #[inline]
         fn view(bytes: &[u8]) -> &Self {
             // SAFETY: A `View` may only be created through `new`,
@@ -31,14 +32,54 @@ mod internal {
         }
     }
 
-    impl Lens for Scheme {
+    impl<'a> Lens<'a> for Scheme {
+        type Ptr = &'a mut [u8];
         #[inline]
         fn view(bytes: &[u8]) -> &Self {
             Scheme::new(str::view(bytes))
         }
     }
 
-    impl Lens for Path {
+    #[derive(Debug)]
+    pub struct AuthGuard<'i, 'a> {
+        pub(crate) uri: &'i mut Uri<&'a mut [u8]>,
+    }
+
+    impl<'i, 'a> Deref for AuthGuard<'i, 'a> {
+        type Target = Uri<&'a mut [u8]>;
+        #[inline]
+        fn deref(&self) -> &Self::Target {
+            self.uri
+        }
+    }
+
+    impl<'i, 'a> Drop for AuthGuard<'i, 'a> {
+        #[inline]
+        fn drop(&mut self) {
+            self.uri.auth = None;
+        }
+    }
+
+    impl<'i, 'a: 'i> Lens<'i> for Authority<&'a mut [u8]> {
+        type Ptr = AuthGuard<'i, 'a>;
+        #[inline]
+        fn view<'b>(uri: &'b Uri<&'a mut [u8]>) -> &'b Self {
+            // SAFETY: The caller must guarantee that `auth` is `Some`.
+            unsafe { Authority::new(uri) }
+        }
+    }
+
+    impl<'i, 'a: 'i> Lens<'i> for Host<&'a mut [u8]> {
+        type Ptr = &'i mut Authority<&'a mut [u8]>;
+        #[inline]
+        fn view<'b>(auth: &'b Authority<&'a mut [u8]>) -> &'b Self {
+            // SAFETY: The host is not modified at this time.
+            unsafe { Host::new(auth) }
+        }
+    }
+
+    impl<'a> Lens<'a> for Path {
+        type Ptr = &'a mut [u8];
         #[inline]
         fn view(bytes: &[u8]) -> &Self {
             Path::new(EStr::view(bytes))
@@ -46,44 +87,47 @@ mod internal {
     }
 }
 
-pub(crate) use self::internal::Lens;
+pub(crate) use self::internal::{AuthGuard, Lens};
 
 /// A smart pointer that allows viewing a mutable byte slice as `&T`.
 ///
 /// This struct was introduced considering the fact that a bare `&mut EStr` wouldn't
 /// do for in-place decoding because such decoding breaks the invariant of [`EStr`].
 ///
-/// Four types of *lenses* may be used as `T`: [`EStr`], [`prim@str`], [`Scheme`], and [`Path`].
+/// Six types of *lenses* may be used as `T`: [`EStr`], [`prim@str`], [`Scheme`],
+/// [`Authority`], [`Host`], and [`Path`].
 #[derive(Debug)]
 #[repr(transparent)]
-pub struct View<'a, T: ?Sized + Lens>(&'a mut [u8], PhantomData<&'a T>);
+pub struct View<'a, T: ?Sized + Lens<'a>>(T::Ptr, PhantomData<&'a T>);
 
-impl<'a, T: ?Sized + Lens> Deref for View<'a, T> {
+impl<'a, T: ?Sized + Lens<'a>> Deref for View<'a, T> {
     type Target = T;
     #[inline]
     fn deref(&self) -> &T {
-        T::view(self.0)
+        T::view(&self.0)
     }
 }
 
-impl<'a, T: ?Sized + Lens> AsRef<T> for View<'a, T> {
+impl<'a, T: ?Sized + Lens<'a>> AsRef<T> for View<'a, T> {
     #[inline]
     fn as_ref(&self) -> &T {
         self
     }
 }
 
-impl<'a, T: ?Sized + Lens> View<'a, T> {
-    /// Creates a `View<T>` from a mutable byte slice assuming validity.
+impl<'a, T: ?Sized + Lens<'a>> View<'a, T> {
+    /// Creates a `View<T>` from a pointer assuming validity.
     ///
     /// # Safety
     ///
-    /// The bytes must be valid as `T`.
+    /// The pointee must be valid as `T`.
     #[inline]
-    pub(crate) unsafe fn new(bytes: &'a mut [u8]) -> Self {
-        View(bytes, PhantomData)
+    pub(crate) unsafe fn new(ptr: T::Ptr) -> Self {
+        View(ptr, PhantomData)
     }
+}
 
+impl<'a, T: ?Sized + Lens<'a, Ptr = &'a mut [u8]>> View<'a, T> {
     /// Consumes this `View` and yields the underlying mutable byte slice.
     #[inline]
     pub fn into_bytes(self) -> &'a mut [u8] {
@@ -123,36 +167,18 @@ impl<'a> View<'a, Scheme> {
     }
 }
 
-/// A view of the authority component.
-#[repr(transparent)]
-pub struct AuthorityView<'i, 'a> {
-    inner: &'i mut Authority<&'a mut [u8]>,
-}
-
-impl<'i, 'a> Deref for AuthorityView<'i, 'a> {
-    type Target = Authority<&'a mut [u8]>;
+/// An [`Authority`] view into a mutable byte slice.
+impl<'i, 'a> View<'i, Authority<&'a mut [u8]>> {
     #[inline]
-    fn deref(&self) -> &Authority<&'a mut [u8]> {
-        self.inner
-    }
-}
-
-impl<'i, 'a> AuthorityView<'i, 'a> {
-    #[inline]
-    pub(super) unsafe fn new(uri: &'i mut Uri<&'a mut [u8]>) -> AuthorityView<'i, 'a> {
-        // SAFETY: Transparency holds.
-        AuthorityView {
-            inner: unsafe { &mut *(uri as *mut Uri<_> as *mut Authority<_>) },
-        }
-    }
-
-    #[inline]
-    unsafe fn view<T: ?Sized + Lens>(&mut self, start: u32, end: u32) -> View<'a, T> {
+    unsafe fn view<T>(&mut self, start: u32, end: u32) -> View<'a, T>
+    where
+        T: ?Sized + Lens<'a, Ptr = &'a mut [u8]>,
+    {
         // SAFETY: The same as `Uri::view`.
-        unsafe { self.inner.uri.view(start, end) }
+        unsafe { self.0.uri.view(start, end) }
     }
 
-    /// Consumes this `AuthorityView` and yields the underlying [`View<str>`].
+    /// Consumes this `View<Authority>` and yields the underlying [`View<str>`].
     ///
     /// # Panics
     ///
@@ -172,138 +198,63 @@ impl<'i, 'a> AuthorityView<'i, 'a> {
         if self.uri.tag.contains(Tag::USERINFO_TAKEN) {
             return None;
         }
-        self.inner.uri.tag |= Tag::USERINFO_TAKEN;
+        self.0.uri.tag |= Tag::USERINFO_TAKEN;
 
         let (start, host_start) = (self.start(), self.host_bounds().0);
         // SAFETY: The indexes are within bounds and the validation is done.
         (start != host_start).then(|| unsafe { self.view(start, host_start - 1) })
     }
 
-    /// Takes a view of the raw host subcomponent.
+    /// Takes a view of the host subcomponent.
     ///
     /// # Panics
     ///
     /// Panics if the host subcomponent is already taken.
     #[inline]
-    pub fn take_host_raw(&mut self) -> View<'a, str> {
+    pub fn take_host(&mut self) -> View<'_, Host<&'a mut [u8]>> {
         if self.uri.tag.contains(Tag::HOST_TAKEN) {
             component_taken();
         }
-        self.inner.uri.tag |= Tag::HOST_TAKEN;
+        self.0.uri.tag |= Tag::HOST_TAKEN;
 
-        let bounds = self.host_bounds();
-        // SAFETY: The indexes are within bounds and the validation is done.
-        unsafe { self.view(bounds.0, bounds.1) }
+        // SAFETY: Transparency holds.
+        unsafe { View::new(&mut *(self.0.uri as *mut Uri<_> as *mut Authority<_>)) }
     }
 
-    /// Takes a view of the parsed host subcomponent.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the host subcomponent is already taken.
-    pub fn take_host(&mut self) -> HostView<'a> {
-        if self.uri.tag.contains(Tag::HOST_TAKEN) {
-            component_taken();
-        }
-        self.inner.uri.tag |= Tag::HOST_TAKEN;
-
-        HostView::from_authority(self)
-    }
-
-    /// Takes a view of the raw port subcomponent, leaving a `None` in its place.
+    /// Takes a view of the port subcomponent, leaving a `None` in its place.
     #[inline]
-    pub fn take_port_raw(&mut self) -> Option<View<'a, str>> {
+    pub fn take_port(&mut self) -> Option<View<'a, str>> {
         if self.uri.tag.contains(Tag::PORT_TAKEN) {
             return None;
         }
-        self.inner.uri.tag |= Tag::PORT_TAKEN;
+        self.0.uri.tag |= Tag::PORT_TAKEN;
 
         let (host_end, end) = (self.host_bounds().1, self.uri.path_bounds.0);
         // SAFETY: The indexes are within bounds and the validation is done.
         (host_end != end).then(|| unsafe { self.view(host_end + 1, end) })
     }
-
-    /// Takes a view of the parsed port subcomponent, leaving a `None` in its place.
-    #[inline]
-    pub fn take_port(&mut self) -> Option<Result<u16, View<'a, str>>> {
-        match self.port_raw().filter(|s| !s.is_empty()) {
-            Some(s) => match s.parse() {
-                Ok(port) => Some(Ok(port)),
-                Err(_) => Some(Err(self.take_port_raw().unwrap())),
-            },
-            None => None,
-        }
-    }
 }
 
-impl<'i, 'a> Drop for AuthorityView<'i, 'a> {
+/// A [`Host`] view into a mutable byte slice.
+impl<'i, 'a> View<'i, Host<&'a mut [u8]>> {
+    /// Consumes this `View<Host>` and yields the underlying [`View<str>`].
     #[inline]
-    fn drop(&mut self) {
-        self.inner.uri.auth = None;
+    pub fn into_str_view(self) -> View<'a, str> {
+        // SAFETY: The indexes are within bounds and the validation is done.
+        unsafe { self.0.uri.view(self.0.start(), self.0.uri.path_bounds.0) }
     }
-}
 
-/// A view of the host subcomponent of authority.
-#[derive(Debug)]
-pub enum HostView<'a> {
-    /// An IPv4 address.
-    Ipv4(Ipv4Addr),
-    /// An IPv6 address.
-    Ipv6 {
-        /// The address.
-        addr: Ipv6Addr,
-        /// An optional zone identifier.
-        ///
-        /// This is supported on **crate feature `rfc6874bis`** only.
-        #[cfg(feature = "rfc6874bis")]
-        zone_id: Option<View<'a, str>>,
-    },
-    /// An IP address of future version.
+    /// Consumes this `View<Host>` and yields the underlying [`View<EStr>`],
+    /// assuming that the host is a registered name.
     ///
-    /// This is supported on **crate feature `ipv_future`** only.
-    #[cfg(feature = "ipv_future")]
-    IpvFuture {
-        /// The version.
-        ver: View<'a, str>,
-        /// The address.
-        addr: View<'a, str>,
-    },
-    /// A registered name.
-    RegName(View<'a, EStr>),
-}
-
-impl<'a> HostView<'a> {
-    fn from_authority(auth: &mut AuthorityView<'_, 'a>) -> HostView<'a> {
-        let tag = auth.uri.tag;
-        let data = auth.host_data();
-        unsafe {
-            if tag.contains(Tag::HOST_REG_NAME) {
-                let bounds = auth.host_bounds();
-                // SAFETY: The indexes are within bounds and the validation is done.
-                return HostView::RegName(auth.view(bounds.0, bounds.1));
-            } else if tag.contains(Tag::HOST_IPV4) {
-                return HostView::Ipv4(data.ipv4_addr);
-            }
-            #[cfg(feature = "ipv_future")]
-            if !tag.contains(Tag::HOST_IPV6) {
-                let dot_i = data.ipv_future_dot_i;
-                let bounds = auth.host_bounds();
-                // SAFETY: The indexes are within bounds and the validation is done.
-                return HostView::IpvFuture {
-                    ver: auth.view(bounds.0 + 2, dot_i),
-                    addr: auth.view(dot_i + 1, bounds.1 - 1),
-                };
-            }
-            HostView::Ipv6 {
-                addr: data.ipv6.addr,
-                // SAFETY: The indexes are within bounds and the validation is done.
-                #[cfg(feature = "rfc6874bis")]
-                zone_id: data
-                    .ipv6
-                    .zone_id_start
-                    .map(|start| auth.view(start.get(), auth.host_bounds().1 - 1)),
-            }
-        }
+    /// # Panics
+    ///
+    /// Panics if the host is not a registered name.
+    #[inline]
+    pub fn unwrap_reg_name(self) -> View<'a, EStr> {
+        assert!(self.any(Tag::HOST_REG_NAME));
+        // SAFETY: The indexes are within bounds and the validation is done.
+        unsafe { self.0.uri.view(self.0.start(), self.0.uri.path_bounds.0) }
     }
 }
 

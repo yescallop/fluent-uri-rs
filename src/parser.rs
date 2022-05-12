@@ -1,6 +1,6 @@
 use crate::{
     enc::{table::*, OCTET_TABLE_LO},
-    AuthorityInternal, HostData, Result, Tag, Uri,
+    AuthorityInternal, RawHostData as HostData, Result, Tag, Uri,
 };
 use std::{
     marker::PhantomData,

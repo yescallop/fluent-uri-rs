@@ -28,8 +28,8 @@ pub mod enc;
 
 mod fmt;
 
-pub mod view;
-use view::*;
+mod view;
+pub use view::*;
 
 mod parser;
 
@@ -431,18 +431,6 @@ impl<'i, 'o, T: Io<'i, 'o>> Uri<T> {
         }
     }
 
-    #[inline]
-    fn path_opt(&'i self) -> Option<&'o Path> {
-        if T::is_mut() && self.tag.contains(Tag::PATH_TAKEN) {
-            None
-        } else {
-            // SAFETY: The indexes are within bounds and the validation is done.
-            Some(Path::new(unsafe {
-                self.eslice(self.path_bounds.0, self.path_bounds.1)
-            }))
-        }
-    }
-
     /// Returns the [path] component.
     ///
     /// [path]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
@@ -452,10 +440,11 @@ impl<'i, 'o, T: Io<'i, 'o>> Uri<T> {
     /// Panics if the path component is already taken.
     #[inline]
     pub fn path(&'i self) -> &'o Path {
-        match self.path_opt() {
-            Some(path) => path,
-            None => component_taken(),
+        if T::is_mut() && self.tag.contains(Tag::PATH_TAKEN) {
+            component_taken();
         }
+        // SAFETY: The indexes are within bounds and the validation is done.
+        Path::new(unsafe { self.eslice(self.path_bounds.0, self.path_bounds.1) })
     }
 
     /// Returns the [query] component.
@@ -548,7 +537,10 @@ impl<'a> Uri<&'a mut [u8]> {
     }
 
     #[inline]
-    unsafe fn view<T: ?Sized + Lens>(&mut self, start: u32, end: u32) -> View<'a, T> {
+    unsafe fn view<T>(&mut self, start: u32, end: u32) -> View<'a, T>
+    where
+        T: ?Sized + Lens<'a, Ptr = &'a mut [u8]>,
+    {
         debug_assert!(start <= end && end <= self.len);
         // SAFETY: The caller must ensure that the indexes are within bounds.
         let bytes = unsafe {
@@ -576,11 +568,11 @@ impl<'a> Uri<&'a mut [u8]> {
 
     /// Takes a view of the authority component, leaving a `None` in its place.
     #[inline]
-    pub fn take_authority(&mut self) -> Option<AuthorityView<'_, 'a>> {
+    pub fn take_authority(&mut self) -> Option<View<'_, Authority<&'a mut [u8]>>> {
         if self.auth.is_some() {
             // SAFETY: `auth` is `Some`.
-            // `AuthorityView` will set `auth` to `None` when it gets dropped.
-            Some(unsafe { AuthorityView::new(self) })
+            // `AuthGuard` will set `auth` to `None` when it gets dropped.
+            Some(unsafe { View::new(AuthGuard { uri: self }) })
         } else {
             None
         }
@@ -778,7 +770,7 @@ impl Scheme {
 #[derive(Clone, Copy)]
 struct AuthorityInternal {
     host_bounds: (NonZeroU32, u32),
-    host_data: HostData,
+    host_data: RawHostData,
 }
 
 /// The [authority] component of URI reference.
@@ -790,7 +782,7 @@ pub struct Authority<T: Storage> {
 }
 
 impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Authority<T> {
-    /// Returns the raw authority as a string slice.
+    /// Returns the authority as a string slice.
     ///
     /// # Examples
     ///
@@ -834,11 +826,6 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
         (bounds.0.get(), bounds.1)
     }
 
-    #[inline]
-    fn host_data(&self) -> &HostData {
-        &self.internal().host_data
-    }
-
     /// Returns the [userinfo] subcomponent.
     ///
     /// [userinfo]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.1
@@ -864,58 +851,22 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
         (start != host_start).then(|| unsafe { self.uri.eslice(start, host_start - 1) })
     }
 
-    #[inline]
-    fn host_raw_opt(&'i self) -> Option<&'o str> {
-        if T::is_mut() && self.uri.tag.contains(Tag::HOST_TAKEN) {
-            None
-        } else {
-            let bounds = self.host_bounds();
-            // SAFETY: The indexes are within bounds and the validation is done.
-            Some(unsafe { self.uri.slice(bounds.0, bounds.1) })
-        }
-    }
-
-    /// Returns the raw [host] subcomponent as a string slice.
+    /// Returns the [host] subcomponent.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
     ///
     /// # Panics
     ///
     /// Panics if the host subcomponent is already taken.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use fluent_uri::Uri;
-    ///
-    /// let uri = Uri::parse("ftp://user@[::1]/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.host_raw(), "[::1]");
-    /// # Ok::<_, fluent_uri::ParseError>(())
-    /// ```
-    #[inline]
-    pub fn host_raw(&'i self) -> &'o str {
-        match self.host_raw_opt() {
-            Some(host) => host,
-            None => component_taken(),
-        }
-    }
-
-    /// Returns the parsed [host] subcomponent.
-    ///
-    /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
-    ///
-    /// # Panics
-    ///
-    /// Panics if the host subcomponent is already taken.
-    pub fn host(&'i self) -> Host<'o> {
+    pub fn host(&self) -> &Host<T> {
         if T::is_mut() && self.uri.tag.contains(Tag::HOST_TAKEN) {
             component_taken();
         }
-        Host::from_authority(self)
+        // SAFETY: The host is not modified at this time.
+        unsafe { Host::new(self) }
     }
 
-    /// Returns the raw [port] subcomponent as a string slice.
+    /// Returns the [port] subcomponent.
     ///
     /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
     ///
@@ -926,19 +877,19 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     ///
     /// let uri = Uri::parse("ssh://device.local:4673/")?;
     /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.port_raw(), Some("4673"));
+    /// assert_eq!(authority.port(), Some("4673"));
     ///
     /// let uri = Uri::parse("ssh://device.local:/")?;
     /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.port_raw(), Some(""));
+    /// assert_eq!(authority.port(), Some(""));
     ///
     /// let uri = Uri::parse("ssh://device.local/")?;
     /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.port_raw(), None);
+    /// assert_eq!(authority.port(), None);
     /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     #[inline]
-    pub fn port_raw(&'i self) -> Option<&'o str> {
+    pub fn port(&'i self) -> Option<&'o str> {
         if T::is_mut() && self.uri.tag.contains(Tag::PORT_TAKEN) {
             return None;
         }
@@ -947,43 +898,6 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
         // SAFETY: The indexes are within bounds and the validation is done.
         (host_end != self.uri.path_bounds.0)
             .then(|| unsafe { self.uri.slice(host_end + 1, self.uri.path_bounds.0) })
-    }
-
-    /// Parses the [port] subcomponent as `u16`.
-    ///
-    /// An empty port is interpreted as `None`.
-    ///
-    /// If the raw port overflows a `u16`, a `Some(Err)` containing the raw port will be returned.
-    ///
-    /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use fluent_uri::Uri;
-    ///
-    /// let uri = Uri::parse("ssh://device.local:4673/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.port(), Some(Ok(4673)));
-    ///
-    /// let uri = Uri::parse("ssh://device.local:/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.port(), None);
-    ///
-    /// let uri = Uri::parse("ssh://device.local/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.port(), None);
-    ///
-    /// let uri = Uri::parse("example://device.local:31415926/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.port(), Some(Err("31415926")));
-    /// # Ok::<_, fluent_uri::ParseError>(())
-    /// ```
-    #[inline]
-    pub fn port(&'i self) -> Option<Result<u16, &'o str>> {
-        self.port_raw()
-            .filter(|s| !s.is_empty())
-            .map(|s| s.parse().map_err(|_| s))
     }
 }
 
@@ -999,11 +913,12 @@ bitflags! {
         const PATH_TAKEN     = 0b10000000;
 
         const AUTH_SUB_TAKEN = 0b01110000;
+        const HOST_TAGS      = 0b00000111;
     }
 }
 
 #[derive(Clone, Copy)]
-union HostData {
+union RawHostData {
     ipv4_addr: Ipv4Addr,
     ipv6: Ipv6Data,
     #[cfg(feature = "ipv_future")]
@@ -1021,8 +936,92 @@ struct Ipv6Data {
 /// The [host] subcomponent of authority.
 ///
 /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
+#[repr(transparent)]
+pub struct Host<T: Storage> {
+    auth: Authority<T>,
+}
+
+impl<'i, 'o, T: Io<'i, 'o>> Host<T> {
+    #[inline]
+    unsafe fn new(auth: &Authority<T>) -> &Host<T> {
+        // SAFETY: Transparency holds.
+        // The caller must ensure that the host is not modified.
+        unsafe { &*(auth as *const Authority<T> as *const Host<T>) }
+    }
+
+    #[inline]
+    fn any(&self, tag: Tag) -> bool {
+        self.auth.uri.tag.intersects(tag)
+    }
+
+    #[inline]
+    fn bounds(&self) -> (u32, u32) {
+        self.auth.host_bounds()
+    }
+
+    #[inline]
+    fn raw_data(&self) -> &RawHostData {
+        &self.auth.internal().host_data
+    }
+
+    /// Returns the host as a string slice.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::Uri;
+    ///
+    /// let uri = Uri::parse("ftp://user@[::1]/")?;
+    /// let authority = uri.authority().unwrap();
+    /// assert_eq!(authority.host().as_str(), "[::1]");
+    /// # Ok::<_, fluent_uri::ParseError>(())
+    /// ```
+    #[inline]
+    pub fn as_str(&'i self) -> &'o str {
+        let bounds = self.bounds();
+        // SAFETY: The indexes are within bounds and the validation is done.
+        unsafe { self.auth.uri.slice(bounds.0, bounds.1) }
+    }
+
+    /// Returns the structured host data.
+    #[inline]
+    pub fn data(&'i self) -> HostData<'o> {
+        let data = self.raw_data();
+        let tag = self.auth.uri.tag;
+        // SAFETY: We only access the union after checking the tag.
+        unsafe {
+            if tag.contains(Tag::HOST_REG_NAME) {
+                // SAFETY: The validation is done.
+                return HostData::RegName(EStr::new_unchecked(self.as_str().as_bytes()));
+            } else if tag.contains(Tag::HOST_IPV4) {
+                return HostData::Ipv4(data.ipv4_addr);
+            }
+            #[cfg(feature = "ipv_future")]
+            if !tag.contains(Tag::HOST_IPV6) {
+                let dot_i = data.ipv_future_dot_i;
+                let bounds = self.bounds();
+                // SAFETY: The indexes are within bounds and the validation is done.
+                return HostData::IpvFuture {
+                    ver: self.auth.uri.slice(bounds.0 + 2, dot_i),
+                    addr: self.auth.uri.slice(dot_i + 1, bounds.1 - 1),
+                };
+            }
+            HostData::Ipv6 {
+                addr: data.ipv6.addr,
+                // SAFETY: The indexes are within bounds and the validation is done.
+                #[cfg(feature = "rfc6874bis")]
+                zone_id: data
+                    .ipv6
+                    .zone_id_start
+                    .map(|start| self.auth.uri.slice(start.get(), self.bounds().1 - 1)),
+            }
+        }
+    }
+}
+
+/// Structured host data.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Host<'a> {
+pub enum HostData<'a> {
     /// An IPv4 address.
     Ipv4(Ipv4Addr),
     /// An IPv6 address.
@@ -1047,40 +1046,6 @@ pub enum Host<'a> {
     },
     /// A registered name.
     RegName(&'a EStr),
-}
-
-impl<'a> Host<'a> {
-    fn from_authority<'i, T: Io<'i, 'a>>(auth: &'i Authority<T>) -> Host<'a> {
-        let tag = auth.uri.tag;
-        let data = auth.host_data();
-        // SAFETY: We only access the union after checking the tag.
-        unsafe {
-            if tag.contains(Tag::HOST_REG_NAME) {
-                return Host::RegName(EStr::new_unchecked(auth.host_raw().as_bytes()));
-            } else if tag.contains(Tag::HOST_IPV4) {
-                return Host::Ipv4(data.ipv4_addr);
-            }
-            #[cfg(feature = "ipv_future")]
-            if !tag.contains(Tag::HOST_IPV6) {
-                let dot_i = data.ipv_future_dot_i;
-                let bounds = auth.host_bounds();
-                // SAFETY: The indexes are within bounds and the validation is done.
-                return Host::IpvFuture {
-                    ver: auth.uri.slice(bounds.0 + 2, dot_i),
-                    addr: auth.uri.slice(dot_i + 1, bounds.1 - 1),
-                };
-            }
-            Host::Ipv6 {
-                addr: data.ipv6.addr,
-                // SAFETY: The indexes are within bounds and the validation is done.
-                #[cfg(feature = "rfc6874bis")]
-                zone_id: data
-                    .ipv6
-                    .zone_id_start
-                    .map(|start| auth.uri.slice(start.get(), auth.host_bounds().1 - 1)),
-            }
-        }
-    }
 }
 
 /// The [path] component of URI reference.
