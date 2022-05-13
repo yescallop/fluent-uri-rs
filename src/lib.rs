@@ -11,7 +11,7 @@
 //!
 //! All features are disabled by default.
 //!
-//! - `ipv_future`: Enables the parsing of [IPvFuture] literals,
+//! - `ipv_future`: Enables the parsing of [IPvFuture] literal addresses,
 //!   which fails with [`InvalidIpLiteral`] when disabled.
 //!
 //! - `rfc6874bis`: Enables the parsing of IPv6 zone identifiers,
@@ -86,6 +86,16 @@ mod internal {
         }
     }
 
+    // For use in the parser.
+    impl Storage for () {
+        fn needs_drop() -> bool {
+            false
+        }
+        fn is_mut() -> bool {
+            false
+        }
+    }
+
     pub trait Io<'i, 'o>: Storage {}
 
     impl<'i, 'a> Io<'i, 'a> for &'a str {}
@@ -126,7 +136,7 @@ pub enum ParseErrorKind {
     ///
     /// The error index points to the character.
     UnexpectedChar,
-    /// Invalid IP literal.
+    /// Invalid IP literal address.
     ///
     /// The error index points to the preceding left square bracket "[".
     InvalidIpLiteral,
@@ -242,7 +252,7 @@ fn len_overflow() -> ! {
 /// assert!(uri.query().is_none());
 /// drop(uri);
 /// // In-place decoding is like this if you're interested:
-/// assert_eq!(vec, "?name=Ferris the crabcrab&color=🟠9F%9F%A0".as_bytes());
+/// assert_eq!(vec, b"?name=Ferris the crabcrab&color=\xF0\x9F\x9F\xA09F%9F%A0");
 /// # Ok::<_, fluent_uri::ParseError>(())
 /// ```
 // TODO: Create a mutable copy of an immutable `Uri` in a buffer:
@@ -412,7 +422,6 @@ impl<'i, 'o, T: Io<'i, 'o>> Uri<T> {
         if T::is_mut() && self.tag.contains(Tag::SCHEME_TAKEN) {
             return None;
         }
-
         // SAFETY: The indexes are within bounds and the validation is done.
         self.scheme_end
             .map(|i| Scheme::new(unsafe { self.slice(0, i.get() - 1) }))
@@ -688,7 +697,6 @@ impl<T: Storage> Drop for Uri<T> {
 /// The [scheme] component of URI reference.
 ///
 /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
-#[derive(Debug)]
 #[repr(transparent)]
 pub struct Scheme(str);
 
@@ -913,7 +921,6 @@ bitflags! {
         const PATH_TAKEN     = 0b10000000;
 
         const AUTH_SUB_TAKEN = 0b01110000;
-        const HOST_TAGS      = 0b00000111;
     }
 }
 
@@ -947,11 +954,6 @@ impl<'i, 'o, T: Io<'i, 'o>> Host<T> {
         // SAFETY: Transparency holds.
         // The caller must ensure that the host is not modified.
         unsafe { &*(auth as *const Authority<T> as *const Host<T>) }
-    }
-
-    #[inline]
-    fn any(&self, tag: Tag) -> bool {
-        self.auth.uri.tag.intersects(tag)
     }
 
     #[inline]
@@ -1051,7 +1053,6 @@ pub enum HostData<'a> {
 /// The [path] component of URI reference.
 ///
 /// [path]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
-#[derive(Debug)]
 #[repr(transparent)]
 pub struct Path {
     inner: EStr,
@@ -1117,7 +1118,7 @@ impl Path {
             // SAFETY: Skipping "/" is fine.
             path = unsafe { path.get_unchecked(1..) };
         }
-        // SAFETY: We have done the validation.
+        // SAFETY: The validation is done.
         let path = unsafe { EStr::new_unchecked(path.as_bytes()) };
 
         let mut split = path.split('/');

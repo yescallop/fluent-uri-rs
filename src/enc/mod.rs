@@ -122,7 +122,7 @@ impl EStr {
     /// Panics if the string is not properly encoded.
     pub const fn new(s: &str) -> &EStr {
         if imp::validate_estr(s.as_bytes()) {
-            // SAFETY: We have done the validation.
+            // SAFETY: The validation is done.
             unsafe { EStr::new_unchecked(s.as_bytes()) }
         } else {
             panic!("invalid percent-encoded string");
@@ -139,7 +139,7 @@ impl EStr {
     /// Yields the underlying string slice.
     #[inline]
     pub fn as_str(&self) -> &str {
-        // SAFETY: We have done the validation.
+        // SAFETY: The validation is done.
         unsafe { str::from_utf8_unchecked(&self.inner) }
     }
 
@@ -513,7 +513,7 @@ impl<'a> DecodeInPlace<'a> {
                 if let Err(e) = str::from_utf8(s) {
                     Err((s, e))
                 } else {
-                    // SAFETY: We have done the validation.
+                    // SAFETY: The validation is done.
                     Ok(unsafe { str::from_utf8_unchecked(s) })
                 }
             }

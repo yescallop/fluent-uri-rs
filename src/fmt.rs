@@ -15,9 +15,9 @@ impl fmt::Display for ParseError {
 impl fmt::Debug for Uri<&str> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Uri")
-            .field("scheme", &self.scheme().map(|s| s.as_str()))
+            .field("scheme", &self.scheme())
             .field("authority", &self.authority())
-            .field("path", &self.path().as_str())
+            .field("path", &self.path())
             .field("query", &self.query())
             .field("fragment", &self.fragment())
             .finish()
@@ -38,14 +38,9 @@ impl fmt::Debug for Uri<&mut [u8]> {
 }
 
 impl fmt::Debug for Uri<String> {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Uri")
-            .field("scheme", &self.scheme().map(|s| s.as_str()))
-            .field("authority", &self.authority())
-            .field("path", &self.path().as_str())
-            .field("query", &self.query())
-            .field("fragment", &self.fragment())
-            .finish()
+        fmt::Debug::fmt(self.borrow(), f)
     }
 }
 
@@ -63,11 +58,18 @@ impl fmt::Display for Scheme {
     }
 }
 
+impl fmt::Debug for Scheme {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self.as_str(), f)
+    }
+}
+
 impl fmt::Debug for Authority<&str> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Authority")
             .field("userinfo", &self.userinfo())
-            .field("host", &self.host().as_str())
+            .field("host", &self.host())
             .field("port", &self.port())
             .finish()
     }
@@ -90,7 +92,7 @@ impl fmt::Debug for Authority<String> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Authority")
             .field("userinfo", &self.userinfo())
-            .field("host", &self.host().as_str())
+            .field("host", &self.host())
             .field("port", &self.port())
             .finish()
     }
@@ -105,7 +107,10 @@ impl fmt::Display for Authority<String> {
 
 impl fmt::Debug for Host<&str> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Host").field("raw", &self.as_str()).finish()
+        f.debug_struct("Host")
+            .field("text", &self.as_str())
+            .field("data", &self.data())
+            .finish()
     }
 }
 
@@ -118,7 +123,10 @@ impl fmt::Display for Host<&str> {
 
 impl fmt::Debug for Host<String> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Host").field("raw", &self.as_str()).finish()
+        f.debug_struct("Host")
+            .field("text", &self.as_str())
+            .field("data", &self.data())
+            .finish()
     }
 }
 
@@ -131,7 +139,10 @@ impl fmt::Display for Host<String> {
 
 impl fmt::Debug for Host<&mut [u8]> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Host").field("raw", &self.as_str()).finish()
+        f.debug_struct("Host")
+            .field("text", &self.as_str())
+            .field("data", &self.data())
+            .finish()
     }
 }
 
@@ -149,9 +160,22 @@ impl fmt::Display for Path {
     }
 }
 
+impl fmt::Debug for Path {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self.as_str(), f)
+    }
+}
+
 impl<'a, T: ?Sized + fmt::Display + Lens<'a>> fmt::Display for View<'a, T> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self.as_ref(), f)
+    }
+}
+
+impl<'a, T: ?Sized + fmt::Debug + Lens<'a>> fmt::Debug for View<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("View").field(&&**self).finish()
     }
 }

@@ -51,7 +51,7 @@ macro_rules! err {
 /// where `pos` is non-decreasing and `bytes[..pos]` is valid UTF-8.
 struct Parser {
     // Not generic to avoid code bloat.
-    out: Uri<&'static str>,
+    out: Uri<()>,
     pos: u32,
     mark: u32,
 }
@@ -366,7 +366,7 @@ impl Parser {
             match self.scan_v6_segment() {
                 Some(Seg::Normal(seg, colon)) => {
                     if colon == (i == 0 || i == ellipsis_i) {
-                        // Preceding colon, triple colons or no colon.
+                        // Preceding colon, triple colons, or no colon.
                         return None;
                     }
                     segs[i] = seg;

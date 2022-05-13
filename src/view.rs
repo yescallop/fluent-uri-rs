@@ -40,7 +40,7 @@ mod internal {
         }
     }
 
-    #[derive(Debug)]
+    #[allow(missing_debug_implementations)]
     pub struct AuthGuard<'i, 'a> {
         pub(crate) uri: &'i mut Uri<&'a mut [u8]>,
     }
@@ -96,8 +96,6 @@ pub(crate) use self::internal::{AuthGuard, Lens};
 ///
 /// Six types of *lenses* may be used as `T`: [`EStr`], [`prim@str`], [`Scheme`],
 /// [`Authority`], [`Host`], and [`Path`].
-#[derive(Debug)]
-#[repr(transparent)]
 pub struct View<'a, T: ?Sized + Lens<'a>>(T::Ptr, PhantomData<&'a T>);
 
 impl<'a, T: ?Sized + Lens<'a>> Deref for View<'a, T> {
@@ -169,27 +167,18 @@ impl<'a> View<'a, Scheme> {
 
 /// An [`Authority`] view into a mutable byte slice.
 impl<'i, 'a> View<'i, Authority<&'a mut [u8]>> {
-    #[inline]
-    unsafe fn view<T>(&mut self, start: u32, end: u32) -> View<'a, T>
-    where
-        T: ?Sized + Lens<'a, Ptr = &'a mut [u8]>,
-    {
-        // SAFETY: The same as `Uri::view`.
-        unsafe { self.0.uri.view(start, end) }
-    }
-
     /// Consumes this `View<Authority>` and yields the underlying [`View<str>`].
     ///
     /// # Panics
     ///
     /// Panics if any of the subcomponents is already taken.
     #[inline]
-    pub fn into_str_view(mut self) -> View<'a, str> {
+    pub fn into_str_view(self) -> View<'a, str> {
         if self.uri.tag.intersects(Tag::AUTH_SUB_TAKEN) {
             component_taken();
         }
         // SAFETY: The indexes are within bounds and the validation is done.
-        unsafe { self.view(self.start(), self.uri.path_bounds.0) }
+        unsafe { self.0.uri.view(self.start(), self.uri.path_bounds.0) }
     }
 
     /// Takes a view of the userinfo subcomponent, leaving a `None` in its place.
@@ -202,7 +191,7 @@ impl<'i, 'a> View<'i, Authority<&'a mut [u8]>> {
 
         let (start, host_start) = (self.start(), self.host_bounds().0);
         // SAFETY: The indexes are within bounds and the validation is done.
-        (start != host_start).then(|| unsafe { self.view(start, host_start - 1) })
+        (start != host_start).then(|| unsafe { self.0.uri.view(start, host_start - 1) })
     }
 
     /// Takes a view of the host subcomponent.
@@ -231,20 +220,20 @@ impl<'i, 'a> View<'i, Authority<&'a mut [u8]>> {
 
         let (host_end, end) = (self.host_bounds().1, self.uri.path_bounds.0);
         // SAFETY: The indexes are within bounds and the validation is done.
-        (host_end != end).then(|| unsafe { self.view(host_end + 1, end) })
+        (host_end != end).then(|| unsafe { self.0.uri.view(host_end + 1, end) })
     }
 }
 
 /// A [`Host`] view into a mutable byte slice.
 impl<'i, 'a> View<'i, Host<&'a mut [u8]>> {
-    /// Consumes this `View<Host>` and yields the underlying [`View<str>`].
+    /// Consumes this `View<Host>` and yields the underlying `View<str>`.
     #[inline]
     pub fn into_str_view(self) -> View<'a, str> {
         // SAFETY: The indexes are within bounds and the validation is done.
         unsafe { self.0.uri.view(self.0.start(), self.0.uri.path_bounds.0) }
     }
 
-    /// Consumes this `View<Host>` and yields the underlying [`View<EStr>`],
+    /// Consumes this `View<Host>` and yields the underlying `View<EStr>`,
     /// assuming that the host is a registered name.
     ///
     /// # Panics
@@ -252,7 +241,7 @@ impl<'i, 'a> View<'i, Host<&'a mut [u8]>> {
     /// Panics if the host is not a registered name.
     #[inline]
     pub fn unwrap_reg_name(self) -> View<'a, EStr> {
-        assert!(self.any(Tag::HOST_REG_NAME));
+        assert!(self.0.uri.tag.contains(Tag::HOST_REG_NAME));
         // SAFETY: The indexes are within bounds and the validation is done.
         unsafe { self.0.uri.view(self.0.start(), self.0.uri.path_bounds.0) }
     }
@@ -270,14 +259,14 @@ impl<'a> View<'a, Path> {
     #[inline]
     pub fn segments_view(self) -> SplitView<'a> {
         let absolute = self.is_absolute();
-        let mut path = self.into_estr_view().into_bytes();
+        let mut path = self.into_bytes();
         let empty = path.is_empty();
 
         if absolute {
             // SAFETY: Skipping "/" is fine.
             path = unsafe { path.get_unchecked_mut(1..) };
         }
-        // SAFETY: We have done the validation.
+        // SAFETY: The validation is done.
         let path = unsafe { View::<EStr>::new(path) };
 
         let mut split = path.split_view('/');

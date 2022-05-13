@@ -184,7 +184,7 @@ impl<E: Encoder> TryFrom<String> for EString<E> {
     #[inline]
     fn try_from(string: String) -> Result<Self> {
         super::validate(&string, E::TABLE)?;
-        // SAFETY: We have done the validation.
+        // SAFETY: The validation is done.
         Ok(unsafe { EString::from_string_unchecked(string) })
     }
 }
@@ -195,7 +195,7 @@ impl<E: Encoder> TryFrom<Vec<u8>> for EString<E> {
     #[inline]
     fn try_from(bytes: Vec<u8>) -> Result<Self> {
         super::validate(&bytes, E::TABLE)?;
-        // SAFETY: We have done the validation.
+        // SAFETY: The validation is done.
         unsafe {
             let string = String::from_utf8_unchecked(bytes);
             Ok(EString::from_string_unchecked(string))

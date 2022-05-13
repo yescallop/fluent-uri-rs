@@ -5,7 +5,7 @@ use std::{fmt, ptr};
 macro_rules! err {
     ($index:expr, $kind:ident) => {
         return Err(crate::enc::EncodingError {
-            index: $index as usize,
+            index: $index,
             kind: crate::enc::EncodingErrorKind::$kind,
         })
     };
