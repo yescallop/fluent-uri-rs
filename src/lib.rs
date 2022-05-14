@@ -34,95 +34,15 @@ pub use view::*;
 mod parser;
 
 use crate::enc::{EStr, Split};
-use bitflags::bitflags;
 use std::{
     marker::PhantomData,
     mem::ManuallyDrop,
     net::{Ipv4Addr, Ipv6Addr},
-    num::NonZeroU32,
     ptr::NonNull,
     slice, str,
 };
 
-mod internal {
-    pub trait Storage {
-        fn needs_drop() -> bool;
-        fn is_mut() -> bool;
-    }
-
-    impl Storage for &str {
-        #[inline]
-        fn needs_drop() -> bool {
-            false
-        }
-
-        #[inline]
-        fn is_mut() -> bool {
-            false
-        }
-    }
-
-    impl Storage for &mut [u8] {
-        #[inline]
-        fn needs_drop() -> bool {
-            false
-        }
-
-        #[inline]
-        fn is_mut() -> bool {
-            true
-        }
-    }
-
-    impl Storage for String {
-        #[inline]
-        fn needs_drop() -> bool {
-            true
-        }
-
-        #[inline]
-        fn is_mut() -> bool {
-            false
-        }
-    }
-
-    // For use in the parser.
-    impl Storage for () {
-        fn needs_drop() -> bool {
-            false
-        }
-        fn is_mut() -> bool {
-            false
-        }
-    }
-
-    pub trait Io<'i, 'o>: Storage {}
-
-    impl<'i, 'a> Io<'i, 'a> for &'a str {}
-
-    impl<'a> Io<'a, 'a> for &mut [u8] {}
-
-    impl<'a> Io<'a, 'a> for String {}
-
-    pub trait IntoOwnedUri {
-        fn as_raw_parts(&self) -> (*mut u8, usize, usize);
-    }
-
-    impl IntoOwnedUri for String {
-        #[inline]
-        fn as_raw_parts(&self) -> (*mut u8, usize, usize) {
-            (self.as_ptr() as _, self.len(), self.capacity())
-        }
-    }
-
-    impl IntoOwnedUri for Vec<u8> {
-        #[inline]
-        fn as_raw_parts(&self) -> (*mut u8, usize, usize) {
-            (self.as_ptr() as _, self.len(), self.capacity())
-        }
-    }
-}
-
+mod internal;
 use internal::*;
 
 /// Detailed cause of a [`ParseError`].
@@ -258,20 +178,8 @@ fn len_overflow() -> ! {
 // TODO: Create a mutable copy of an immutable `Uri` in a buffer:
 #[repr(C)]
 pub struct Uri<T: Storage> {
-    ptr: NonNull<u8>,
-    cap: u32,
-    len: u32,
-    tag: Tag,
-    // One byte past the trailing ':'.
-    // This encoding is chosen so that no extra branch is introduced
-    // when indexing the start of the authority.
-    scheme_end: Option<NonZeroU32>,
-    auth: Option<AuthorityInternal>,
-    path_bounds: (u32, u32),
-    // One byte past the last byte of query.
-    query_end: Option<NonZeroU32>,
-    // One byte past the preceding '#'.
-    fragment_start: Option<NonZeroU32>,
+    ptr: T::Ptr,
+    data: Data,
     _marker: PhantomData<T>,
 }
 
@@ -292,42 +200,38 @@ impl<'a> Uri<&'a str> {
         if bytes.len() > i32::MAX as usize {
             len_overflow();
         }
-        // SAFETY: We're using the right pointer, length, capacity, and generics.
+        // SAFETY: We're using the correct pointer, length, capacity, and generics.
         unsafe { parser::parse(bytes.as_ptr() as *mut _, bytes.len() as u32, 0) }
     }
 
     /// Duplicates this `Uri<&str>`.
     #[inline]
     pub fn dup(&self) -> Uri<&'a str> {
-        Uri { ..*self }
+        Uri {
+            data: self.data.clone(),
+            ..*self
+        }
     }
 
     /// Creates a new `Uri<String>` by cloning the contents of this `Uri<&str>`.
     #[inline]
     pub fn to_owned(&self) -> Uri<String> {
+        let len = self.len();
         // We're allocating manually because there is no guarantee that
         // `String::to_owned` gives the exact capacity of `self.len`.
-        let mut vec = ManuallyDrop::new(Vec::with_capacity(self.len as usize));
+        let mut vec = ManuallyDrop::new(Vec::with_capacity(len as usize));
         let ptr = vec.as_mut_ptr();
 
         // SAFETY: The capacity of `vec` is exactly `self.len`.
         // Newly allocated `Vec` won't overlap with existing data.
         unsafe {
-            self.ptr
-                .as_ptr()
-                .copy_to_nonoverlapping(ptr, self.len as usize);
+            self.ptr.get().copy_to_nonoverlapping(ptr, len as usize);
         }
 
         Uri {
-            ptr: NonNull::new(ptr).unwrap(),
-            cap: self.len,
-            len: self.len,
-            tag: self.tag,
-            scheme_end: self.scheme_end,
-            auth: self.auth,
-            path_bounds: self.path_bounds,
-            query_end: self.query_end,
-            fragment_start: self.fragment_start,
+            // SAFETY: The pointer is not null and the length and capacity are correct.
+            ptr: unsafe { Capped::new(ptr, len, len) },
+            data: self.data.clone(),
             _marker: PhantomData,
         }
     }
@@ -338,7 +242,7 @@ impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Uri<T> {
     /// Returns the URI reference as a string slice.
     pub fn as_str(&'i self) -> &'o str {
         // SAFETY: The indexes are within bounds and the validation is done.
-        unsafe { self.slice(0, self.len) }
+        unsafe { self.slice(0, self.len()) }
     }
 
     /// Creates a mutable copy of this `Uri` in the given buffer.
@@ -360,27 +264,20 @@ impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Uri<T> {
         &self,
         buf: &'b mut B,
     ) -> Result<Uri<&'b mut [u8]>, B::PrepareError> {
-        let ptr = buf.prepare(self.len as usize)?;
+        let len = self.len();
+        let ptr = buf.prepare(len as usize)?;
 
         // SAFETY: We have reserved enough space in the buffer, and
         // mutable reference `buf` ensures exclusive access.
         unsafe {
-            self.ptr
-                .as_ptr()
-                .copy_to_nonoverlapping(ptr, self.len as usize);
-            buf.finish(self.len as usize);
+            self.ptr.get().copy_to_nonoverlapping(ptr, len as usize);
+            buf.finish(len as usize);
         }
 
         Ok(Uri {
-            ptr: NonNull::new(ptr).unwrap(),
-            cap: 0,
-            len: self.len,
-            tag: self.tag,
-            scheme_end: self.scheme_end,
-            auth: self.auth,
-            path_bounds: self.path_bounds,
-            query_end: self.query_end,
-            fragment_start: self.fragment_start,
+            // SAFETY: The pointer is not null and the length and capacity are correct.
+            ptr: unsafe { Uncapped::new(ptr, len, 0) },
+            data: self.data.clone(),
             _marker: PhantomData,
         })
     }
@@ -393,14 +290,16 @@ fn component_taken() -> ! {
 
 impl<'i, 'o, T: Io<'i, 'o>> Uri<T> {
     #[inline]
+    fn len(&self) -> u32 {
+        self.ptr.len()
+    }
+
+    #[inline]
     unsafe fn slice(&'i self, start: u32, end: u32) -> &'o str {
-        debug_assert!(start <= end && end <= self.len);
+        debug_assert!(start <= end && end <= self.len());
         // SAFETY: The caller must ensure that the indexes are within bounds.
         let bytes = unsafe {
-            slice::from_raw_parts(
-                self.ptr.as_ptr().add(start as usize),
-                (end - start) as usize,
-            )
+            slice::from_raw_parts(self.ptr.get().add(start as usize), (end - start) as usize)
         };
         // SAFETY: The parser guarantees that the bytes are valid UTF-8.
         unsafe { str::from_utf8_unchecked(bytes) }
@@ -473,7 +372,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Uri<T> {
     pub fn fragment(&'i self) -> Option<&'o EStr> {
         // SAFETY: The indexes are within bounds and the validation is done.
         self.fragment_start
-            .map(|i| unsafe { self.eslice(i.get(), self.len) })
+            .map(|i| unsafe { self.eslice(i.get(), self.len()) })
     }
 
     /// Returns `true` if the URI reference is [relative], i.e., without a scheme.
@@ -541,7 +440,7 @@ impl<'a> Uri<&'a mut [u8]> {
         if bytes.len() > i32::MAX as usize {
             len_overflow();
         }
-        // SAFETY: We're using the right pointer, length, capacity, and generics.
+        // SAFETY: We're using the correct pointer, length, capacity, and generics.
         unsafe { parser::parse(bytes.as_mut_ptr(), bytes.len() as u32, 0) }
     }
 
@@ -550,13 +449,10 @@ impl<'a> Uri<&'a mut [u8]> {
     where
         T: ?Sized + Lens<'a, Ptr = &'a mut [u8]>,
     {
-        debug_assert!(start <= end && end <= self.len);
+        debug_assert!(start <= end && end <= self.len());
         // SAFETY: The caller must ensure that the indexes are within bounds.
         let bytes = unsafe {
-            slice::from_raw_parts_mut(
-                self.ptr.as_ptr().add(start as usize),
-                (end - start) as usize,
-            )
+            slice::from_raw_parts_mut(self.ptr.get().add(start as usize), (end - start) as usize)
         };
         // SAFETY: The caller must ensure that the bytes are properly encoded.
         unsafe { View::new(bytes) }
@@ -618,7 +514,7 @@ impl<'a> Uri<&'a mut [u8]> {
         // SAFETY: The indexes are within bounds and the validation is done.
         self.fragment_start
             .take()
-            .map(|i| unsafe { self.view(i.get(), self.len) })
+            .map(|i| unsafe { self.view(i.get(), self.len()) })
     }
 }
 
@@ -645,7 +541,7 @@ impl Uri<String> {
             cap_overflow();
         }
 
-        // SAFETY: We're using the right pointer, length, capacity, and generics.
+        // SAFETY: We're using the correct pointer, length, capacity, and generics.
         match unsafe { parser::parse(ptr, len as u32, cap as u32) } {
             Ok(out) => Ok(out),
             Err(e) => Err((ManuallyDrop::into_inner(buf), e)),
@@ -653,10 +549,19 @@ impl Uri<String> {
     }
 
     /// Consumes this `Uri` and yields the underlying [`String`] storage.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::Uri;
+    ///
+    /// let uri = Uri::parse("https://www.rust-lang.org/")?.to_owned();
+    /// let string = uri.into_string();
+    /// # Ok::<_, fluent_uri::ParseError>(())
+    /// ```
     #[inline]
     pub fn into_string(self) -> String {
-        // SAFETY: Creating a `String` from the original raw parts is fine.
-        unsafe { String::from_raw_parts(self.ptr.as_ptr(), self.len as usize, self.cap as usize) }
+        self.ptr.into_string()
     }
 
     /// Borrows this `Uri<String>` as a reference to `Uri<&str>`.
@@ -680,19 +585,6 @@ impl Clone for Uri<String> {
 // SAFETY: `&str`, `&mut [u8]` and `String` are all Send and Sync.
 unsafe impl<T: Storage> Send for Uri<T> {}
 unsafe impl<T: Storage> Sync for Uri<T> {}
-
-impl<T: Storage> Drop for Uri<T> {
-    #[inline]
-    fn drop(&mut self) {
-        // Can't use `mem::needs_drop` here because there's no guarantee of its return value.
-        if T::needs_drop() {
-            // SAFETY: `T::needs_drop()` returns true iff `T` is `String`.
-            let _ = unsafe {
-                String::from_raw_parts(self.ptr.as_ptr(), self.len as usize, self.cap as usize)
-            };
-        }
-    }
-}
 
 /// The [scheme] component of URI reference.
 ///
@@ -775,12 +667,6 @@ impl Scheme {
     }
 }
 
-#[derive(Clone, Copy)]
-struct AuthorityInternal {
-    host_bounds: (NonZeroU32, u32),
-    host_data: RawHostData,
-}
-
 /// The [authority] component of URI reference.
 ///
 /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
@@ -818,7 +704,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     }
 
     #[inline]
-    fn internal(&self) -> &AuthorityInternal {
+    fn internal(&self) -> &AuthData {
         // SAFETY: When authority is present, `auth` must be `Some`.
         unsafe { self.uri.auth.as_ref().unwrap_unchecked() }
     }
@@ -907,37 +793,6 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
         (host_end != self.uri.path_bounds.0)
             .then(|| unsafe { self.uri.slice(host_end + 1, self.uri.path_bounds.0) })
     }
-}
-
-bitflags! {
-    struct Tag: u32 {
-        const HOST_REG_NAME  = 0b00000001;
-        const HOST_IPV4      = 0b00000010;
-        const HOST_IPV6      = 0b00000100;
-        const SCHEME_TAKEN   = 0b00001000;
-        const USERINFO_TAKEN = 0b00010000;
-        const HOST_TAKEN     = 0b00100000;
-        const PORT_TAKEN     = 0b01000000;
-        const PATH_TAKEN     = 0b10000000;
-
-        const AUTH_SUB_TAKEN = 0b01110000;
-    }
-}
-
-#[derive(Clone, Copy)]
-union RawHostData {
-    ipv4_addr: Ipv4Addr,
-    ipv6: Ipv6Data,
-    #[cfg(feature = "ipv_future")]
-    ipv_future_dot_i: u32,
-    reg_name: (),
-}
-
-#[derive(Clone, Copy)]
-struct Ipv6Data {
-    addr: Ipv6Addr,
-    #[cfg(feature = "rfc6874bis")]
-    zone_id_start: Option<NonZeroU32>,
 }
 
 /// The [host] subcomponent of authority.

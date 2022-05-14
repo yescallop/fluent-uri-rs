@@ -1,13 +1,12 @@
 use crate::{
     enc::{table::*, OCTET_TABLE_LO},
-    AuthorityInternal, RawHostData as HostData, Result, Tag, Uri,
+    internal::Pointer,
+    AuthData, Data, RawHostData as HostData, Result, Tag, Uri,
 };
 use std::{
     marker::PhantomData,
-    mem,
     net::{Ipv4Addr, Ipv6Addr},
     num::NonZeroU32,
-    ptr::NonNull,
     str,
 };
 
@@ -15,24 +14,27 @@ use super::{internal::Storage, Ipv6Data};
 
 pub(crate) unsafe fn parse<T: Storage>(ptr: *mut u8, len: u32, cap: u32) -> Result<Uri<T>> {
     let mut parser = Parser {
-        out: Uri {
-            ptr: NonNull::new(ptr).unwrap(),
-            cap,
-            len,
+        ptr,
+        len,
+        out: Data {
             tag: Tag::empty(),
             scheme_end: None,
             auth: None,
             path_bounds: (0, 0),
             query_end: None,
             fragment_start: None,
-            _marker: PhantomData,
         },
         pos: 0,
         mark: 0,
     };
     parser.parse_from_scheme()?;
-    // SAFETY: `Uri` has a fixed layout.
-    Ok(unsafe { mem::transmute(parser.out) })
+    Ok(Uri {
+        // SAFETY: The caller must ensure that the pointer is not null
+        // and that the length and capacity are correct.
+        ptr: unsafe { <T::Ptr as Pointer>::new(ptr, len, cap) },
+        data: parser.out,
+        _marker: PhantomData,
+    })
 }
 
 /// Returns immediately with an error.
@@ -50,8 +52,9 @@ macro_rules! err {
 /// The invariant holds that `mark <= pos <= len`,
 /// where `pos` is non-decreasing and `bytes[..pos]` is valid UTF-8.
 struct Parser {
-    // Not generic to avoid code bloat.
-    out: Uri<()>,
+    ptr: *const u8,
+    len: u32,
+    out: Data,
     pos: u32,
     mark: u32,
 }
@@ -75,30 +78,30 @@ enum Seg {
 
 impl Parser {
     fn has_remaining(&self) -> bool {
-        self.pos < self.out.len
+        self.pos < self.len
     }
 
     unsafe fn get_unchecked(&self, i: u32) -> u8 {
-        debug_assert!(i < self.out.len, "index out of bounds");
+        debug_assert!(i < self.len, "index out of bounds");
         // SAFETY: The caller must ensure that the index is within bounds.
-        unsafe { *self.out.ptr.as_ptr().add(i as usize) }
+        unsafe { *self.ptr.add(i as usize) }
     }
 
     fn get(&self, i: u32) -> u8 {
-        assert!(i < self.out.len, "index out of bounds");
+        assert!(i < self.len, "index out of bounds");
         // SAFETY: We have checked that `i < len`.
         unsafe { self.get_unchecked(i) }
     }
 
     fn peek(&self, i: u32) -> Option<u8> {
-        (self.pos + i < self.out.len).then(|| self.get(self.pos + i))
+        (self.pos + i < self.len).then(|| self.get(self.pos + i))
     }
 
     // Any call to this function must keep the invariant.
     fn skip(&mut self, n: u32) {
         // INVARIANT: `pos` is non-decreasing.
         self.pos += n;
-        debug_assert!(self.pos <= self.out.len);
+        debug_assert!(self.pos <= self.len);
     }
 
     fn mark(&mut self) {
@@ -115,7 +118,7 @@ impl Parser {
             self.scan_enc(table, |_| ())
         } else {
             let mut i = self.pos;
-            while i < self.out.len {
+            while i < self.len {
                 if !table.allows(self.get(i)) {
                     break;
                 }
@@ -131,10 +134,10 @@ impl Parser {
     fn scan_enc(&mut self, table: &Table, mut f: impl FnMut(u8)) -> Result<()> {
         let mut i = self.pos;
 
-        while i < self.out.len {
+        while i < self.len {
             let x = self.get(i);
             if x == b'%' {
-                if i + 2 >= self.out.len {
+                if i + 2 >= self.len {
                     err!(i, InvalidOctet);
                 }
                 // SAFETY: We have checked that `i + 2 < len`.
@@ -175,7 +178,7 @@ impl Parser {
 
         // SAFETY: We have checked that `pos + s.len() <= len`.
         // Overflow is impossible since both `len` and `s.len()` are no larger than `i32::MAX`.
-        let res = self.pos + len <= self.out.len
+        let res = self.pos + len <= self.len
             && (0..len)
                 .all(|i| unsafe { self.get_unchecked(self.pos + i) } == s.as_bytes()[i as usize]);
         if res {
@@ -285,10 +288,10 @@ impl Parser {
             };
 
             // Save the state.
-            let state = (self.out.len, self.pos);
+            let state = (self.len, self.pos);
 
             // The entire host is already scanned so the index is within bounds.
-            self.out.len = host_end;
+            self.len = host_end;
             // INVARIANT: It holds that `mark <= pos <= buf.len()`.
             // Here `pos` may decrease but will be restored later.
             self.pos = self.mark;
@@ -306,10 +309,10 @@ impl Parser {
 
             // Restore the state.
             // INVARIANT: Restoring the state would not affect the invariant.
-            (self.out.len, self.pos) = state;
+            (self.len, self.pos) = state;
         }
 
-        self.out.auth = Some(AuthorityInternal {
+        self.out.auth = Some(AuthData {
             // SAFETY: Host won't start at index 0.
             host_bounds: (unsafe { NonZeroU32::new_unchecked(host.0) }, host.1),
             host_data: host.2,
