@@ -318,12 +318,9 @@ impl<'i, 'o, T: Io<'i, 'o>> Uri<T> {
     /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
     #[inline]
     pub fn scheme(&'i self) -> Option<&'o Scheme> {
-        if T::is_mut() && self.tag.contains(Tag::SCHEME_TAKEN) {
-            return None;
-        }
         // SAFETY: The indexes are within bounds and the validation is done.
         self.scheme_end
-            .map(|i| Scheme::new(unsafe { self.slice(0, i.get() - 1) }))
+            .map(|i| Scheme::new(unsafe { self.slice(0, i.get()) }))
     }
 
     /// Returns the [authority] component.
@@ -461,14 +458,10 @@ impl<'a> Uri<&'a mut [u8]> {
     /// Takes a view of the scheme component, leaving a `None` in its place.
     #[inline]
     pub fn take_scheme(&mut self) -> Option<View<'a, Scheme>> {
-        if self.tag.contains(Tag::SCHEME_TAKEN) {
-            return None;
-        }
-        self.tag |= Tag::SCHEME_TAKEN;
-
         // SAFETY: The indexes are within bounds and the validation is done.
         self.scheme_end
-            .map(|i| unsafe { self.view(0, i.get() - 1) })
+            .take()
+            .map(|i| unsafe { self.view(0, i.get()) })
     }
 
     /// Takes a view of the authority component, leaving a `None` in its place.
@@ -704,20 +697,20 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     }
 
     #[inline]
-    fn internal(&self) -> &AuthData {
+    fn data(&self) -> &AuthData {
         // SAFETY: When authority is present, `auth` must be `Some`.
         unsafe { self.uri.auth.as_ref().unwrap_unchecked() }
     }
 
     #[inline]
     fn start(&self) -> u32 {
-        self.uri.scheme_end.map(|x| x.get()).unwrap_or(0) + 2
+        self.data().start.get().get()
     }
 
     #[inline]
     fn host_bounds(&self) -> (u32, u32) {
-        let bounds = self.internal().host_bounds;
-        (bounds.0.get(), bounds.1)
+        let bounds = self.data().host_bounds;
+        (bounds.0, bounds.1)
     }
 
     /// Returns the [userinfo] subcomponent.
@@ -736,10 +729,6 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     /// ```
     #[inline]
     pub fn userinfo(&'i self) -> Option<&'o EStr> {
-        if T::is_mut() && self.uri.tag.contains(Tag::USERINFO_TAKEN) {
-            return None;
-        }
-
         let (start, host_start) = (self.start(), self.host_bounds().0);
         // SAFETY: The indexes are within bounds and the validation is done.
         (start != host_start).then(|| unsafe { self.uri.eslice(start, host_start - 1) })
@@ -818,7 +807,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Host<T> {
 
     #[inline]
     fn raw_data(&self) -> &RawHostData {
-        &self.auth.internal().host_data
+        &self.auth.data().host_data
     }
 
     /// Returns the host as a string slice.
@@ -835,9 +824,8 @@ impl<'i, 'o, T: Io<'i, 'o>> Host<T> {
     /// ```
     #[inline]
     pub fn as_str(&'i self) -> &'o str {
-        let bounds = self.bounds();
         // SAFETY: The indexes are within bounds and the validation is done.
-        unsafe { self.auth.uri.slice(bounds.0, bounds.1) }
+        unsafe { self.auth.uri.slice(self.bounds().0, self.bounds().1) }
     }
 
     /// Returns the structured host data.

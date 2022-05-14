@@ -1,6 +1,7 @@
 #![allow(missing_debug_implementations)]
 
 use std::{
+    cell::Cell,
     mem::MaybeUninit,
     num::NonZeroU32,
     ops::{Deref, DerefMut},
@@ -158,9 +159,7 @@ impl IntoOwnedUri for Vec<u8> {
 #[derive(Clone)]
 pub struct Data {
     pub tag: Tag,
-    // One byte past the trailing ':'.
-    // This encoding is chosen so that no extra branch is introduced
-    // when indexing the start of the authority.
+    // The index of the trailing colon.
     pub scheme_end: Option<NonZeroU32>,
     pub auth: Option<AuthData>,
     pub path_bounds: (u32, u32),
@@ -189,22 +188,19 @@ impl<T: Storage> DerefMut for Uri<T> {
 
 bitflags! {
     pub struct Tag: u32 {
-        const HOST_REG_NAME  = 0b00000001;
-        const HOST_IPV4      = 0b00000010;
-        const HOST_IPV6      = 0b00000100;
-        const SCHEME_TAKEN   = 0b00001000;
-        const USERINFO_TAKEN = 0b00010000;
-        const HOST_TAKEN     = 0b00100000;
-        const PORT_TAKEN     = 0b01000000;
-        const PATH_TAKEN     = 0b10000000;
-
-        const AUTH_SUB_TAKEN = 0b01110000;
+        const HOST_REG_NAME = 0b00000001;
+        const HOST_IPV4     = 0b00000010;
+        const HOST_IPV6     = 0b00000100;
+        const HOST_TAKEN    = 0b00001000;
+        const PORT_TAKEN    = 0b00010000;
+        const PATH_TAKEN    = 0b00100000;
     }
 }
 
 #[derive(Clone)]
 pub struct AuthData {
-    pub host_bounds: (NonZeroU32, u32),
+    pub start: Cell<NonZeroU32>,
+    pub host_bounds: (u32, u32),
     pub host_data: RawHostData,
 }
 

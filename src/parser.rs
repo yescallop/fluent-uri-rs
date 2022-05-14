@@ -4,6 +4,7 @@ use crate::{
     AuthData, Data, RawHostData as HostData, Result, Tag, Uri,
 };
 use std::{
+    cell::Cell,
     marker::PhantomData,
     net::{Ipv4Addr, Ipv6Addr},
     num::NonZeroU32,
@@ -195,7 +196,7 @@ impl Parser {
         if self.peek(0) == Some(b':') {
             // Scheme starts with a letter.
             if self.pos != 0 && self.get(0).is_ascii_alphabetic() {
-                self.out.scheme_end = NonZeroU32::new(self.pos + 1);
+                self.out.scheme_end = NonZeroU32::new(self.pos);
             } else {
                 err!(0, UnexpectedChar);
             }
@@ -219,6 +220,7 @@ impl Parser {
 
     fn parse_from_authority(&mut self) -> Result<()> {
         let host;
+        let start = self.pos;
 
         // This table contains userinfo, reg-name, ":", and port.
         static TABLE: &Table = &USERINFO.shl(1).or(&Table::gen(b":"));
@@ -313,8 +315,9 @@ impl Parser {
         }
 
         self.out.auth = Some(AuthData {
-            // SAFETY: Host won't start at index 0.
-            host_bounds: (unsafe { NonZeroU32::new_unchecked(host.0) }, host.1),
+            // SAFETY: Authority won't start at index 0.
+            start: Cell::new(unsafe { NonZeroU32::new_unchecked(start) }),
+            host_bounds: (host.0, host.1),
             host_data: host.2,
         });
         self.parse_from_path(PathKind::AbEmpty)

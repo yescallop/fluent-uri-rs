@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::{num::NonZeroU32, ops::Deref};
 
 use super::*;
 use crate::enc::SplitView;
@@ -167,31 +167,39 @@ impl<'a> View<'a, Scheme> {
 
 /// An [`Authority`] view into a mutable byte slice.
 impl<'i, 'a> View<'i, Authority<&'a mut [u8]>> {
-    /// Consumes this `View<Authority>` and yields the underlying [`View<str>`].
+    /// Consumes this `View<Authority>` and yields the underlying `View<str>`.
+    ///
+    /// The userinfo or port subcomponent is truncated if it is already taken.
     ///
     /// # Panics
     ///
-    /// Panics if any of the subcomponents is already taken.
+    /// Panics if the host subcomponent is already taken.
     #[inline]
     pub fn into_str_view(self) -> View<'a, str> {
-        if self.uri.tag.intersects(Tag::AUTH_SUB_TAKEN) {
+        if self.uri.tag.contains(Tag::HOST_TAKEN) {
             component_taken();
         }
+
+        let end = if self.uri.tag.contains(Tag::PORT_TAKEN) {
+            self.host_bounds().1
+        } else {
+            self.uri.path_bounds.0
+        };
+
         // SAFETY: The indexes are within bounds and the validation is done.
-        unsafe { self.0.uri.view(self.start(), self.uri.path_bounds.0) }
+        unsafe { self.0.uri.view(self.start(), end) }
     }
 
     /// Takes a view of the userinfo subcomponent, leaving a `None` in its place.
     #[inline]
     pub fn take_userinfo(&mut self) -> Option<View<'a, EStr>> {
-        if self.uri.tag.contains(Tag::USERINFO_TAKEN) {
-            return None;
-        }
-        self.0.uri.tag |= Tag::USERINFO_TAKEN;
-
         let (start, host_start) = (self.start(), self.host_bounds().0);
-        // SAFETY: The indexes are within bounds and the validation is done.
-        (start != host_start).then(|| unsafe { self.0.uri.view(start, host_start - 1) })
+        (start != host_start).then(|| unsafe {
+            // SAFETY: Host won't start at index 0.
+            self.data().start.set(NonZeroU32::new_unchecked(host_start));
+            // SAFETY: The indexes are within bounds and the validation is done.
+            self.0.uri.view(start, host_start - 1)
+        })
     }
 
     /// Takes a view of the host subcomponent.
@@ -230,7 +238,7 @@ impl<'i, 'a> View<'i, Host<&'a mut [u8]>> {
     #[inline]
     pub fn into_str_view(self) -> View<'a, str> {
         // SAFETY: The indexes are within bounds and the validation is done.
-        unsafe { self.0.uri.view(self.0.start(), self.0.uri.path_bounds.0) }
+        unsafe { self.0.uri.view(self.bounds().0, self.bounds().1) }
     }
 
     /// Consumes this `View<Host>` and yields the underlying `View<EStr>`,
@@ -243,7 +251,7 @@ impl<'i, 'a> View<'i, Host<&'a mut [u8]>> {
     pub fn unwrap_reg_name(self) -> View<'a, EStr> {
         assert!(self.0.uri.tag.contains(Tag::HOST_REG_NAME));
         // SAFETY: The indexes are within bounds and the validation is done.
-        unsafe { self.0.uri.view(self.0.start(), self.0.uri.path_bounds.0) }
+        unsafe { self.0.uri.view(self.bounds().0, self.bounds().1) }
     }
 }
 
