@@ -157,8 +157,7 @@ impl EStr {
     /// ```
     #[inline]
     pub fn decode(&self) -> Decode<'_> {
-        // SAFETY: An `EStr` may only be created through `new_unchecked`,
-        // of which the caller must guarantee that the string is properly encoded.
+        // SAFETY: `EStr::new_unchecked` ensures that the string is properly encoded.
         match unsafe { decode_unchecked(&self.inner) } {
             Some(s) => Decode::Dst(s),
             None => Decode::Src(self.as_str()),
@@ -191,8 +190,7 @@ impl EStr {
     #[cfg(feature = "unstable")]
     #[inline]
     pub fn decode_with<'dst>(&self, buf: &'dst mut Vec<u8>) -> DecodeRef<'_, 'dst> {
-        // SAFETY: An `EStr` may only be created through `new_unchecked`,
-        // of which the caller must guarantee that the string is properly encoded.
+        // SAFETY: `EStr::new_unchecked` ensures that the string is properly encoded.
         let decoded = unsafe { decode_with_unchecked(&self.inner, buf) };
 
         match decoded {
@@ -274,8 +272,7 @@ impl<'a> View<'a, EStr> {
     #[inline]
     pub fn decode_in_place(self) -> DecodeInPlace<'a> {
         let bytes = self.into_bytes();
-        // SAFETY: An `View<EStr>` may only be created through `new`,
-        // of which the caller must guarantee that the bytes are properly encoded.
+        // SAFETY: `Self::new` ensures that the bytes are properly encoded.
         let len = unsafe { imp::decode_in_place_unchecked(bytes) };
         if len == bytes.len() {
             // SAFETY: Nothing is decoded so the bytes are valid UTF-8.

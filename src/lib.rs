@@ -328,8 +328,11 @@ impl<'i, 'o, T: Io<'i, 'o>> Uri<T> {
     /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
     #[inline]
     pub fn authority(&self) -> Option<&Authority<T>> {
+        if T::is_mut() && self.tag.contains(Tag::AUTH_TAKEN) {
+            return None;
+        }
         if self.auth.is_some() {
-            // SAFETY: `auth` is `Some`.
+            // SAFETY: The authority is present and not modified.
             Some(unsafe { Authority::new(self) })
         } else {
             None
@@ -444,7 +447,7 @@ impl<'a> Uri<&'a mut [u8]> {
     #[inline]
     unsafe fn view<T>(&mut self, start: u32, end: u32) -> View<'a, T>
     where
-        T: ?Sized + Lens<'a, Ptr = &'a mut [u8]>,
+        T: ?Sized + Lens<'a, Target = [u8]>,
     {
         debug_assert!(start <= end && end <= self.len());
         // SAFETY: The caller must ensure that the indexes are within bounds.
@@ -467,10 +470,14 @@ impl<'a> Uri<&'a mut [u8]> {
     /// Takes a view of the authority component, leaving a `None` in its place.
     #[inline]
     pub fn take_authority(&mut self) -> Option<View<'_, Authority<&'a mut [u8]>>> {
+        if self.tag.contains(Tag::AUTH_TAKEN) {
+            return None;
+        }
+        self.tag |= Tag::AUTH_TAKEN;
+
         if self.auth.is_some() {
-            // SAFETY: `auth` is `Some`.
-            // `AuthGuard` will set `auth` to `None` when it gets dropped.
-            Some(unsafe { View::new(AuthGuard { uri: self }) })
+            // SAFETY: The authority is present and not modified.
+            Some(unsafe { View::new(self) })
         } else {
             None
         }
@@ -692,7 +699,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     #[inline]
     unsafe fn new(uri: &Uri<T>) -> &Authority<T> {
         // SAFETY: Transparency holds.
-        // The caller must guarantee that `auth` is `Some`.
+        // The caller must ensure that the authority is present not modified.
         unsafe { &*(uri as *const Uri<T> as *const Authority<T>) }
     }
 
@@ -745,7 +752,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
         if T::is_mut() && self.uri.tag.contains(Tag::HOST_TAKEN) {
             component_taken();
         }
-        // SAFETY: The host is not modified at this time.
+        // SAFETY: The host is not modified.
         unsafe { Host::new(self) }
     }
 

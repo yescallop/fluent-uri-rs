@@ -191,9 +191,10 @@ bitflags! {
         const HOST_REG_NAME = 0b00000001;
         const HOST_IPV4     = 0b00000010;
         const HOST_IPV6     = 0b00000100;
-        const HOST_TAKEN    = 0b00001000;
-        const PORT_TAKEN    = 0b00010000;
-        const PATH_TAKEN    = 0b00100000;
+        const AUTH_TAKEN    = 0b00001000;
+        const HOST_TAKEN    = 0b00010000;
+        const PORT_TAKEN    = 0b00100000;
+        const PATH_TAKEN    = 0b01000000;
     }
 }
 
