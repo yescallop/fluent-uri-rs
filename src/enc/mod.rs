@@ -498,22 +498,18 @@ impl<'a> DecodeInPlace<'a> {
         matches!(self, Self::Dst(_))
     }
 
-    /// Converts the decoded bytes to a string slice.
+    /// Converts the decoded bytes to a [`View<str>`].
     ///
     /// An error along with the decoded bytes is returned if the bytes are not valid UTF-8.
     #[inline]
-    pub fn into_str(self) -> Result<&'a str, (&'a mut [u8], Utf8Error)> {
+    pub fn into_str_view(self) -> Result<View<'a, str>, (&'a mut [u8], Utf8Error)> {
         match self {
-            Self::Src(s) => Ok(s.into_ref()),
-            Self::Dst(s) => {
-                // Can't use a match here.
-                if let Err(e) = str::from_utf8(s) {
-                    Err((s, e))
-                } else {
-                    // SAFETY: The validation is done.
-                    Ok(unsafe { str::from_utf8_unchecked(s) })
-                }
-            }
+            Self::Src(s) => Ok(s),
+            Self::Dst(s) => match str::from_utf8(s) {
+                // SAFETY: The validation is done.
+                Ok(_) => Ok(unsafe { View::new(s) }),
+                Err(e) => Err((s, e)),
+            },
         }
     }
 
