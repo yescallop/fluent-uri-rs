@@ -513,6 +513,14 @@ impl<'a> DecodeInPlace<'a> {
         }
     }
 
+    /// Converts the decoded bytes to a string slice.
+    ///
+    /// An error along with the decoded bytes is returned if the bytes are not valid UTF-8.
+    #[inline]
+    pub fn into_str(self) -> Result<&'a str, (&'a mut [u8], Utf8Error)> {
+        self.into_str_view().map(View::into_ref)   
+    }
+
     /// Converts the decoded bytes to a string lossily.
     #[inline]
     pub fn into_string_lossy(self) -> Cow<'a, str> {
