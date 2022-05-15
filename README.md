@@ -76,9 +76,8 @@ API Docs: [docs.rs](https://docs.rs/fluent-uri) | [dev](https://yescallop.cn/flu
 
   // The query is taken from the `Uri`.
   assert!(uri.query().is_none());
-  drop(uri);
   // In-place decoding is like this if you're interested:
-  assert_eq!(vec, "?name=Ferris the crabcrab&color=🟠9F%9F%A0".as_bytes());
+  assert_eq!(vec, b"?name=Ferris the crabcrab&color=\xF0\x9F\x9F\xA09F%9F%A0");
   ```
 
 ## Roadmap

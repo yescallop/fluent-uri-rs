@@ -170,7 +170,6 @@ fn len_overflow() -> ! {
 ///
 /// // The query is taken from the `Uri`.
 /// assert!(uri.query().is_none());
-/// drop(uri);
 /// // In-place decoding is like this if you're interested:
 /// assert_eq!(vec, b"?name=Ferris the crabcrab&color=\xF0\x9F\x9F\xA09F%9F%A0");
 /// # Ok::<_, fluent_uri::ParseError>(())
@@ -699,7 +698,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     #[inline]
     unsafe fn new(uri: &Uri<T>) -> &Authority<T> {
         // SAFETY: Transparency holds.
-        // The caller must ensure that the authority is present not modified.
+        // The caller must ensure that the authority is present and not modified.
         unsafe { &*(uri as *const Uri<T> as *const Authority<T>) }
     }
 
