@@ -36,17 +36,6 @@ API Docs: [docs.rs](https://docs.rs/fluent-uri) | [dev](https://yescallop.cn/flu
   - `Uri<&str>`: borrowed; immutable.
   - `Uri<&mut [u8]>`: borrowed; in-place mutable.
   - `Uri<String>`: owned; immutable.
-  
-  Lifetimes are correctly handled in a way that `Uri<&'a str>` output references
-  with lifetime `'a`. This allows you to drop a temporary `Uri<&str>` while keeping
-  the output references:
-
-  ```rust
-  let uri = Uri::parse("foo:bar")?;
-  let path = uri.path();
-  drop(uri);
-  assert_eq!(path.as_str(), "bar");
-  ```
 
   Decode and extract query parameters in-place from a URI reference:
 
@@ -68,8 +57,8 @@ API Docs: [docs.rs](https://docs.rs/fluent-uri) | [dev](https://yescallop.cn/flu
       Ok((uri, map))
   }
 
-  let mut vec = b"?name=Ferris%20the%20crab&color=%F0%9F%9F%A0".to_vec();
-  let (uri, query) = decode_and_extract_query(&mut vec)?;
+  let mut bytes = *b"?name=Ferris%20the%20crab&color=%F0%9F%9F%A0";
+  let (uri, query) = decode_and_extract_query(&mut bytes)?;
 
   assert_eq!(query["name"], "Ferris the crab");
   assert_eq!(query["color"], "🟠");
@@ -77,7 +66,7 @@ API Docs: [docs.rs](https://docs.rs/fluent-uri) | [dev](https://yescallop.cn/flu
   // The query is taken from the `Uri`.
   assert!(uri.query().is_none());
   // In-place decoding is like this if you're interested:
-  assert_eq!(vec, b"?name=Ferris the crabcrab&color=\xF0\x9F\x9F\xA09F%9F%A0");
+  assert_eq!(&bytes, b"?name=Ferris the crabcrab&color=\xF0\x9F\x9F\xA09F%9F%A0");
   ```
 
 ## Roadmap

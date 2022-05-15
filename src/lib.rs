@@ -104,15 +104,22 @@ fn len_overflow() -> ! {
 /// - `Uri<&mut [u8]>`: borrowed; in-place mutable.
 /// - `Uri<String>`: owned; immutable.
 ///
-/// Lifetimes are correctly handled in a way that `Uri<&'a str>` output references
-/// with lifetime `'a`. This allows you to drop a temporary `Uri<&str>` while keeping
-/// the output references:
+/// Lifetimes are correctly handled in a way that `Uri<&'a str>` and `Uri<&'a mut [u8]>`
+/// both output references with lifetime `'a` where appropriate. This allows you to drop
+/// a temporary `Uri` while keeping the output references:
 ///
 /// ```
 /// use fluent_uri::Uri;
 ///
-/// let uri = Uri::parse("foo:bar")?;
+/// let mut bytes = *b"foo:bar";
+///
+/// let uri = Uri::parse(&bytes)?;
 /// let path = uri.path();
+/// drop(uri);
+/// assert_eq!(path.as_str(), "bar");
+///
+/// let mut uri = Uri::parse_mut(&mut bytes)?;
+/// let path = uri.take_path();
 /// drop(uri);
 /// assert_eq!(path.as_str(), "bar");
 /// # Ok::<_, fluent_uri::ParseError>(())
@@ -162,8 +169,8 @@ fn len_overflow() -> ! {
 ///     Ok((uri, map))
 /// }
 ///
-/// let mut vec = b"?name=Ferris%20the%20crab&color=%F0%9F%9F%A0".to_vec();
-/// let (uri, query) = decode_and_extract_query(&mut vec)?;
+/// let mut bytes = *b"?name=Ferris%20the%20crab&color=%F0%9F%9F%A0";
+/// let (uri, query) = decode_and_extract_query(&mut bytes)?;
 ///
 /// assert_eq!(query["name"], "Ferris the crab");
 /// assert_eq!(query["color"], "🟠");
@@ -171,7 +178,7 @@ fn len_overflow() -> ! {
 /// // The query is taken from the `Uri`.
 /// assert!(uri.query().is_none());
 /// // In-place decoding is like this if you're interested:
-/// assert_eq!(vec, b"?name=Ferris the crabcrab&color=\xF0\x9F\x9F\xA09F%9F%A0");
+/// assert_eq!(&bytes, b"?name=Ferris the crabcrab&color=\xF0\x9F\x9F\xA09F%9F%A0");
 /// # Ok::<_, fluent_uri::ParseError>(())
 /// ```
 // TODO: Create a mutable copy of an immutable `Uri` in a buffer:

@@ -80,7 +80,7 @@ impl<'a, T: ?Sized + Lens<'a>> Deref for View<'a, T> {
     type Target = T;
     #[inline]
     fn deref(&self) -> &T {
-        T::view(&self.0)
+        T::view(self.0)
     }
 }
 
@@ -111,7 +111,7 @@ impl<'a, T: ?Sized + Lens<'a>> View<'a, T> {
 
 impl<'a, T: ?Sized + Lens<'a, Target = [u8]>> View<'a, T> {
     /// Consumes this `View` and yields the underlying mutable byte slice.
-    /// 
+    ///
     /// This method is only available for lenses [`EStr`], [`prim@str`], [`Scheme`], and [`Path`].
     #[inline]
     pub fn into_bytes(self) -> &'a mut [u8] {
