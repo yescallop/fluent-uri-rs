@@ -179,7 +179,7 @@ impl<'i, 'a> View<'i, Authority<&'a mut [u8]>> {
     /// # Panics
     ///
     /// Panics if the host subcomponent is already taken.
-    // NOTE: The lifetime on `View` can't be `'a` because if it was,
+    // NOTE: The lifetime on `View` can't be `'i` because if it was,
     // `view.0` would alias with `self.0`.
     #[inline]
     pub fn take_host(&mut self) -> View<'_, Host<&'a mut [u8]>> {
