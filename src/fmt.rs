@@ -167,14 +167,14 @@ impl fmt::Debug for Path {
     }
 }
 
-impl<'a, T: ?Sized + fmt::Display + Lens<'a>> fmt::Display for View<'a, T> {
+impl<'a, T: ?Sized + fmt::Display + Lens> fmt::Display for View<'a, T> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self.as_ref(), f)
     }
 }
 
-impl<'a, T: ?Sized + fmt::Debug + Lens<'a>> fmt::Debug for View<'a, T> {
+impl<'a, T: ?Sized + fmt::Debug + Lens> fmt::Debug for View<'a, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("View").field(&&**self).finish()
     }

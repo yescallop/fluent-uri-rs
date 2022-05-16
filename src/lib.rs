@@ -92,9 +92,9 @@ fn len_overflow() -> ! {
     panic!("input length exceeds i32::MAX");
 }
 
-/// A URI reference defined in [RFC 3986].
+/// A [URI reference] defined in RFC 3986.
 ///
-/// [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
+/// [URI reference]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.1
 ///
 /// # Variants
 ///
@@ -453,7 +453,7 @@ impl<'a> Uri<&'a mut [u8]> {
     #[inline]
     unsafe fn view<T>(&mut self, start: u32, end: u32) -> View<'a, T>
     where
-        T: ?Sized + Lens<'a, Target = [u8]>,
+        T: ?Sized + Lens<Target = [u8]>,
     {
         debug_assert!(start <= end && end <= self.len());
         // SAFETY: The caller must ensure that the indexes are within bounds.
@@ -607,7 +607,7 @@ impl Scheme {
         unsafe { &*(scheme as *const str as *const Scheme) }
     }
 
-    /// Returns the raw scheme as a string slice.
+    /// Returns the scheme as a string slice.
     ///
     /// # Examples
     ///
@@ -681,26 +681,6 @@ pub struct Authority<T: Storage> {
     uri: Uri<T>,
 }
 
-impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Authority<T> {
-    /// Returns the authority as a string slice.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use fluent_uri::Uri;
-    ///
-    /// let uri = Uri::parse("ftp://user@[fe80::abcd]:6780/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.as_str(), "user@[fe80::abcd]:6780");
-    /// # Ok::<_, fluent_uri::ParseError>(())
-    /// ```
-    #[inline]
-    pub fn as_str(&'i self) -> &'o str {
-        // SAFETY: The indexes are within bounds and the validation is done.
-        unsafe { self.uri.slice(self.start(), self.uri.path_bounds.0) }
-    }
-}
-
 impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     #[inline]
     unsafe fn new(uri: &Uri<T>) -> &Authority<T> {
@@ -721,9 +701,42 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     }
 
     #[inline]
+    fn end(&self) -> u32 {
+        if T::is_mut() && self.uri.tag.contains(Tag::PORT_TAKEN) {
+            self.host_bounds().1
+        } else {
+            self.uri.path_bounds.0
+        }
+    }
+
+    #[inline]
     fn host_bounds(&self) -> (u32, u32) {
-        let bounds = self.data().host_bounds;
-        (bounds.0, bounds.1)
+        self.data().host_bounds
+    }
+
+    /// Returns the authority as a string slice.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the host subcomponent is already taken.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::Uri;
+    ///
+    /// let uri = Uri::parse("ftp://user@[fe80::abcd]:6780/")?;
+    /// let authority = uri.authority().unwrap();
+    /// assert_eq!(authority.as_str(), "user@[fe80::abcd]:6780");
+    /// # Ok::<_, fluent_uri::ParseError>(())
+    /// ```
+    #[inline]
+    pub fn as_str(&'i self) -> &'o str {
+        if T::is_mut() && self.uri.tag.contains(Tag::HOST_TAKEN) {
+            component_taken();
+        }
+        // SAFETY: The indexes are within bounds and the validation is done.
+        unsafe { self.uri.slice(self.start(), self.end()) }
     }
 
     /// Returns the [userinfo] subcomponent.
@@ -789,11 +802,9 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
         if T::is_mut() && self.uri.tag.contains(Tag::PORT_TAKEN) {
             return None;
         }
-
-        let host_end = self.host_bounds().1;
+        let (host_end, end) = (self.host_bounds().1, self.uri.path_bounds.0);
         // SAFETY: The indexes are within bounds and the validation is done.
-        (host_end != self.uri.path_bounds.0)
-            .then(|| unsafe { self.uri.slice(host_end + 1, self.uri.path_bounds.0) })
+        (host_end != end).then(|| unsafe { self.uri.slice(host_end + 1, end) })
     }
 }
 

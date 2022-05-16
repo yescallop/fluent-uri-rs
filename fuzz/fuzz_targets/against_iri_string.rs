@@ -10,8 +10,11 @@ fuzz_target!(|data: &[u8]| {
         let u2 = u2.unwrap();
         assert_eq!(u1.scheme().map(|s| s.as_str()), u2.scheme_str());
         assert_eq!(
-            u1.authority()
-                .map(|a| (a.userinfo().map(|s| s.as_str()), a.host_raw(), a.port_raw())),
+            u1.authority().map(|a| (
+                a.userinfo().map(|s| s.as_str()),
+                a.host().as_str(),
+                a.port()
+            )),
             u2.authority_components()
                 .map(|a| (a.userinfo(), a.host(), a.port()))
         );
