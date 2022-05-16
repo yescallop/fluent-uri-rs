@@ -128,8 +128,8 @@ impl<'a> View<'a, Scheme> {
     /// ```
     /// use fluent_uri::Uri;
     ///
-    /// let mut vec = b"HTTP://example.com/".to_vec();
-    /// let mut uri = Uri::parse_mut(&mut vec)?;
+    /// let mut bytes = *b"HTTP://example.com/";
+    /// let mut uri = Uri::parse_mut(&mut bytes)?;
     ///
     /// let mut scheme = uri.take_scheme().unwrap();
     /// scheme.make_lowercase();

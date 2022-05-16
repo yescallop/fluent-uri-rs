@@ -15,7 +15,7 @@
 //!   which fails with [`InvalidIpLiteral`] when disabled.
 //!
 //! - `rfc6874bis`: Enables the parsing of IPv6 zone identifiers,
-//!   such as in <https://[fe80::abcd%en1]>.
+//!   such as in `https://[fe80::abcd%en1]`.
 //!
 //!     This feature is based on the homonymous [draft] and is thus subject to change.
 //!
