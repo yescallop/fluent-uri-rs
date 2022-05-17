@@ -138,7 +138,7 @@ impl<'a> View<'a, Scheme> {
     #[inline]
     pub fn make_lowercase(&mut self) {
         // SAFETY: Setting the sixth bit keeps UTF-8.
-        for byte in &mut *self.0 {
+        for byte in self.0.iter_mut() {
             *byte |= ASCII_CASE_MASK;
         }
     }

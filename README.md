@@ -57,16 +57,16 @@ A URI parser in Rust that strictly adheres to IETF [RFC 3986].
       Ok((uri, map))
   }
 
-  let mut bytes = *b"?name=Ferris%20the%20crab&color=%F0%9F%9F%A0";
+  let mut bytes = *b"?lang=Rust&mascot=Ferris%20the%20crab";
   let (uri, query) = decode_and_extract_query(&mut bytes)?;
 
-  assert_eq!(query["name"], "Ferris the crab");
-  assert_eq!(query["color"], "🟠");
+  assert_eq!(query["lang"], "Rust");
+  assert_eq!(query["mascot"], "Ferris the crab");
 
   // The query is taken from the `Uri`.
   assert!(uri.query().is_none());
   // In-place decoding is like this if you're interested:
-  assert_eq!(&bytes, b"?name=Ferris the crabcrab&color=\xF0\x9F\x9F\xA09F%9F%A0");
+  assert_eq!(&bytes, b"?lang=Rust&mascot=Ferris the crabcrab");
   ```
 
 ## Roadmap

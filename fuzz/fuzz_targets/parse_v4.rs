@@ -1,5 +1,5 @@
 #![no_main]
-use fluent_uri::{Host, Uri};
+use fluent_uri::{HostData, Uri};
 use libfuzzer_sys::fuzz_target;
 use std::net::Ipv4Addr;
 use std::str::FromStr;
@@ -14,8 +14,8 @@ fuzz_target!(|data: &str| {
 fn parse_v4(s: &str) -> Option<Ipv4Addr> {
     let s = format!("//user@{s}:81/");
     let uri = Uri::parse(s.as_bytes()).ok()?;
-    match uri.authority()?.host() {
-        Host::Ipv4(addr) => Some(addr),
+    match uri.authority()?.host().data() {
+        HostData::Ipv4(addr) => Some(addr),
         _ => None,
     }
 }

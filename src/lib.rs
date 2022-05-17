@@ -133,7 +133,7 @@ fn len_overflow() -> ! {
 /// use fluent_uri::Uri;
 ///
 /// // Create a `Uri<&str>`.
-/// let uri_a: Uri<&str> = Uri::parse("")?;
+/// let uri_a: Uri<&str> = Uri::parse("http://example.com/")?;
 ///
 /// // Create a `Uri<String>`.
 /// let uri_b: Uri<String> = Uri::parse_from(String::new()).map_err(|e| e.1)?;
@@ -169,16 +169,16 @@ fn len_overflow() -> ! {
 ///     Ok((uri, map))
 /// }
 ///
-/// let mut bytes = *b"?name=Ferris%20the%20crab&color=%F0%9F%9F%A0";
+/// let mut bytes = *b"?lang=Rust&mascot=Ferris%20the%20crab";
 /// let (uri, query) = decode_and_extract_query(&mut bytes)?;
 ///
-/// assert_eq!(query["name"], "Ferris the crab");
-/// assert_eq!(query["color"], "🟠");
+/// assert_eq!(query["lang"], "Rust");
+/// assert_eq!(query["mascot"], "Ferris the crab");
 ///
 /// // The query is taken from the `Uri`.
 /// assert!(uri.query().is_none());
 /// // In-place decoding is like this if you're interested:
-/// assert_eq!(&bytes, b"?name=Ferris the crabcrab&color=\xF0\x9F\x9F\xA09F%9F%A0");
+/// assert_eq!(&bytes, b"?lang=Rust&mascot=Ferris the crabcrab");
 /// # Ok::<_, fluent_uri::ParseError>(())
 /// ```
 // TODO: Create a mutable copy of an immutable `Uri` in a buffer:
@@ -662,14 +662,20 @@ impl Scheme {
     /// ```
     #[inline]
     pub fn eq_lowercase(&self, other: &str) -> bool {
-        // The only characters allowed in a scheme are alphabets, digits, "+", "-" and ".",
-        // the ASCII codes of which allow us to simply set the sixth bit and compare.
-        self.0.len() == other.len()
-            && self
-                .0
-                .bytes()
-                .zip(other.bytes())
-                .all(|(a, b)| a | ASCII_CASE_MASK == b)
+        let (a, b) = (self.0.as_bytes(), other.as_bytes());
+        // NOTE: Using iterators results in poor codegen here.
+        if a.len() != b.len() {
+            false
+        } else {
+            for i in 0..a.len() {
+                // The only characters allowed in a scheme are alphabets, digits, "+", "-" and ".",
+                // the ASCII codes of which allow us to simply set the sixth bit and compare.
+                if a[i] | ASCII_CASE_MASK != b[i] {
+                    return false;
+                }
+            }
+            true
+        }
     }
 }
 
