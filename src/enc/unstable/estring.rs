@@ -78,7 +78,7 @@ impl<E: Encoder> EString<E> {
     ///
     /// # Panics
     ///
-    /// This function triggers a compile-time panic if `SubE` is not a sub-encoder of `E`, or
+    /// This method triggers a compile-time panic if `SubE` is not a sub-encoder of `E`, or
     /// if the table specified by `SubE` is not for encoding.
     #[inline]
     #[allow(unused_variables)]

@@ -21,10 +21,10 @@ A URI parser in Rust that strictly adheres to IETF [RFC 3986].
     All components in a URI that may be percent-encoded are parsed as `EStr`s, which allows easy splitting and fast decoding:
 
     ```rust
-    let s = "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21";
-    let map: HashMap<_, _> = EStr::new(s)
+    let query = "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21";
+    let map: HashMap<_, _> = EStr::new(query)
         .split('&')
-        .filter_map(|s| s.split_once('='))
+        .filter_map(|pair| pair.split_once('='))
         .map(|(k, v)| (k.decode(), v.decode()))
         .filter_map(|(k, v)| k.into_string().ok().zip(v.into_string().ok()))
         .collect();

@@ -383,7 +383,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Uri<T> {
 
     /// Returns `true` if the URI reference is [relative], i.e., without a scheme.
     ///
-    /// Note that this function is not the opposite of [`is_absolute`].
+    /// Note that this method is not the opposite of [`is_absolute`].
     ///
     /// [relative]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.2
     /// [`is_absolute`]: Self::is_absolute
@@ -406,7 +406,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Uri<T> {
 
     /// Returns `true` if the URI reference is [absolute], i.e., with a scheme and without a fragment.
     ///
-    /// Note that this function is not the opposite of [`is_relative`].
+    /// Note that this method is not the opposite of [`is_relative`].
     ///
     /// [absolute]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.3
     /// [`is_relative`]: Self::is_relative
@@ -433,7 +433,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Uri<T> {
 impl<'a> Uri<&'a mut [u8]> {
     /// Parses a URI reference from a mutable byte sequence into a `Uri<&mut [u8]>`.
     ///
-    /// See the [`parse`] method for more details.
+    /// See the [`parse`] function for more details.
     ///
     /// [`parse`]: Uri::parse
     ///
@@ -527,7 +527,7 @@ impl<'a> Uri<&'a mut [u8]> {
 impl Uri<String> {
     /// Parses a URI reference from a [`String`] or [`Vec<u8>`] into a `Uri<String>`.
     ///
-    /// See the [`parse`] method for more details.
+    /// See the [`parse`] function for more details.
     ///
     /// [`parse`]: Uri::parse
     ///
@@ -645,7 +645,7 @@ impl Scheme {
 
     /// Checks if the scheme equals case-insensitively with a lowercase string.
     ///
-    /// This function is faster than [`str::eq_ignore_ascii_case`] but will
+    /// This method is slightly faster than [`str::eq_ignore_ascii_case`] but will
     /// always return `false` if there is any uppercase letter in the given string.
     ///
     /// # Examples

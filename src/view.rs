@@ -70,7 +70,7 @@ pub(crate) use self::internal::Lens;
 /// A smart pointer that allows viewing a mutable byte slice as `&T`.
 ///
 /// This struct was introduced considering the fact that a bare `&mut EStr` wouldn't
-/// do for in-place decoding because such decoding breaks the invariant of [`EStr`].
+/// do for in-place decoding because such decoding breaks the invariants of [`EStr`].
 ///
 /// Six types of *lenses* may be used as `T`: [`EStr`], [`prim@str`], [`Scheme`],
 /// [`Authority`], [`Host`], and [`Path`].
@@ -121,6 +121,8 @@ impl<'a, T: ?Sized + Lens<Target = [u8]>> View<'a, T> {
 /// A [`Scheme`] view into a mutable byte slice that allows lowercasing in-place.
 impl<'a> View<'a, Scheme> {
     /// Converts the scheme to lower case in-place.
+    /// 
+    /// This method is slightly faster than [`slice::make_ascii_lowercase`].
     ///
     /// # Examples
     ///

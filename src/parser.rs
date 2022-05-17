@@ -50,7 +50,7 @@ macro_rules! err {
 
 /// URI parser.
 ///
-/// The invariant holds that `mark <= pos <= len`,
+/// The invariants hold that `mark <= pos <= len`,
 /// where `pos` is non-decreasing and `bytes[..pos]` is valid UTF-8.
 struct Parser {
     ptr: *const u8,
@@ -98,7 +98,7 @@ impl Parser {
         (self.pos + i < self.len).then(|| self.get(self.pos + i))
     }
 
-    // Any call to this function must keep the invariant.
+    // Any call to this method must keep the invariants.
     fn skip(&mut self, n: u32) {
         // INVARIANT: `pos` is non-decreasing.
         self.pos += n;
@@ -310,7 +310,7 @@ impl Parser {
             host = (self.mark, host_end, data);
 
             // Restore the state.
-            // INVARIANT: Restoring the state would not affect the invariant.
+            // INVARIANT: Restoring the state would not affect the invariants.
             (self.len, self.pos) = state;
         }
 
@@ -323,7 +323,7 @@ impl Parser {
         self.parse_from_path(PathKind::AbEmpty)
     }
 
-    // The marked length must be zero when this function is called.
+    // The marked length must be zero when this method is called.
     fn read_host(&mut self) -> Result<HostData> {
         match self.read_ip_literal()? {
             Some(host) => Ok(host),
@@ -331,7 +331,7 @@ impl Parser {
         }
     }
 
-    // The marked length must be zero when this function is called.
+    // The marked length must be zero when this method is called.
     fn read_ip_literal(&mut self) -> Result<Option<HostData>> {
         if !self.read_str("[") {
             return Ok(None);
@@ -481,7 +481,7 @@ impl Parser {
         }
     }
 
-    // The marked length must be zero when this function is called.
+    // The marked length must be zero when this method is called.
     fn read_v4_or_reg_name(&mut self) -> Result<HostData> {
         let v4 = self.scan_v4();
         let v4_end = self.pos;
