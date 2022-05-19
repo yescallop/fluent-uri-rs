@@ -17,7 +17,9 @@ pub use unstable::*;
 
 use std::{
     borrow::{self, Cow},
-    fmt, hash, mem,
+    fmt, hash,
+    iter::FusedIterator,
+    mem,
     str::{self, Utf8Error},
     string::FromUtf8Error,
 };
@@ -537,6 +539,7 @@ impl<'a> DecodeInPlace<'a> {
 ///
 /// [`split`]: EStr::split
 #[derive(Debug)]
+#[must_use = "iterators are lazy and do nothing unless consumed"]
 pub struct Split<'a> {
     s: &'a [u8],
     delim: u8,
@@ -600,12 +603,15 @@ impl<'a> DoubleEndedIterator for Split<'a> {
     }
 }
 
+impl FusedIterator for Split<'_> {}
+
 /// An iterator over subslices of a [`View<EStr>`] separated by a delimiter.
 ///
 /// This struct is created by the [`split_view`] method on [`View<EStr>`].
 ///
 /// [`split_view`]: View::<EStr>::split_view
 #[derive(Debug)]
+#[must_use = "iterators are lazy and do nothing unless consumed"]
 pub struct SplitView<'a> {
     s: &'a mut [u8],
     delim: u8,
@@ -670,6 +676,8 @@ impl<'a> DoubleEndedIterator for SplitView<'a> {
         Some(unsafe { View::new(tail) })
     }
 }
+
+impl FusedIterator for SplitView<'_> {}
 
 /// An error occurred when attempting to write to a buffer that is too small.
 ///

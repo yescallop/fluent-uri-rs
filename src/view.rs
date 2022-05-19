@@ -157,7 +157,7 @@ impl<'i, 'a> View<'i, Authority<&'a mut [u8]>> {
     /// Panics if the host subcomponent is already taken.
     #[inline]
     pub fn into_str_view(self) -> View<'a, str> {
-        if self.uri.tag.contains(Tag::HOST_TAKEN) {
+        if self.0.tag.contains(Tag::HOST_TAKEN) {
             component_taken();
         }
         // SAFETY: The indexes are within bounds and the validation is done.
@@ -185,7 +185,7 @@ impl<'i, 'a> View<'i, Authority<&'a mut [u8]>> {
     // `view.0` would alias with `self.0`.
     #[inline]
     pub fn take_host(&mut self) -> View<'_, Host<&'a mut [u8]>> {
-        if self.uri.tag.contains(Tag::HOST_TAKEN) {
+        if self.0.tag.contains(Tag::HOST_TAKEN) {
             component_taken();
         }
         self.0.tag |= Tag::HOST_TAKEN;
@@ -197,12 +197,12 @@ impl<'i, 'a> View<'i, Authority<&'a mut [u8]>> {
     /// Takes a view of the port subcomponent, leaving a `None` in its place.
     #[inline]
     pub fn take_port(&mut self) -> Option<View<'a, str>> {
-        if self.uri.tag.contains(Tag::PORT_TAKEN) {
+        if self.0.tag.contains(Tag::PORT_TAKEN) {
             return None;
         }
         self.0.tag |= Tag::PORT_TAKEN;
 
-        let (host_end, end) = (self.host_bounds().1, self.uri.path_bounds.0);
+        let (host_end, end) = (self.host_bounds().1, self.0.path_bounds.0);
         // SAFETY: The indexes are within bounds and the validation is done.
         (host_end != end).then(|| unsafe { self.0.view(host_end + 1, end) })
     }
