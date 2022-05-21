@@ -6,8 +6,7 @@ use uriparser_sys::{uriFreeUriMembersA, uriParseSingleUriA, UriUriA, URI_SUCCESS
 fuzz_target!(|data: &[u8]| {
     if let Ok(text) = CStr::from_bytes_with_nul(data) {
         let mut uri = MaybeUninit::<UriUriA>::uninit();
-        let mut error_pos = ptr::null();
-        let ret = unsafe { uriParseSingleUriA(uri.as_mut_ptr(), text.as_ptr(), &mut error_pos) };
+        let ret = unsafe { uriParseSingleUriA(uri.as_mut_ptr(), text.as_ptr(), ptr::null_mut()) };
         let success = ret == URI_SUCCESS as _;
         if success {
             unsafe { uriFreeUriMembersA(uri.as_mut_ptr()) }

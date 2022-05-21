@@ -13,8 +13,7 @@ fuzz_target!(|data: &str| {
 
 fn parse_v6(s: &str) -> Option<Ipv6Addr> {
     let s = format!("//[{s}]");
-    let uri = Uri::parse(s.as_bytes()).ok()?;
-    match uri.authority()?.host().data() {
+    match Uri::parse(s.as_bytes()).ok()?.authority()?.host().data() {
         HostData::Ipv6 { addr } => Some(addr),
         _ => None,
     }
