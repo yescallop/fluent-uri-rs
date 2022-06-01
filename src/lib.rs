@@ -588,6 +588,18 @@ impl Clone for Uri<String> {
     }
 }
 
+impl<T: Storage> Default for Uri<T> {
+    /// Creates an empty `Uri`.
+    #[inline]
+    fn default() -> Self {
+        Uri {
+            ptr: T::Ptr::DANGLING,
+            data: Data::INIT,
+            _marker: PhantomData,
+        }
+    }
+}
+
 // SAFETY: `&str`, `&mut [u8]` and `String` are all Send and Sync.
 unsafe impl<T: Storage> Send for Uri<T> {}
 unsafe impl<T: Storage> Sync for Uri<T> {}

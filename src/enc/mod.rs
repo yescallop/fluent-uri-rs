@@ -65,6 +65,10 @@ impl AsRef<[u8]> for EStr {
     }
 }
 
+/// Implements equality comparisons on `EStr`s.
+///
+/// `EStr`s are compared by their byte values. Percent-encoding
+/// normalization is **not** performed prior to comparison.
 impl PartialEq<EStr> for EStr {
     #[inline]
     fn eq(&self, other: &EStr) -> bool {
@@ -116,7 +120,17 @@ impl borrow::Borrow<str> for &EStr {
     }
 }
 
+impl Default for &EStr {
+    /// Creates an empty `EStr`.
+    #[inline]
+    fn default() -> &'static EStr {
+        EStr::EMPTY
+    }
+}
+
 impl EStr {
+    const EMPTY: &'static EStr = EStr::new("");
+
     /// Converts a string slice to an `EStr`.
     ///
     /// # Panics
@@ -338,7 +352,7 @@ impl<'a> View<'a, EStr> {
 /// This enum is created by the [`decode`] method on [`EStr`].
 ///
 /// [`decode`]: EStr::decode
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Decode<'a> {
     /// No percent-encoded octets are decoded.
     Src(&'a str),
@@ -538,7 +552,7 @@ impl<'a> DecodeInPlace<'a> {
 /// This struct is created by the [`split`] method on [`EStr`].
 ///
 /// [`split`]: EStr::split
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[must_use = "iterators are lazy and do nothing unless consumed"]
 pub struct Split<'a> {
     s: &'a [u8],

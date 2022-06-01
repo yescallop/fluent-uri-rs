@@ -20,6 +20,7 @@ pub trait Pointer {
     /// - The pointer must not be null.
     /// - The length and capacity must be correct.
     unsafe fn new(ptr: *mut u8, len: u32, cap: u32) -> Self;
+    const DANGLING: Self;
 }
 
 #[derive(Clone, Copy)]
@@ -50,6 +51,12 @@ impl Pointer for Uncapped {
             _pad: MaybeUninit::uninit(),
         }
     }
+
+    const DANGLING: Self = Self {
+        ptr: NonNull::dangling(),
+        len: 0,
+        _pad: MaybeUninit::uninit(),
+    };
 }
 
 #[repr(C)]
@@ -88,6 +95,12 @@ impl Pointer for Capped {
             cap,
         }
     }
+
+    const DANGLING: Self = Self {
+        ptr: NonNull::dangling(),
+        len: 0,
+        cap: 0,
+    };
 }
 
 impl Drop for Capped {
@@ -167,6 +180,17 @@ pub struct Data {
     pub query_end: Option<NonZeroU32>,
     // One byte past the preceding '#'.
     pub fragment_start: Option<NonZeroU32>,
+}
+
+impl Data {
+    pub const INIT: Data = Data {
+        tag: Tag::empty(),
+        scheme_end: None,
+        auth: None,
+        path_bounds: (0, 0),
+        query_end: None,
+        fragment_start: None,
+    };
 }
 
 #[doc(hidden)]

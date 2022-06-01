@@ -17,14 +17,7 @@ pub(crate) unsafe fn parse<T: Storage>(ptr: *mut u8, len: u32, cap: u32) -> Resu
     let mut parser = Parser {
         ptr,
         len,
-        out: Data {
-            tag: Tag::empty(),
-            scheme_end: None,
-            auth: None,
-            path_bounds: (0, 0),
-            query_end: None,
-            fragment_start: None,
-        },
+        out: Data::INIT,
         pos: 0,
         mark: 0,
     };

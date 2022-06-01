@@ -121,7 +121,7 @@ impl<'a, T: ?Sized + Lens<Target = [u8]>> View<'a, T> {
 /// A [`Scheme`] view into a mutable byte slice that allows lowercasing in-place.
 impl<'a> View<'a, Scheme> {
     /// Converts the scheme to lower case in-place.
-    /// 
+    ///
     /// This method is slightly faster than [`slice::make_ascii_lowercase`].
     ///
     /// # Examples
