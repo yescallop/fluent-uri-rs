@@ -9,10 +9,17 @@
 //!
 //! # Feature flags
 //!
-//! All features are disabled by default.
+//! All features are disabled by default. However, note that these features each
+//! alter the enum [`HostData`] in a backward incompatible way that could make it
+//! impossible for two crates that depend on different features of `fluent-uri` to
+//! be used together.
 //!
 //! - `ipv_future`: Enables the parsing of [IPvFuture] literal addresses,
 //!   which fails with [`InvalidIpLiteral`] when disabled.
+//!
+//!     Only enable this feature when you have a compelling reason to do so, such as
+//!     that you have to deal with an existing system where the IPvFuture format is
+//!     in use.
 //!
 //! - `rfc6874bis`: Enables the parsing of IPv6 zone identifiers,
 //!   such as in `https://[fe80::abcd%en1]`.
@@ -263,7 +270,7 @@ impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Uri<T> {
     ///   the buffer is too small.
     ///
     /// [`TryReserveError`]: std::collections::TryReserveError
-    /// [`BufferTooSmallError`]: crate::mutable::BufferTooSmallError
+    /// [`BufferTooSmallError`]: crate::enc::BufferTooSmallError
     #[cfg(feature = "unstable")]
     #[inline]
     pub fn to_mut_in<'b, B: crate::enc::internal::Buf + ?Sized>(
