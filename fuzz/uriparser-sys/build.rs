@@ -2,12 +2,20 @@ use std::env;
 use std::path::PathBuf;
 
 fn main() {
-    println!("cargo:rustc-link-lib=uriparser");
+    println!("cargo:rerun-if-changed=uriparser");
 
-    println!("cargo:rerun-if-changed=/usr/include/uriparser/Uri.h");
+    let dst = cmake::Config::new("uriparser")
+        .define("BUILD_SHARED_LIBS", "OFF")
+        .define("URIPARSER_BUILD_DOCS", "OFF")
+        .define("URIPARSER_BUILD_TESTS", "OFF")
+        .define("URIPARSER_BUILD_TOOLS", "OFF")
+        .build();
+
+    println!("cargo:rustc-link-search=native={}/lib", dst.display());
+    println!("cargo:rustc-link-lib=static=uriparser");
 
     let bindings = bindgen::Builder::default()
-        .header("/usr/include/uriparser/Uri.h")
+        .header("uriparser/include/uriparser/Uri.h")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks))
         .generate()
         .expect("Unable to generate bindings");
