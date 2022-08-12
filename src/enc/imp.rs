@@ -82,7 +82,7 @@ const fn gen_hex_table() -> [u8; 512] {
     out
 }
 
-pub(crate) static HEX_TABLE: &[u8; 512] = &gen_hex_table();
+pub(crate) const HEX_TABLE: &[u8; 512] = &gen_hex_table();
 
 const fn gen_octet_table(hi: bool) -> [u8; 256] {
     let mut out = [0xFF; 256];
@@ -101,8 +101,8 @@ const fn gen_octet_table(hi: bool) -> [u8; 256] {
     out
 }
 
-static OCTET_TABLE_HI: &[u8; 256] = &gen_octet_table(true);
-pub(crate) static OCTET_TABLE_LO: &[u8; 256] = &gen_octet_table(false);
+const OCTET_TABLE_HI: &[u8; 256] = &gen_octet_table(true);
+pub(crate) const OCTET_TABLE_LO: &[u8; 256] = &gen_octet_table(false);
 
 /// Decodes a percent-encoded octet assuming validity.
 fn decode_octet_unchecked(hi: u8, lo: u8) -> u8 {

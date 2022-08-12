@@ -1,6 +1,4 @@
 //! Byte pattern tables from RFC 3986.
-//!
-//! The predefined tables in this module have values that are either 0 or 1.
 
 /// A table determining the byte patterns allowed in a string.
 ///

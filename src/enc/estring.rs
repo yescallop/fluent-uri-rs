@@ -1,16 +1,10 @@
 use std::{borrow::Borrow, fmt, hash, marker::PhantomData, ops::Deref};
 
 use super::{
+    encoder::Encoder,
     imp::{encode_to, HEX_TABLE},
-    table::{self, Table},
     EStr,
 };
-
-/// A trait used by [`EString`] to specify the table used for encoding.
-pub trait Encoder: Send + Sync + 'static {
-    /// The table used for encoding.
-    const TABLE: &'static Table;
-}
 
 /// A percent-encoded, growable string.
 ///
@@ -23,8 +17,9 @@ pub trait Encoder: Send + Sync + 'static {
 ///
 /// ```
 /// use fluent_uri::enc::{
+///     encoder::{Encoder, QueryFragmentEncoder},
 ///     table::{self, Table},
-///     EString, Encoder, QueryFragmentEncoder,
+///     EString,
 /// };
 ///
 /// struct DataEncoder;
@@ -39,16 +34,16 @@ pub trait Encoder: Send + Sync + 'static {
 ///     if !buf.is_empty() {
 ///         buf.push_byte(b'&');
 ///     }
-///     buf.push_with(DataEncoder, k);
+///     buf.push_with::<DataEncoder>(k);
 ///     buf.push_byte(b'=');
-///     buf.push_with(DataEncoder, v);
+///     buf.push_with::<DataEncoder>(v);
 /// }
 ///
 /// assert_eq!(buf, "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9!");
 /// ```
 pub struct EString<E: Encoder> {
     string: String,
-    _marker: PhantomData<E>,
+    _marker: PhantomData<&'static E>,
 }
 
 impl<E: Encoder> EString<E> {
@@ -109,7 +104,7 @@ impl<E: Encoder> EString<E> {
     ///
     /// A sub-encoder `SubE` of `E` is an encoder such that `SubE::TABLE` is a [subset] of `E::TABLE`.
     ///
-    /// [subset]: Table::is_subset
+    /// [subset]: super::table::Table::is_subset
     ///
     /// # Panics
     ///
@@ -117,7 +112,7 @@ impl<E: Encoder> EString<E> {
     /// if the table specified by `SubE` does not allow percent-encoding.
     #[inline]
     #[allow(unused_variables)]
-    pub fn push_with<SubE: Encoder, S: AsRef<[u8]> + ?Sized>(&mut self, sub_encoder: SubE, s: &S) {
+    pub fn push_with<SubE: Encoder>(&mut self, s: &(impl AsRef<[u8]> + ?Sized)) {
         struct Assert<SubE: Encoder, E: Encoder> {
             _marker: PhantomData<(SubE, E)>,
         }
@@ -369,20 +364,4 @@ impl<E: Encoder> hash::Hash for EString<E> {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         self.string.hash(state)
     }
-}
-
-/// An encoder for the path component.
-#[derive(Clone, Copy, Debug)]
-pub struct PathEncoder;
-
-/// An encoder for the query or the fragment component.
-#[derive(Clone, Copy, Debug)]
-pub struct QueryFragmentEncoder;
-
-impl Encoder for PathEncoder {
-    const TABLE: &'static Table = table::PATH;
-}
-
-impl Encoder for QueryFragmentEncoder {
-    const TABLE: &'static Table = table::QUERY_FRAGMENT;
 }

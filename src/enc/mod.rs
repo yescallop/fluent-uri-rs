@@ -11,6 +11,8 @@ pub use imp::{
 #[cfg(feature = "unstable")]
 use imp::{err, Result};
 
+pub mod encoder;
+
 mod estring;
 pub use estring::*;
 

@@ -216,7 +216,7 @@ impl Parser {
         let start = self.pos;
 
         // This table contains userinfo, reg-name, ":", and port.
-        static TABLE: &Table = &USERINFO.shl(1).or(&Table::gen(b":"));
+        const TABLE: &Table = &USERINFO.shl(1).or(&Table::gen(b":"));
 
         // The number of colons scanned.
         let mut colon_cnt = 0;
