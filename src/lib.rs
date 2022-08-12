@@ -1,7 +1,7 @@
 #![warn(missing_debug_implementations, missing_docs, rust_2018_idioms)]
 #![deny(unsafe_op_in_unsafe_fn)]
 
-//! A URI parser that strictly adheres to IETF [RFC 3986].
+//! A generic URI parser that strictly adheres to IETF [RFC 3986].
 //!
 //! [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
 //!

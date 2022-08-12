@@ -27,7 +27,7 @@ use super::{
 /// struct DataEncoder;
 ///
 /// impl Encoder for DataEncoder {
-///     const TABLE: &'static Table = &table::QUERY_FRAGMENT.sub(&Table::gen(b"&="));
+///     const TABLE: &'static Table = &table::QUERY_FRAGMENT.sub(&Table::gen(b"&=+"));
 /// }
 ///
 /// let pairs = [("name", "张三"), ("speech", "¡Olé!")];

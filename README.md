@@ -1,6 +1,6 @@
 # fluent-uri
 
-A URI parser in Rust that strictly adheres to IETF [RFC 3986].
+A generic URI parser in Rust that strictly adheres to IETF [RFC 3986].
 
 [![crates.io](https://img.shields.io/crates/v/fluent-uri.svg)](https://crates.io/crates/fluent-uri)
 [![CI](https://github.com/yescallop/fluent-uri-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/yescallop/fluent-uri-rs/actions/workflows/ci.yml)
@@ -21,7 +21,7 @@ A URI parser in Rust that strictly adheres to IETF [RFC 3986].
     All components in a URI that may be percent-encoded are parsed as `EStr`s, which allows easy splitting and fast decoding:
 
     ```rust
-    let query = "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21";
+    let query = "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9!";
     let map: HashMap<_, _> = EStr::new(query)
         .split('&')
         .filter_map(|pair| pair.split_once('='))
