@@ -139,11 +139,13 @@ fn len_overflow() -> ! {
 /// ```
 /// use fluent_uri::Uri;
 ///
-/// // Create a `Uri<&str>`.
-/// let uri_a: Uri<&str> = Uri::parse("http://example.com/")?;
+/// let uri_str = "http://example.com/";
 ///
-/// // Create a `Uri<String>`.
-/// let uri_b: Uri<String> = Uri::parse_from(String::new()).map_err(|e| e.1)?;
+/// // Create a `Uri<&str>` from a string slice.
+/// let uri_a: Uri<&str> = Uri::parse(uri_str)?;
+///
+/// // Create a `Uri<String>` from an owned string.
+/// let uri_b: Uri<String> = Uri::parse_from(uri_str.to_owned()).map_err(|e| e.1)?;
 ///
 /// // Convert a `Uri<&str>` to a `Uri<String>`.
 /// let uri_c: Uri<String> = uri_a.to_owned();

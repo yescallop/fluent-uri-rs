@@ -1,12 +1,13 @@
 use std::{borrow::Borrow, fmt, hash, marker::PhantomData, ops::Deref};
 
-use crate::enc::{
+use super::{
+    imp::{encode_to, HEX_TABLE},
     table::{self, Table},
-    EStr, EncodingError, Result, HEX_TABLE,
+    EStr,
 };
 
 /// A trait used by [`EString`] to specify the table used for encoding.
-pub trait Encoder {
+pub trait Encoder: Send + Sync + 'static {
     /// The table used for encoding.
     const TABLE: &'static Table;
 }
@@ -16,14 +17,45 @@ pub trait Encoder {
 /// # Panics
 ///
 /// This struct triggers a compile-time panic if the table specified
-/// by `E` is not for encoding.
+/// by `E` does not allow percent-encoding.
+///
+/// # Examples
+///
+/// ```
+/// use fluent_uri::enc::{
+///     table::{self, Table},
+///     EString, Encoder, QueryFragmentEncoder,
+/// };
+///
+/// struct DataEncoder;
+///
+/// impl Encoder for DataEncoder {
+///     const TABLE: &'static Table = &table::QUERY_FRAGMENT.sub(&Table::gen(b"&="));
+/// }
+///
+/// let pairs = [("name", "张三"), ("speech", "¡Olé!")];
+/// let mut buf = EString::<QueryFragmentEncoder>::new();
+/// for (k, v) in pairs {
+///     if !buf.is_empty() {
+///         buf.push_byte(b'&');
+///     }
+///     buf.push_with(DataEncoder, k);
+///     buf.push_byte(b'=');
+///     buf.push_with(DataEncoder, v);
+/// }
+///
+/// assert_eq!(buf, "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9!");
+/// ```
 pub struct EString<E: Encoder> {
     string: String,
     _marker: PhantomData<E>,
 }
 
 impl<E: Encoder> EString<E> {
-    const ASSERT: () = assert!(E::TABLE.allows_enc(), "table not for encoding");
+    const ASSERT: () = assert!(
+        E::TABLE.allows_enc(),
+        "table does not allow percent-encoding"
+    );
 
     /// Creates a new empty `EString`.
     #[inline]
@@ -43,6 +75,7 @@ impl<E: Encoder> EString<E> {
         }
     }
 
+    #[cfg(feature = "unstable")]
     #[inline]
     unsafe fn from_string_unchecked(string: String) -> Self {
         EString {
@@ -60,14 +93,16 @@ impl<E: Encoder> EString<E> {
     /// Coerces to an `EStr`.
     #[inline]
     pub fn as_estr(&self) -> &EStr {
-        // SAFETY: EString guarantees that it is properly encoded.
-        unsafe { EStr::new_unchecked(self.as_str().as_bytes()) }
+        // SAFETY: `EString` guarantees that it is properly encoded.
+        unsafe { EStr::new_unchecked(self.string.as_bytes()) }
     }
 
     /// Encodes a byte sequence and appends the result onto the end of this `EString`.
     #[inline]
     pub fn push<S: AsRef<[u8]> + ?Sized>(&mut self, s: &S) {
-        super::encode_to(s, E::TABLE, &mut self.string);
+        // SAFETY: The encoded bytes are valid UTF-8.
+        let buf = unsafe { self.string.as_mut_vec() };
+        encode_to(s.as_ref(), E::TABLE, buf);
     }
 
     /// Encodes a byte sequence with a sub-encoder and appends the result onto the end of this `EString`.
@@ -79,10 +114,10 @@ impl<E: Encoder> EString<E> {
     /// # Panics
     ///
     /// This method triggers a compile-time panic if `SubE` is not a sub-encoder of `E`, or
-    /// if the table specified by `SubE` is not for encoding.
+    /// if the table specified by `SubE` does not allow percent-encoding.
     #[inline]
     #[allow(unused_variables)]
-    pub fn push_with<S: AsRef<[u8]> + ?Sized, SubE: Encoder>(&mut self, s: &S, sub_encoder: SubE) {
+    pub fn push_with<SubE: Encoder, S: AsRef<[u8]> + ?Sized>(&mut self, sub_encoder: SubE, s: &S) {
         struct Assert<SubE: Encoder, E: Encoder> {
             _marker: PhantomData<(SubE, E)>,
         }
@@ -94,7 +129,9 @@ impl<E: Encoder> EString<E> {
         }
         let _ = (Assert::<SubE, E>::IS_SUB_ENCODER, EString::<SubE>::ASSERT);
 
-        super::encode_to(s, SubE::TABLE, &mut self.string);
+        // SAFETY: The encoded bytes are valid UTF-8.
+        let buf = unsafe { self.string.as_mut_vec() };
+        encode_to(s.as_ref(), SubE::TABLE, buf);
     }
 
     /// Encodes a byte and appends the result onto the end of this `EString`.
@@ -178,23 +215,28 @@ impl<E: Encoder> EString<E> {
     }
 }
 
+#[cfg(feature = "unstable")]
+use crate::enc::{validate, EncodingError, Result};
+
+#[cfg(feature = "unstable")]
 impl<E: Encoder> TryFrom<String> for EString<E> {
     type Error = EncodingError;
 
     #[inline]
     fn try_from(string: String) -> Result<Self> {
-        super::validate(&string, E::TABLE)?;
+        validate(&string, E::TABLE)?;
         // SAFETY: The validation is done.
         Ok(unsafe { EString::from_string_unchecked(string) })
     }
 }
 
+#[cfg(feature = "unstable")]
 impl<E: Encoder> TryFrom<Vec<u8>> for EString<E> {
     type Error = EncodingError;
 
     #[inline]
     fn try_from(bytes: Vec<u8>) -> Result<Self> {
-        super::validate(&bytes, E::TABLE)?;
+        validate(&bytes, E::TABLE)?;
         // SAFETY: The validation is done.
         unsafe {
             let string = String::from_utf8_unchecked(bytes);
@@ -333,7 +375,7 @@ impl<E: Encoder> hash::Hash for EString<E> {
 #[derive(Clone, Copy, Debug)]
 pub struct PathEncoder;
 
-/// An encoder for the query or fragment component.
+/// An encoder for the query or the fragment component.
 #[derive(Clone, Copy, Debug)]
 pub struct QueryFragmentEncoder;
 

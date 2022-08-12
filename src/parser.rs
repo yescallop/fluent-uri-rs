@@ -1,5 +1,5 @@
 use crate::{
-    enc::{table::*, OCTET_TABLE_LO},
+    enc::{imp::OCTET_TABLE_LO, table::*},
     internal::Pointer,
     AuthData, Data, RawHostData as HostData, Result, Tag, Uri,
 };

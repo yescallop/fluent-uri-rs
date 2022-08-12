@@ -6,8 +6,6 @@
 ///
 /// It is guaranteed that the unencoded bytes allowed are ASCII and that
 /// an unencoded `%` is not allowed.
-///
-/// Note that table values are not meant for use outside this crate.
 #[derive(Clone, Copy, Debug)]
 pub struct Table {
     arr: [u8; 256],
@@ -43,9 +41,6 @@ impl Table {
     ///
     /// Returns a new table that allows all the byte patterns allowed
     /// either by `self` or by `other`.
-    ///
-    /// The values in the returned table are each the bitwise
-    /// OR of the corresponding values in `self` and `other`.
     pub const fn or(mut self, other: &Table) -> Table {
         let mut i = 0;
         while i < 128 {
@@ -60,9 +55,6 @@ impl Table {
     ///
     /// Returns a new table that allows all the byte patterns allowed
     /// by `self` but not allowed by `other`.
-    ///
-    /// The values in the returned table are each copied from `self` or set to 0.
-    #[cfg(feature = "unstable")]
     pub const fn sub(mut self, other: &Table) -> Table {
         let mut i = 0;
         while i < 128 {
@@ -79,7 +71,6 @@ impl Table {
 
     /// Returns `true` if the table is a subset of another, i.e., `other`
     /// allows at least all the byte patterns allowed by `self`.
-    #[cfg(feature = "unstable")]
     pub const fn is_subset(&self, other: &Table) -> bool {
         let mut i = 0;
         while i < 128 {
@@ -88,11 +79,11 @@ impl Table {
             }
             i += 1;
         }
-        !self.allows_enc || !other.allows_enc
+        !self.allows_enc || other.allows_enc
     }
 
     /// Shifts the table values left.
-    pub const fn shl(mut self, n: u8) -> Table {
+    pub(crate) const fn shl(mut self, n: u8) -> Table {
         let mut i = 0;
         while i < 128 {
             self.arr[i] <<= n;
@@ -103,7 +94,7 @@ impl Table {
 
     /// Returns the specified table value.
     #[inline]
-    pub const fn get(&self, x: u8) -> u8 {
+    pub(crate) const fn get(&self, x: u8) -> u8 {
         self.arr[x as usize]
     }
 

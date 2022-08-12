@@ -1,19 +1,85 @@
-#[cfg(feature = "unstable")]
 pub mod table;
-#[cfg(not(feature = "unstable"))]
-pub(crate) mod table;
+#[cfg(feature = "unstable")]
+use table::Table;
 
-#[allow(dead_code)]
-mod imp;
+pub(crate) mod imp;
 #[cfg(feature = "unstable")]
-pub use imp::*;
-#[cfg(not(feature = "unstable"))]
-pub(crate) use imp::*;
+pub use imp::{
+    decode_in_place_unchecked, decode_unchecked, decode_with_unchecked, EncodingError,
+    EncodingErrorKind,
+};
+#[cfg(feature = "unstable")]
+use imp::{err, Result};
 
+mod estring;
+pub use estring::*;
+
+/// Percent-encodes a byte sequence.
+///
+/// # Panics
+///
+/// Panics if the table does not allow percent-encoding.
 #[cfg(feature = "unstable")]
-mod unstable;
+#[inline]
+pub fn encode<'a, S: AsRef<[u8]> + ?Sized>(s: &'a S, table: &Table) -> Cow<'a, str> {
+    assert!(table.allows_enc(), "table does not allow percent-encoding");
+    imp::encode(s.as_ref(), table)
+}
+
+/// Percent-encodes a byte sequence to a buffer.
+///
+/// The buffer may either be a [`String`] or a [`Vec<u8>`].
+///
+/// # Panics
+///
+/// Panics if the table does not allow percent-encoding.
 #[cfg(feature = "unstable")]
-pub use unstable::*;
+#[inline]
+pub fn encode_to<'a, S: AsRef<[u8]> + ?Sized, B: internal::AsMutVec>(
+    s: &S,
+    table: &Table,
+    buf: &'a mut B,
+) {
+    assert!(table.allows_enc(), "table does not allow percent-encoding");
+    // SAFETY: The encoded bytes are valid UTF-8.
+    let buf = unsafe { buf.as_mut_vec() };
+    imp::encode_to(s.as_ref(), table, buf)
+}
+
+/// Decodes a percent-encoded string.
+#[cfg(feature = "unstable")]
+#[inline]
+pub fn decode<S: AsRef<[u8]> + ?Sized>(s: &S) -> Result<Cow<'_, [u8]>> {
+    imp::decode(s.as_ref())
+}
+
+/// Decodes a percent-encoded string with a buffer.
+///
+/// If the string needs no decoding, this function returns `Ok(None)`
+/// and no bytes will be appended to the buffer.
+#[cfg(feature = "unstable")]
+#[inline]
+pub fn decode_with<'a, S: AsRef<[u8]> + ?Sized>(
+    s: &S,
+    buf: &'a mut Vec<u8>,
+) -> Result<Option<&'a [u8]>> {
+    imp::decode_with(s.as_ref(), buf)
+}
+
+/// Checks if all characters in a string are allowed by the given table.
+#[cfg(feature = "unstable")]
+#[inline]
+pub fn validate<S: AsRef<[u8]> + ?Sized>(s: &S, table: &Table) -> Result<()> {
+    let s = s.as_ref();
+    if table.allows_enc() {
+        imp::validate_enc(s, table)
+    } else {
+        match s.iter().position(|&x| !table.allows(x)) {
+            Some(i) => err!(i, UnexpectedChar),
+            None => Ok(()),
+        }
+    }
+}
 
 use std::{
     borrow::{self, Cow},
@@ -174,7 +240,7 @@ impl EStr {
     #[inline]
     pub fn decode(&self) -> Decode<'_> {
         // SAFETY: `EStr::new_unchecked` ensures that the string is properly encoded.
-        match unsafe { decode_unchecked(&self.inner) } {
+        match unsafe { imp::decode_unchecked(&self.inner) } {
             Some(s) => Decode::Dst(s),
             None => Decode::Src(self.as_str()),
         }
@@ -718,6 +784,25 @@ impl fmt::Display for BufferTooSmallError {
 pub(crate) mod internal {
     use crate::enc::BufferTooSmallError;
     use std::{collections::TryReserveError, mem::MaybeUninit};
+
+    pub trait AsMutVec {
+        unsafe fn as_mut_vec(&mut self) -> &mut Vec<u8>;
+    }
+
+    impl AsMutVec for Vec<u8> {
+        #[inline]
+        unsafe fn as_mut_vec(&mut self) -> &mut Vec<u8> {
+            self
+        }
+    }
+
+    impl AsMutVec for String {
+        #[inline]
+        unsafe fn as_mut_vec(&mut self) -> &mut Vec<u8> {
+            // SAFETY: The caller must not mess up the string.
+            unsafe { self.as_mut_vec() }
+        }
+    }
 
     pub trait Buf {
         type PrepareError;
