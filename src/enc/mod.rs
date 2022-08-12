@@ -104,7 +104,7 @@ use crate::view::View;
 /// use std::collections::HashMap;
 /// use fluent_uri::enc::EStr;
 ///
-/// let query = "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21";
+/// let query = "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9!";
 /// let map: HashMap<_, _> = EStr::new(query)
 ///     .split('&')
 ///     .filter_map(|pair| pair.split_once('='))

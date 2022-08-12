@@ -15,6 +15,8 @@ use super::{
 ///
 /// # Examples
 ///
+/// Encode key-value pairs to a query string.
+///
 /// ```
 /// use fluent_uri::enc::{
 ///     encoder::{Encoder, QueryFragmentEncoder},
