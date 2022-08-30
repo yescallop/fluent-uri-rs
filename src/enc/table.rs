@@ -1,4 +1,9 @@
 //! Byte pattern tables from RFC 3986.
+//!
+//! The predefined table constants in this module are documented with
+//! the ABNF notation of [RFC 2234].
+//!
+//! [RFC 2234]: https://datatracker.ietf.org/doc/html/rfc2234/
 
 /// A table determining the byte patterns allowed in a string.
 ///
@@ -53,6 +58,7 @@ impl Table {
     ///
     /// Returns a new table that allows all the byte patterns allowed
     /// by `self` but not allowed by `other`.
+    #[cfg(feature = "unstable")]
     pub const fn sub(mut self, other: &Table) -> Table {
         let mut i = 0;
         while i < 128 {
@@ -69,6 +75,7 @@ impl Table {
 
     /// Returns `true` if the table is a subset of another, i.e., `other`
     /// allows at least all the byte patterns allowed by `self`.
+    #[cfg(feature = "unstable")]
     pub const fn is_subset(&self, other: &Table) -> bool {
         let mut i = 0;
         while i < 128 {

@@ -1,3 +1,6 @@
+#[cfg(not(feature = "unstable"))]
+pub(crate) mod table;
+#[cfg(feature = "unstable")]
 pub mod table;
 #[cfg(feature = "unstable")]
 use table::Table;
@@ -11,9 +14,12 @@ pub use imp::{
 #[cfg(feature = "unstable")]
 use imp::{err, Result};
 
+#[cfg(feature = "unstable")]
 pub mod encoder;
 
+#[cfg(feature = "unstable")]
 mod estring;
+#[cfg(feature = "unstable")]
 pub use estring::*;
 
 /// Percent-encodes a byte sequence.

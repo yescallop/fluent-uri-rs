@@ -1,4 +1,7 @@
-use super::table::{self, Table};
+use super::table;
+
+#[cfg(feature = "unstable")]
+use super::table::Table;
 
 use std::{fmt, ptr};
 
@@ -69,6 +72,7 @@ impl fmt::Display for EncodingError {
 
 pub(crate) type Result<T, E = EncodingError> = std::result::Result<T, E>;
 
+#[cfg(feature = "unstable")]
 const fn gen_hex_table() -> [u8; 512] {
     const HEX_DIGITS: &[u8; 16] = b"0123456789ABCDEF";
 
@@ -82,6 +86,7 @@ const fn gen_hex_table() -> [u8; 512] {
     out
 }
 
+#[cfg(feature = "unstable")]
 pub(crate) const HEX_TABLE: &[u8; 512] = &gen_hex_table();
 
 const fn gen_octet_table(hi: bool) -> [u8; 256] {
@@ -165,6 +170,7 @@ unsafe fn copy_new(s: &[u8], i: usize, triple: bool) -> Vec<u8> {
 /// # Safety
 ///
 /// `i` must not exceed `s.len()`.
+#[cfg(feature = "unstable")]
 unsafe fn copy(s: &[u8], buf: &mut Vec<u8>, i: usize, triple: bool) {
     let cap = calc_capacity(s, triple);
     buf.reserve(cap);
@@ -200,6 +206,7 @@ unsafe fn push(v: &mut Vec<u8>, x: u8) {
 /// # Safety
 ///
 /// `v.len() + 3` must not exceed `v.capacity()`.
+#[cfg(feature = "unstable")]
 unsafe fn push_pct_encoded(v: &mut Vec<u8>, x: u8) {
     let len = v.len();
     debug_assert!(len + 2 < v.capacity());
@@ -232,6 +239,7 @@ pub(super) fn encode<'a>(s: &'a [u8], table: &Table) -> Cow<'a, str> {
     }
 }
 
+#[cfg(feature = "unstable")]
 pub(super) fn encode_to<'a>(s: &[u8], table: &Table, buf: &'a mut Vec<u8>) {
     // Skip the allowed bytes.
     let i = match s.iter().position(|&x| !table.allows(x)) {
@@ -245,6 +253,7 @@ pub(super) fn encode_to<'a>(s: &[u8], table: &Table, buf: &'a mut Vec<u8>) {
     }
 }
 
+#[cfg(feature = "unstable")]
 unsafe fn _encode(s: &[u8], mut i: usize, table: &Table, buf: &mut Vec<u8>) {
     while i < s.len() {
         let x = s[i];

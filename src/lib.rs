@@ -28,7 +28,7 @@
 //!
 //! [IPvFuture]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
 //! [`InvalidIpLiteral`]: ParseErrorKind::InvalidIpLiteral
-//! [draft]: https://datatracker.ietf.org/doc/html/draft-ietf-6man-rfc6874bis-01
+//! [draft]: https://datatracker.ietf.org/doc/html/draft-ietf-6man-rfc6874bis-02
 
 /// Utilities for percent-encoding.
 pub mod enc;

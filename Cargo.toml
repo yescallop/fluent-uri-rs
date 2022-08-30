@@ -33,4 +33,4 @@ features = ["ipv_future", "rfc6874bis"]
 # criterion = "0.3"
 # url = "2.2.2"
 # uriparse = "0.6.4"
-# iri-string = "0.5.4"
+# iri-string = "0.6.0"
