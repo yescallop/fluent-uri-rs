@@ -18,9 +18,10 @@ bitflags = "1.3.2"
 ipv_future = []
 rfc6874bis = []
 unstable = []
+std = []
 
 [package.metadata.docs.rs]
-features = ["ipv_future", "rfc6874bis"]
+features = ["ipv_future", "rfc6874bis", "std"]
 
 # Commented out to reduce compile time.
 

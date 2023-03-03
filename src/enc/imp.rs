@@ -58,6 +58,9 @@ impl EncodingError {
     }
 }
 
+#[cfg(feature = "std")]
+impl std::error::Error for EncodingError {}
+
 impl fmt::Display for EncodingError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let msg = match self.kind {

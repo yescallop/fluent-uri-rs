@@ -781,6 +781,9 @@ impl FusedIterator for SplitView<'_> {}
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BufferTooSmallError(());
 
+#[cfg(all(feature = "unstable", feature = "std"))]
+impl std::error::Error for BufferTooSmallError {}
+
 #[cfg(feature = "unstable")]
 impl fmt::Display for BufferTooSmallError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
