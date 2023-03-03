@@ -66,6 +66,7 @@ pub struct Ipv4Addr {
 }
 
 impl Ipv4Addr {
+    /// Creates a new IPv4 address from four bytes.
     #[inline]
     pub const fn new(a: u8, b: u8, c: u8, d: u8) -> Ipv4Addr {
         Ipv4Addr {
@@ -73,6 +74,7 @@ impl Ipv4Addr {
         }
     }
 
+    /// Returns the four bytes that make up the IPv4 address.
     #[inline]
     pub const fn octets(&self) -> [u8; 4] {
         self.octets
@@ -124,6 +126,7 @@ pub struct Ipv6Addr {
 }
 
 impl Ipv6Addr {
+    /// Creates a new IPv6 address from eight 16-bit segments.
     #[inline]
     pub const fn new(a: u16, b: u16, c: u16, d: u16, e: u16, f: u16, g: u16, h: u16) -> Ipv6Addr {
         let addr16 = [
@@ -143,11 +146,7 @@ impl Ipv6Addr {
         }
     }
 
-    #[inline]
-    pub const fn octets(&self) -> [u8; 16] {
-        self.octets
-    }
-
+    /// Returns the eight 16-bit segments that make up the IPv6 address.
     #[inline]
     pub const fn segments(&self) -> [u16; 8] {
         // All elements in `self.octets` must be big endian.
@@ -182,7 +181,7 @@ impl Ord for Ipv6Addr {
 }
 impl core::fmt::Debug for Ipv6Addr {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{:?}", self.octets())
+        write!(f, "{:?}", self.segments())
     }
 }
 
