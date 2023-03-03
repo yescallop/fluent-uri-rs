@@ -1,6 +1,6 @@
-use std::net::{Ipv4Addr, Ipv6Addr};
+// use std::net::{Ipv4Addr, Ipv6Addr};
 
-use fluent_uri::{HostData, Uri};
+use fluent_uri::{HostData, Ipv4Addr, Ipv6Addr, Uri};
 
 fn parse_v4(s: &str) -> Option<Ipv4Addr> {
     let s = format!("//{s}");

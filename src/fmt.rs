@@ -1,5 +1,6 @@
 use super::*;
-use std::fmt;
+use alloc::string::String;
+use core::fmt;
 
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

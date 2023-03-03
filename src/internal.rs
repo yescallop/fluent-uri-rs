@@ -1,6 +1,7 @@
 #![allow(missing_debug_implementations)]
 
-use std::{
+use alloc::{string::String, vec::Vec};
+use core::{
     cell::Cell,
     mem::MaybeUninit,
     num::NonZeroU32,

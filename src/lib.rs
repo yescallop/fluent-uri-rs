@@ -1,5 +1,6 @@
 #![warn(missing_debug_implementations, missing_docs, rust_2018_idioms)]
 #![deny(unsafe_op_in_unsafe_fn)]
+#![cfg_attr(not(test), no_std)]
 
 //! A generic URI parser that strictly adheres to IETF [RFC 3986].
 //!
@@ -30,6 +31,8 @@
 //! [`InvalidIpLiteral`]: ParseErrorKind::InvalidIpLiteral
 //! [draft]: https://datatracker.ietf.org/doc/html/draft-ietf-6man-rfc6874bis-02
 
+extern crate alloc;
+
 /// Utilities for percent-encoding.
 pub mod enc;
 
@@ -41,16 +44,173 @@ pub use view::*;
 mod parser;
 
 use crate::enc::{EStr, Split};
-use std::{
+use alloc::{string::String, vec::Vec};
+use core::{
+    cmp::Ordering,
+    iter::Iterator,
     marker::PhantomData,
-    mem::ManuallyDrop,
-    net::{Ipv4Addr, Ipv6Addr},
+    mem::{transmute, ManuallyDrop},
+    // net::{Ipv4Addr, Ipv6Addr},
     ptr::NonNull,
-    slice, str,
+    slice,
+    str,
 };
 
 mod internal;
 use internal::*;
+
+/// Bare-bones Ipv4Addr for `no_std` environments.
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub struct Ipv4Addr {
+    octets: [u8; 4],
+}
+
+impl Ipv4Addr {
+    #[inline]
+    pub const fn new(a: u8, b: u8, c: u8, d: u8) -> Ipv4Addr {
+        Ipv4Addr {
+            octets: [a, b, c, d],
+        }
+    }
+
+    #[inline]
+    pub const fn octets(&self) -> [u8; 4] {
+        self.octets
+    }
+}
+
+impl PartialOrd for Ipv4Addr {
+    #[inline]
+    fn partial_cmp(&self, other: &Ipv4Addr) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Ipv4Addr {
+    #[inline]
+    fn cmp(&self, other: &Ipv4Addr) -> Ordering {
+        self.octets().cmp(&other.octets())
+    }
+}
+
+impl From<u32> for Ipv4Addr {
+    fn from(ip: u32) -> Self {
+        Self {
+            octets: ip.to_be_bytes(),
+        }
+    }
+}
+
+impl core::fmt::Debug for Ipv4Addr {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        core::fmt::Display::fmt(&self, f)
+    }
+}
+
+impl core::fmt::Display for Ipv4Addr {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{}.{}.{}.{}",
+            self.octets[0], self.octets[1], self.octets[2], self.octets[3]
+        )
+    }
+}
+
+/// Bare-bones Ipv6Addr for `no_std` environments.
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub struct Ipv6Addr {
+    octets: [u8; 16],
+}
+
+impl Ipv6Addr {
+    #[inline]
+    pub const fn new(a: u16, b: u16, c: u16, d: u16, e: u16, f: u16, g: u16, h: u16) -> Ipv6Addr {
+        let addr16 = [
+            a.to_be(),
+            b.to_be(),
+            c.to_be(),
+            d.to_be(),
+            e.to_be(),
+            f.to_be(),
+            g.to_be(),
+            h.to_be(),
+        ];
+        Ipv6Addr {
+            // All elements in `addr16` are big endian.
+            // SAFETY: `[u16; 8]` is always safe to transmute to `[u8; 16]`.
+            octets: unsafe { transmute::<_, [u8; 16]>(addr16) },
+        }
+    }
+
+    #[inline]
+    pub const fn octets(&self) -> [u8; 16] {
+        self.octets
+    }
+
+    #[inline]
+    pub const fn segments(&self) -> [u16; 8] {
+        // All elements in `self.octets` must be big endian.
+        // SAFETY: `[u8; 16]` is always safe to transmute to `[u16; 8]`.
+        let [a, b, c, d, e, f, g, h] = unsafe { transmute::<_, [u16; 8]>(self.octets) };
+        // We want native endian u16
+        [
+            u16::from_be(a),
+            u16::from_be(b),
+            u16::from_be(c),
+            u16::from_be(d),
+            u16::from_be(e),
+            u16::from_be(f),
+            u16::from_be(g),
+            u16::from_be(h),
+        ]
+    }
+}
+
+impl PartialOrd for Ipv6Addr {
+    #[inline]
+    fn partial_cmp(&self, other: &Ipv6Addr) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Ipv6Addr {
+    #[inline]
+    fn cmp(&self, other: &Ipv6Addr) -> Ordering {
+        self.segments().cmp(&other.segments())
+    }
+}
+impl core::fmt::Debug for Ipv6Addr {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{:?}", self.octets())
+    }
+}
+
+impl From<[u16; 8]> for Ipv6Addr {
+    fn from(segments: [u16; 8]) -> Self {
+        let segments = segments.map(|s| s.to_be_bytes());
+        let octets = [
+            segments[0][0],
+            segments[0][1],
+            segments[1][0],
+            segments[1][1],
+            segments[2][0],
+            segments[2][1],
+            segments[3][0],
+            segments[3][1],
+            segments[4][0],
+            segments[4][1],
+            segments[5][0],
+            segments[5][1],
+            segments[6][0],
+            segments[6][1],
+            segments[7][0],
+            segments[7][1],
+        ];
+
+        Self { octets }
+    }
+}
 
 /// Detailed cause of a [`ParseError`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -90,9 +250,9 @@ impl ParseError {
     }
 }
 
-impl std::error::Error for ParseError {}
+// impl std::error::Error for ParseError {}
 
-type Result<T, E = ParseError> = std::result::Result<T, E>;
+type Result<T, E = ParseError> = core::result::Result<T, E>;
 
 #[cold]
 fn len_overflow() -> ! {
@@ -135,7 +295,7 @@ fn len_overflow() -> ! {
 /// # Examples
 ///
 /// Create and convert between `Uri<&str>` and `Uri<String>`:
-///   
+///
 /// ```
 /// use fluent_uri::Uri;
 ///

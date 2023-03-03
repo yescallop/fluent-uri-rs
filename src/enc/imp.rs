@@ -3,10 +3,11 @@ use super::table;
 #[cfg(feature = "unstable")]
 use super::table::Table;
 
-use std::{fmt, ptr};
+use alloc::vec::Vec;
+use core::{fmt, ptr};
 
 #[cfg(feature = "unstable")]
-use std::{borrow::Cow, str};
+use alloc::{borrow::Cow, str};
 
 /// Returns immediately with an encoding error.
 macro_rules! err {
@@ -57,7 +58,7 @@ impl EncodingError {
     }
 }
 
-impl std::error::Error for EncodingError {}
+// impl std::error::Error for EncodingError {}
 
 impl fmt::Display for EncodingError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -70,7 +71,7 @@ impl fmt::Display for EncodingError {
     }
 }
 
-pub(crate) type Result<T, E = EncodingError> = std::result::Result<T, E>;
+pub(crate) type Result<T, E = EncodingError> = core::result::Result<T, E>;
 
 #[cfg(feature = "unstable")]
 const fn gen_hex_table() -> [u8; 512] {

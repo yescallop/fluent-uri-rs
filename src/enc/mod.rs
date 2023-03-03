@@ -89,13 +89,16 @@ pub fn validate<S: AsRef<[u8]> + ?Sized>(s: &S, table: &Table) -> Result<()> {
     }
 }
 
-use std::{
+use alloc::{
     borrow::{self, Cow},
+    string::{FromUtf8Error, String},
+    vec::Vec,
+};
+use core::{
     fmt, hash,
     iter::FusedIterator,
     mem,
     str::{self, Utf8Error},
-    string::FromUtf8Error,
 };
 
 use crate::view::View;
