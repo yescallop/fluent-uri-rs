@@ -1,9 +1,15 @@
 use crate::{
     enc::{imp::OCTET_TABLE_LO, table::*},
     internal::Pointer,
-    AuthData, Data, Ipv4Addr, Ipv6Addr, RawHostData as HostData, Result, Tag, Uri,
+    AuthData, Data, RawHostData as HostData, Result, Tag, Uri,
 };
-use core::{cell::Cell, marker::PhantomData, num::NonZeroU32, str};
+use core::{
+    cell::Cell,
+    marker::PhantomData,
+    net::{Ipv4Addr, Ipv6Addr},
+    num::NonZeroU32,
+    str,
+};
 
 use super::{internal::Storage, Ipv6Data};
 
