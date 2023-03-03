@@ -110,7 +110,7 @@ use crate::view::View;
 /// Parse key-value pairs from a query string into a hash map:
 ///
 /// ```
-/// use std::collections::HashMap;
+/// use alloc::collections::HashMap;
 /// use fluent_uri::enc::EStr;
 ///
 /// let query = "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9!";
@@ -246,7 +246,7 @@ impl EStr {
     /// let dec = EStr::new("%C2%BF").decode();
     /// assert_eq!(dec.as_bytes(), &[0xc2, 0xbf]);
     /// assert_eq!(dec.into_string()?, "¿");
-    /// # Ok::<_, std::string::FromUtf8Error>(())
+    /// # Ok::<_, alloc::string::FromUtf8Error>(())
     /// ```
     #[inline]
     pub fn decode(&self) -> Decode<'_> {
@@ -278,7 +278,7 @@ impl EStr {
     /// assert_eq!(dec.to_str()?, "233");
     /// assert!(dec.decoded_any());
     /// assert_eq!(buf, b"233");
-    /// # Ok::<_, std::str::Utf8Error>(())
+    /// # Ok::<_, core::str::Utf8Error>(())
     /// ```
     #[cfg(feature = "unstable")]
     #[inline]
@@ -782,9 +782,6 @@ impl FusedIterator for SplitView<'_> {}
 pub struct BufferTooSmallError(());
 
 #[cfg(feature = "unstable")]
-impl std::error::Error for BufferTooSmallError {}
-
-#[cfg(feature = "unstable")]
 impl fmt::Display for BufferTooSmallError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "buffer too small")
@@ -794,7 +791,8 @@ impl fmt::Display for BufferTooSmallError {
 #[cfg(feature = "unstable")]
 pub(crate) mod internal {
     use crate::enc::BufferTooSmallError;
-    use std::{collections::TryReserveError, mem::MaybeUninit};
+    use alloc::{collections::TryReserveError, string::String, vec::Vec};
+    use core::mem::MaybeUninit;
 
     pub trait AsMutVec {
         unsafe fn as_mut_vec(&mut self) -> &mut Vec<u8>;

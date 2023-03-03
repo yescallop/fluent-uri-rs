@@ -7,7 +7,7 @@ use alloc::vec::Vec;
 use core::{fmt, ptr};
 
 #[cfg(feature = "unstable")]
-use alloc::{borrow::Cow, str};
+use alloc::{borrow::Cow, str, string::String};
 
 /// Returns immediately with an encoding error.
 macro_rules! err {
@@ -57,8 +57,6 @@ impl EncodingError {
         self.kind
     }
 }
-
-// impl std::error::Error for EncodingError {}
 
 impl fmt::Display for EncodingError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
