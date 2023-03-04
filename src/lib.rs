@@ -1,6 +1,6 @@
 #![warn(missing_debug_implementations, missing_docs, rust_2018_idioms)]
 #![deny(unsafe_op_in_unsafe_fn)]
-#![cfg_attr(all(not(test), not(feature = "std")), no_std)]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 //! A generic URI parser that strictly adheres to IETF [RFC 3986].
 //!
