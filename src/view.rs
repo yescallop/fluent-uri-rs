@@ -12,15 +12,19 @@ mod internal {
 
     pub trait Lens {
         type Target: ?Sized;
-        /// Views the target of a `View<Self>` as `&Self`.
-        fn view(target: &Self::Target) -> &Self;
+        /// Views a target of the lens as `&Self`.
+        ///
+        /// # Safety
+        ///
+        /// The target must be valid as `T`.
+        unsafe fn view(target: &Self::Target) -> &Self;
     }
 
     impl Lens for EStr {
         type Target = [u8];
         #[inline]
-        fn view(bytes: &[u8]) -> &Self {
-            // SAFETY: `Self::new` ensures that the bytes are properly encoded.
+        unsafe fn view(bytes: &[u8]) -> &Self {
+            // SAFETY: `View::new` ensures that the bytes are properly encoded.
             unsafe { EStr::new_unchecked(bytes) }
         }
     }
@@ -28,8 +32,8 @@ mod internal {
     impl Lens for str {
         type Target = [u8];
         #[inline]
-        fn view(bytes: &[u8]) -> &Self {
-            // SAFETY: `Self::new` ensures that the bytes are valid UTF-8.
+        unsafe fn view(bytes: &[u8]) -> &Self {
+            // SAFETY: `View::new` ensures that the bytes are valid UTF-8.
             unsafe { str::from_utf8_unchecked(bytes) }
         }
     }
@@ -37,16 +41,17 @@ mod internal {
     impl Lens for Scheme {
         type Target = [u8];
         #[inline]
-        fn view(bytes: &[u8]) -> &Self {
-            Scheme::new(str::view(bytes))
+        unsafe fn view(bytes: &[u8]) -> &Self {
+            // SAFETY: `View::new` ensures that the bytes are valid UTF-8.
+            unsafe { Scheme::new(str::view(bytes)) }
         }
     }
 
     impl<'a> Lens for Authority<&'a mut [u8]> {
         type Target = Uri<&'a mut [u8]>;
         #[inline]
-        fn view(uri: &Self::Target) -> &Self {
-            // SAFETY: `Self::new` ensures that the authority is present and not modified.
+        unsafe fn view(uri: &Self::Target) -> &Self {
+            // SAFETY: `View::new` ensures that the authority is present and not modified.
             unsafe { Authority::new(uri) }
         }
     }
@@ -54,8 +59,8 @@ mod internal {
     impl<'a> Lens for Host<&'a mut [u8]> {
         type Target = Uri<&'a mut [u8]>;
         #[inline]
-        fn view(uri: &Self::Target) -> &Self {
-            // SAFETY: `Self::new` ensures that the host is not modified.
+        unsafe fn view(uri: &Self::Target) -> &Self {
+            // SAFETY: `View::new` ensures that the host is not modified.
             unsafe { Host::new(Authority::view(uri)) }
         }
     }
@@ -63,8 +68,9 @@ mod internal {
     impl Lens for Path {
         type Target = [u8];
         #[inline]
-        fn view(bytes: &[u8]) -> &Self {
-            Path::new(EStr::view(bytes))
+        unsafe fn view(bytes: &[u8]) -> &Self {
+            // SAFETY: `View::new` ensures that the bytes are properly encoded.
+            unsafe { Path::new(EStr::view(bytes)) }
         }
     }
 }
@@ -84,7 +90,8 @@ impl<'a, T: ?Sized + Lens> Deref for View<'a, T> {
     type Target = T;
     #[inline]
     fn deref(&self) -> &T {
-        T::view(self.0)
+        // SAFETY: `View::new` ensures that the target is valid as `T`.
+        unsafe { T::view(self.0) }
     }
 }
 
@@ -112,7 +119,8 @@ impl<'a, T: ?Sized + Lens<Target = [u8]>> View<'a, T> {
     /// Consumes this `View` and yields the underlying `&T`.
     #[inline]
     pub fn into_ref(self) -> &'a T {
-        T::view(self.0)
+        // SAFETY: `View::new` ensures that the target is valid as `T`.
+        unsafe { T::view(self.0) }
     }
 
     /// Consumes this `View` and yields the underlying mutable byte slice.
