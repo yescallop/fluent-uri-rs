@@ -156,7 +156,6 @@ pub const SCHEME: &Table = &ALPHA.or(DIGIT).or(&gen(b"+-."));
 pub const USERINFO: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b":")).enc();
 
 /// IPvFuture = "v" 1\*HEXDIG "." 1\*( unreserved / sub-delims / ":" )
-#[cfg(feature = "ipv_future")]
 pub const IPV_FUTURE: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b":"));
 
 /// reg-name = *( unreserved / pct-encoded / sub-delims )

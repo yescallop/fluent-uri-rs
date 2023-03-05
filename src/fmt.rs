@@ -109,8 +109,8 @@ impl fmt::Display for Authority<String> {
 impl fmt::Debug for Host<&str> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Host")
-            .field("text", &self.as_str())
-            .field("data", &self.data())
+            .field("value", &self.as_str())
+            .field("parsed", &self.parsed())
             .finish()
     }
 }
@@ -125,8 +125,8 @@ impl fmt::Display for Host<&str> {
 impl fmt::Debug for Host<String> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Host")
-            .field("text", &self.as_str())
-            .field("data", &self.data())
+            .field("value", &self.as_str())
+            .field("parsed", &self.parsed())
             .finish()
     }
 }
@@ -141,8 +141,8 @@ impl fmt::Display for Host<String> {
 impl fmt::Debug for Host<&mut [u8]> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Host")
-            .field("text", &self.as_str())
-            .field("data", &self.data())
+            .field("value", &self.as_str())
+            .field("parsed", &self.parsed())
             .finish()
     }
 }

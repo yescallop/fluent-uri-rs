@@ -1,7 +1,7 @@
 use crate::{
     enc::{imp::OCTET_TABLE_LO, table::*},
     internal::{Ipv6Data, Pointer, Storage},
-    AuthData, Data, RawHostData as HostData, Result, Tag, Uri,
+    AuthData, Data, HostData, Result, Tag, Uri,
 };
 use core::{
     cell::Cell,
@@ -336,14 +336,9 @@ impl Parser {
                     zone_id_start: self.read_zone_id()?,
                 },
             }
+        } else if self.marked_len() == 1 {
+            self.read_ipv_future()?
         } else {
-            #[cfg(feature = "ipv_future")]
-            if self.marked_len() == 1 {
-                self.read_ipv_future()?
-            } else {
-                err!(self.mark, InvalidIpLiteral);
-            }
-            #[cfg(not(feature = "ipv_future"))]
             err!(self.mark, InvalidIpLiteral);
         };
 
@@ -538,7 +533,6 @@ impl Parser {
         });
     }
 
-    #[cfg(feature = "ipv_future")]
     fn read_ipv_future(&mut self) -> Result<HostData> {
         if matches!(self.peek(0), Some(b'v' | b'V')) {
             // INVARIANT: Skipping "v" or "V" is fine.

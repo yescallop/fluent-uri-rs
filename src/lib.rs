@@ -10,20 +10,8 @@
 //!
 //! # Feature flags
 //!
-//! All features are disabled by default. However, note that these features each
-//! alter the enum [`HostData`] in a backward incompatible way that could make it
-//! impossible for two crates that depend on different features of `fluent-uri` to
-//! be used together.
+//! - `std` (default): Enables `std` support.
 //!
-//! - `ipv_future`: Enables the parsing of [IPvFuture] literal addresses,
-//!   which fails with [`InvalidIpLiteral`] when disabled.
-//!
-//!     Only enable this feature when you have a compelling reason to do so, such as
-//!     that you have to deal with an existing system where the IPvFuture format is
-//!     in use.
-//!
-//! [IPvFuture]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
-//! [`InvalidIpLiteral`]: ParseErrorKind::InvalidIpLiteral
 //! [rfc6874bis]: https://datatracker.ietf.org/doc/html/draft-ietf-6man-rfc6874bis-05
 
 extern crate alloc;
@@ -50,13 +38,11 @@ use core::{
 };
 
 mod internal;
-use internal::{
-    AuthData, Capped, Data, IntoOwnedUri, Io, Pointer, RawHostData, Storage, Tag, Uncapped,
-};
+use internal::{AuthData, Capped, Data, HostData, IntoOwnedUri, Io, Pointer, Storage, Tag};
 
 /// Detailed cause of a [`ParseError`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ParseErrorKind {
+enum ParseErrorKind {
     /// Invalid percent-encoded octet that is either non-hexadecimal or incomplete.
     ///
     /// The error index points to the percent character "%" of the octet.
@@ -76,20 +62,6 @@ pub enum ParseErrorKind {
 pub struct ParseError {
     index: u32,
     kind: ParseErrorKind,
-}
-
-impl ParseError {
-    /// Returns the index where the error occurred in the input string.
-    #[inline]
-    pub fn index(&self) -> usize {
-        self.index as usize
-    }
-
-    /// Returns the detailed cause of the error.
-    #[inline]
-    pub fn kind(&self) -> ParseErrorKind {
-        self.kind
-    }
 }
 
 #[cfg(feature = "std")]
@@ -294,7 +266,7 @@ impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Uri<T> {
 
         Ok(Uri {
             // SAFETY: The pointer is not null and the length and capacity are correct.
-            ptr: unsafe { Uncapped::new(ptr, len, 0) },
+            ptr: unsafe { internal::Uncapped::new(ptr, len, 0) },
             data: self.data.clone(),
             _marker: PhantomData,
         })
@@ -633,6 +605,9 @@ impl Scheme {
 
     /// Returns the scheme as a string slice.
     ///
+    /// Note that the scheme is case-insensitive. You should typically use
+    /// [`eq_lowercase`] for testing if the scheme is a desired one.
+    ///
     /// # Examples
     ///
     /// ```
@@ -643,6 +618,8 @@ impl Scheme {
     /// assert_eq!(scheme.as_str(), "HTTP");
     /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
+    ///
+    /// [`eq_lowercase`]: Self::eq_lowercase
     #[inline]
     pub fn as_str(&self) -> &str {
         &self.0
@@ -809,6 +786,10 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     ///
     /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
     ///
+    /// Note that in the generic URI syntax, the port may be empty, with leading zeros, or very large.
+    /// It is up to you to decide whether to deny such a port, fallback to the scheme's default if it
+    /// is empty, ignore the leading zeros, or use a different addressing mechanism that allows a large port.
+    ///
     /// # Examples
     ///
     /// ```
@@ -860,7 +841,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Host<T> {
     }
 
     #[inline]
-    fn raw_data(&self) -> &RawHostData {
+    fn data(&self) -> &HostData {
         &self.auth.data().host_data
     }
 
@@ -882,30 +863,28 @@ impl<'i, 'o, T: Io<'i, 'o>> Host<T> {
         unsafe { self.auth.uri.slice(self.bounds().0, self.bounds().1) }
     }
 
-    /// Returns the structured host data.
+    /// Returns the parsed host component.
     #[inline]
-    pub fn data(&'i self) -> HostData<'o> {
-        let data = self.raw_data();
+    pub fn parsed(&'i self) -> ParsedHost<'o> {
+        let data = self.data();
         let tag = self.auth.uri.tag;
         // SAFETY: We only access the union after checking the tag.
         unsafe {
             if tag.contains(Tag::HOST_REG_NAME) {
                 // SAFETY: The validation is done.
-                return HostData::RegName(EStr::new_unchecked(self.as_str().as_bytes()));
+                return ParsedHost::RegName(EStr::new_unchecked(self.as_str().as_bytes()));
             } else if tag.contains(Tag::HOST_IPV4) {
-                return HostData::Ipv4(data.ipv4_addr);
-            }
-            #[cfg(feature = "ipv_future")]
-            if !tag.contains(Tag::HOST_IPV6) {
+                return ParsedHost::Ipv4(data.ipv4_addr);
+            } else if !tag.contains(Tag::HOST_IPV6) {
                 let dot_i = data.ipv_future_dot_i;
                 let bounds = self.bounds();
                 // SAFETY: The indexes are within bounds and the validation is done.
-                return HostData::IpvFuture {
+                return ParsedHost::IpvFuture {
                     ver: self.auth.uri.slice(bounds.0 + 2, dot_i),
                     addr: self.auth.uri.slice(dot_i + 1, bounds.1 - 1),
                 };
             }
-            HostData::Ipv6 {
+            ParsedHost::Ipv6 {
                 addr: data.ipv6.addr,
                 // SAFETY: The indexes are within bounds and the validation is done.
                 zone_id: data
@@ -917,9 +896,9 @@ impl<'i, 'o, T: Io<'i, 'o>> Host<T> {
     }
 }
 
-/// Structured host data.
+/// A parsed host component.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HostData<'a> {
+pub enum ParsedHost<'a> {
     /// An IPv4 address.
     Ipv4(Ipv4Addr),
     /// An IPv6 address.
@@ -930,9 +909,6 @@ pub enum HostData<'a> {
         zone_id: Option<&'a str>,
     },
     /// An IP address of future version.
-    ///
-    /// This is supported on **crate feature `ipv_future`** only.
-    #[cfg(feature = "ipv_future")]
     IpvFuture {
         /// The version.
         ver: &'a str,

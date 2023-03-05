@@ -228,14 +228,13 @@ bitflags! {
 pub struct AuthData {
     pub start: Cell<NonZeroU32>,
     pub host_bounds: (u32, u32),
-    pub host_data: RawHostData,
+    pub host_data: HostData,
 }
 
 #[derive(Clone, Copy)]
-pub union RawHostData {
+pub union HostData {
     pub ipv4_addr: Ipv4Addr,
     pub ipv6: Ipv6Data,
-    #[cfg(feature = "ipv_future")]
     pub ipv_future_dot_i: u32,
     pub reg_name: (),
 }
