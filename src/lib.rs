@@ -2,17 +2,17 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
-//! A generic URI parser that strictly adheres to IETF [RFC 3986] and [rfc6874bis].
+//! A generic URI parser that strictly adheres to IETF [RFC 3986] and [rfc6874bis]
+//! (yet to be published as an RFC).
 //!
 //! [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
+//! [rfc6874bis]: https://datatracker.ietf.org/doc/html/draft-ietf-6man-rfc6874bis-05
 //!
 //! See the documentation of [`Uri`] for more details.
 //!
 //! # Feature flags
 //!
 //! - `std` (default): Enables `std` support.
-//!
-//! [rfc6874bis]: https://datatracker.ietf.org/doc/html/draft-ietf-6man-rfc6874bis-05
 
 extern crate alloc;
 
@@ -29,13 +29,10 @@ mod parser;
 
 use crate::enc::{EStr, Split};
 use alloc::{string::String, vec::Vec};
-use core::{
-    iter::Iterator,
-    marker::PhantomData,
-    mem::ManuallyDrop,
-    net::{Ipv4Addr, Ipv6Addr},
-    slice, str,
-};
+use core::{iter::Iterator, marker::PhantomData, mem::ManuallyDrop, slice, str};
+
+#[cfg(feature = "std")]
+use std::net::{Ipv4Addr, Ipv6Addr};
 
 mod internal;
 use internal::{AuthData, Capped, Data, HostData, IntoOwnedUri, Io, Pointer, Storage, Tag};
@@ -874,7 +871,10 @@ impl<'i, 'o, T: Io<'i, 'o>> Host<T> {
                 // SAFETY: The validation is done.
                 return ParsedHost::RegName(EStr::new_unchecked(self.as_str().as_bytes()));
             } else if tag.contains(Tag::HOST_IPV4) {
-                return ParsedHost::Ipv4(data.ipv4_addr);
+                return ParsedHost::Ipv4(
+                    #[cfg(feature = "std")]
+                    data.ipv4_addr,
+                );
             } else if !tag.contains(Tag::HOST_IPV6) {
                 let dot_i = data.ipv_future_dot_i;
                 let bounds = self.bounds();
@@ -885,10 +885,11 @@ impl<'i, 'o, T: Io<'i, 'o>> Host<T> {
                 };
             }
             ParsedHost::Ipv6 {
-                addr: data.ipv6.addr,
+                #[cfg(feature = "std")]
+                addr: data.ipv6_data.addr,
                 // SAFETY: The indexes are within bounds and the validation is done.
                 zone_id: data
-                    .ipv6
+                    .ipv6_data
                     .zone_id_start
                     .map(|start| self.auth.uri.slice(start.get(), self.bounds().1 - 1)),
             }
@@ -900,10 +901,13 @@ impl<'i, 'o, T: Io<'i, 'o>> Host<T> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParsedHost<'a> {
     /// An IPv4 address.
-    Ipv4(Ipv4Addr),
+    #[cfg_attr(not(feature = "std"), non_exhaustive)]
+    Ipv4(#[cfg(feature = "std")] Ipv4Addr),
     /// An IPv6 address.
+    #[cfg_attr(not(feature = "std"), non_exhaustive)]
     Ipv6 {
         /// The address.
+        #[cfg(feature = "std")]
         addr: Ipv6Addr,
         /// An optional zone identifier.
         zone_id: Option<&'a str>,

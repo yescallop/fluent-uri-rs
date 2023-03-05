@@ -6,11 +6,13 @@ use bitflags::bitflags;
 use core::{
     cell::Cell,
     mem::{ManuallyDrop, MaybeUninit},
-    net::{Ipv4Addr, Ipv6Addr},
     num::NonZeroU32,
     ops::{Deref, DerefMut},
     ptr::NonNull,
 };
+
+#[cfg(feature = "std")]
+use std::net::{Ipv4Addr, Ipv6Addr};
 
 pub trait Pointer {
     fn get(&self) -> *mut u8;
@@ -233,14 +235,16 @@ pub struct AuthData {
 
 #[derive(Clone, Copy)]
 pub union HostData {
+    #[cfg(feature = "std")]
     pub ipv4_addr: Ipv4Addr,
-    pub ipv6: Ipv6Data,
+    pub ipv6_data: Ipv6Data,
     pub ipv_future_dot_i: u32,
-    pub reg_name: (),
+    pub none: (),
 }
 
 #[derive(Clone, Copy)]
 pub struct Ipv6Data {
+    #[cfg(feature = "std")]
     pub addr: Ipv6Addr,
     pub zone_id_start: Option<NonZeroU32>,
 }
