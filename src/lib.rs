@@ -32,7 +32,11 @@ use alloc::{string::String, vec::Vec};
 use core::{iter::Iterator, marker::PhantomData, mem::ManuallyDrop, slice, str};
 
 #[cfg(feature = "std")]
-use std::net::{Ipv4Addr, Ipv6Addr};
+use std::{
+    io,
+    net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV6, ToSocketAddrs},
+    vec,
+};
 
 mod internal;
 use internal::{AuthData, Capped, Data, HostData, IntoOwnedUri, Io, Pointer, Storage, Tag};
@@ -813,6 +817,61 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
         let (host_end, end) = (self.host_bounds().1, self.uri.path_bounds.0);
         // SAFETY: The indexes are within bounds and the validation is done.
         (host_end != end).then(|| unsafe { self.uri.slice(host_end + 1, end) })
+    }
+
+    /// Converts this authority to an iterator of resolved [`SocketAddr`]s.
+    ///
+    /// The default port is used if the port component is not present or is empty.
+    ///
+    /// An IPv6 zone identifier is parsed according to [rfc6874bis]. It may be a 32-bit unsigned
+    /// integer with or without leading zeros, or a network interface name on Unix-like systems.
+    ///
+    /// [rfc6874bis]: https://datatracker.ietf.org/doc/html/draft-ietf-6man-rfc6874bis-05
+    #[cfg(feature = "std")]
+    pub fn to_socket_addrs(&'i self, default_port: u16) -> io::Result<vec::IntoIter<SocketAddr>> {
+        let port = self
+            .port()
+            .filter(|port| !port.is_empty())
+            .map(|port| {
+                port.parse::<u16>()
+                    .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid port value"))
+            })
+            .transpose()?
+            .unwrap_or(default_port);
+
+        match self.host().parsed() {
+            ParsedHost::Ipv4(addr) => Ok(vec![(addr, port).into()].into_iter()),
+            ParsedHost::Ipv6 { addr, zone_id } => {
+                let scope_id = if let Some(zone_id) = zone_id {
+                    if let Ok(scope_id) = zone_id.parse::<u32>() {
+                        scope_id
+                    } else {
+                        #[cfg(not(unix))]
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            "invalid zone identifier value",
+                        ));
+                        #[cfg(unix)]
+                        {
+                            let if_name = std::ffi::CString::new(zone_id).unwrap();
+                            let if_index = unsafe { libc::if_nametoindex(if_name.as_ptr()) };
+                            if if_index == 0 {
+                                return Err(io::Error::last_os_error());
+                            }
+                            if_index
+                        }
+                    }
+                } else {
+                    0
+                };
+                Ok(vec![SocketAddrV6::new(addr, port, 0, scope_id).into()].into_iter())
+            }
+            ParsedHost::IpvFuture { .. } => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "address mechanism not supported",
+            )),
+            ParsedHost::RegName(name) => format!("{name}:{port}").to_socket_addrs(),
+        }
     }
 }
 

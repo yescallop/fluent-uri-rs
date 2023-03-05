@@ -1,6 +1,6 @@
 on:
   push:
-    branches: [ main ]
+    branches: [main]
 
 name: CI
 
@@ -28,7 +28,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: doc
-          args: --no-deps --features ipv_future,std
+          args: --no-deps
       - name: Deploy docs
         uses: peaceiris/actions-gh-pages@v3
         with:
