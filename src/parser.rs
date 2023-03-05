@@ -1,6 +1,6 @@
 use crate::{
     enc::{imp::OCTET_TABLE_LO, table::*},
-    internal::Pointer,
+    internal::{Ipv6Data, Pointer, Storage},
     AuthData, Data, RawHostData as HostData, Result, Tag, Uri,
 };
 use core::{
@@ -10,8 +10,6 @@ use core::{
     num::NonZeroU32,
     str,
 };
-
-use super::{internal::Storage, Ipv6Data};
 
 pub(crate) unsafe fn parse<T: Storage>(ptr: *mut u8, len: u32, cap: u32) -> Result<Uri<T>> {
     let mut parser = Parser {
@@ -335,7 +333,6 @@ impl Parser {
             HostData {
                 ipv6: Ipv6Data {
                     addr,
-                    #[cfg(feature = "rfc6874bis")]
                     zone_id_start: self.read_zone_id()?,
                 },
             }
@@ -461,7 +458,6 @@ impl Parser {
         Some(Seg::Normal(x, colon))
     }
 
-    #[cfg(feature = "rfc6874bis")]
     fn read_zone_id(&mut self) -> Result<Option<NonZeroU32>> {
         if self.read_str("%") {
             let start = self.pos;

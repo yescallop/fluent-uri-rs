@@ -1,4 +1,4 @@
-use super::*;
+use crate::{Authority, Host, Lens, ParseError, ParseErrorKind, Path, Scheme, Uri, View};
 use alloc::string::String;
 use core::fmt;
 

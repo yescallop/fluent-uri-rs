@@ -1,10 +1,9 @@
 use super::table;
+use alloc::vec::Vec;
+use core::{fmt, ptr};
 
 #[cfg(feature = "unstable")]
 use super::table::Table;
-
-use alloc::vec::Vec;
-use core::{fmt, ptr};
 
 #[cfg(feature = "unstable")]
 use alloc::{borrow::Cow, str, string::String};

@@ -1,15 +1,16 @@
 #![allow(missing_debug_implementations)]
 
+use crate::Uri;
 use alloc::{string::String, vec::Vec};
+use bitflags::bitflags;
 use core::{
     cell::Cell,
-    mem::MaybeUninit,
+    mem::{ManuallyDrop, MaybeUninit},
+    net::{Ipv4Addr, Ipv6Addr},
     num::NonZeroU32,
     ops::{Deref, DerefMut},
+    ptr::NonNull,
 };
-
-use super::*;
-use bitflags::bitflags;
 
 pub trait Pointer {
     fn get(&self) -> *mut u8;
@@ -242,6 +243,5 @@ pub union RawHostData {
 #[derive(Clone, Copy)]
 pub struct Ipv6Data {
     pub addr: Ipv6Addr,
-    #[cfg(feature = "rfc6874bis")]
     pub zone_id_start: Option<NonZeroU32>,
 }

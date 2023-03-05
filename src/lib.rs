@@ -2,7 +2,7 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
-//! A generic URI parser that strictly adheres to IETF [RFC 3986].
+//! A generic URI parser that strictly adheres to IETF [RFC 3986] and [rfc6874bis].
 //!
 //! [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
 //!
@@ -22,14 +22,9 @@
 //!     that you have to deal with an existing system where the IPvFuture format is
 //!     in use.
 //!
-//! - `rfc6874bis`: Enables the parsing of IPv6 zone identifiers,
-//!   such as in `https://[fe80::abcd%en1]`.
-//!
-//!     This feature is based on the homonymous [draft] and is thus subject to change.
-//!
 //! [IPvFuture]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
 //! [`InvalidIpLiteral`]: ParseErrorKind::InvalidIpLiteral
-//! [draft]: https://datatracker.ietf.org/doc/html/draft-ietf-6man-rfc6874bis-02
+//! [rfc6874bis]: https://datatracker.ietf.org/doc/html/draft-ietf-6man-rfc6874bis-05
 
 extern crate alloc;
 
@@ -39,7 +34,8 @@ pub mod enc;
 mod fmt;
 
 mod view;
-pub use view::*;
+pub(crate) use view::Lens;
+pub use view::View;
 
 mod parser;
 
@@ -50,12 +46,13 @@ use core::{
     marker::PhantomData,
     mem::ManuallyDrop,
     net::{Ipv4Addr, Ipv6Addr},
-    ptr::NonNull,
     slice, str,
 };
 
 mod internal;
-use internal::*;
+use internal::{
+    AuthData, Capped, Data, IntoOwnedUri, Io, Pointer, RawHostData, Storage, Tag, Uncapped,
+};
 
 /// Detailed cause of a [`ParseError`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -911,7 +908,6 @@ impl<'i, 'o, T: Io<'i, 'o>> Host<T> {
             HostData::Ipv6 {
                 addr: data.ipv6.addr,
                 // SAFETY: The indexes are within bounds and the validation is done.
-                #[cfg(feature = "rfc6874bis")]
                 zone_id: data
                     .ipv6
                     .zone_id_start
@@ -931,9 +927,6 @@ pub enum HostData<'a> {
         /// The address.
         addr: Ipv6Addr,
         /// An optional zone identifier.
-        ///
-        /// This is supported on **crate feature `rfc6874bis`** only.
-        #[cfg(feature = "rfc6874bis")]
         zone_id: Option<&'a str>,
     },
     /// An IP address of future version.

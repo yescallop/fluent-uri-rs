@@ -1,10 +1,14 @@
-use core::{num::NonZeroU32, ops::Deref};
-
-use super::*;
-use crate::enc::SplitView;
+use crate::{
+    component_taken,
+    enc::{EStr, SplitView},
+    internal::Tag,
+    Authority, Host, Path, Scheme, ASCII_CASE_MASK,
+};
+use core::{marker::PhantomData, num::NonZeroU32, ops::Deref};
 
 mod internal {
-    use super::*;
+    use crate::{enc::EStr, Authority, Host, Path, Scheme, Uri};
+    use core::str;
 
     pub trait Lens {
         type Target: ?Sized;

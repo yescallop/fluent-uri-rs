@@ -1,4 +1,4 @@
-use core::net::{Ipv4Addr, Ipv6Addr};
+use std::net::{Ipv4Addr, Ipv6Addr};
 
 use fluent_uri::{enc::EStr, ParseErrorKind::*, *};
 
@@ -60,7 +60,6 @@ fn parse_absolute() {
         a.host().data(),
         HostData::Ipv6 {
             addr: Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 0x7),
-            #[cfg(feature = "rfc6874bis")]
             zone_id: None
         }
     );

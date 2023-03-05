@@ -1,14 +1,13 @@
-use alloc::string::String;
-use core::{borrow::Borrow, fmt, hash, marker::PhantomData, ops::Deref};
-
-#[cfg(feature = "unstable")]
-use alloc::vec::Vec;
-
 use super::{
     encoder::Encoder,
     imp::{encode_to, HEX_TABLE},
     EStr,
 };
+use alloc::string::String;
+use core::{borrow::Borrow, fmt, hash, marker::PhantomData, ops::Deref};
+
+#[cfg(feature = "unstable")]
+use alloc::vec::Vec;
 
 /// A percent-encoded, growable string.
 ///

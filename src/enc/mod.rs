@@ -20,7 +20,7 @@ pub mod encoder;
 #[cfg(feature = "unstable")]
 mod estring;
 #[cfg(feature = "unstable")]
-pub use estring::*;
+pub use estring::EString;
 
 /// Percent-encodes a byte sequence.
 ///
