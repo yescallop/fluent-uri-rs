@@ -10,8 +10,8 @@
 //!
 //! # Feature flags
 //!
-//! All features are disabled by default. However, note that these features each
-//! alter the enum [`HostData`] in a backward incompatible way that could make it
+//! All features except `std` are disabled `by default. However, note that these features
+//! each alter the enum [`HostData`] in a backward incompatible way that could make it
 //! impossible for two crates that depend on different features of `fluent-uri` to
 //! be used together.
 //!
@@ -26,6 +26,8 @@
 //!   such as in `https://[fe80::abcd%en1]`.
 //!
 //!     This feature is based on the homonymous [draft] and is thus subject to change.
+//!
+//! - `std` (default): Enables `std` support.
 //!
 //! [IPvFuture]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
 //! [`InvalidIpLiteral`]: ParseErrorKind::InvalidIpLiteral
