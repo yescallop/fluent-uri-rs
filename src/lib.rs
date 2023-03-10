@@ -45,14 +45,10 @@ mod parser;
 
 use crate::enc::{EStr, Split};
 use alloc::{string::String, vec::Vec};
-use core::{
-    iter::Iterator,
-    marker::PhantomData,
-    mem::ManuallyDrop,
-    net::{Ipv4Addr, Ipv6Addr},
-    ptr::NonNull,
-    slice, str,
-};
+use core::{iter::Iterator, marker::PhantomData, mem::ManuallyDrop, ptr::NonNull, slice, str};
+
+#[cfg(feature = "std")]
+use std::net::{Ipv4Addr, Ipv6Addr};
 
 mod internal;
 use internal::*;
@@ -888,7 +884,7 @@ impl<'i, 'o, T: Io<'i, 'o>> Host<T> {
     /// Returns the structured host data.
     #[inline]
     pub fn data(&'i self) -> HostData<'o> {
-        let data = self.raw_data();
+        let _data = self.raw_data();
         let tag = self.auth.uri.tag;
         // SAFETY: We only access the union after checking the tag.
         unsafe {
@@ -896,11 +892,14 @@ impl<'i, 'o, T: Io<'i, 'o>> Host<T> {
                 // SAFETY: The validation is done.
                 return HostData::RegName(EStr::new_unchecked(self.as_str().as_bytes()));
             } else if tag.contains(Tag::HOST_IPV4) {
-                return HostData::Ipv4(data.ipv4_addr);
+                return HostData::Ipv4(
+                    #[cfg(feature = "std")]
+                    _data.ipv4_addr,
+                );
             }
             #[cfg(feature = "ipv_future")]
             if !tag.contains(Tag::HOST_IPV6) {
-                let dot_i = data.ipv_future_dot_i;
+                let dot_i = _data.ipv_future_dot_i;
                 let bounds = self.bounds();
                 // SAFETY: The indexes are within bounds and the validation is done.
                 return HostData::IpvFuture {
@@ -909,10 +908,11 @@ impl<'i, 'o, T: Io<'i, 'o>> Host<T> {
                 };
             }
             HostData::Ipv6 {
-                addr: data.ipv6.addr,
+                #[cfg(feature = "std")]
+                addr: _data.ipv6.addr,
                 // SAFETY: The indexes are within bounds and the validation is done.
                 #[cfg(feature = "rfc6874bis")]
-                zone_id: data
+                zone_id: _data
                     .ipv6
                     .zone_id_start
                     .map(|start| self.auth.uri.slice(start.get(), self.bounds().1 - 1)),
@@ -925,10 +925,13 @@ impl<'i, 'o, T: Io<'i, 'o>> Host<T> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HostData<'a> {
     /// An IPv4 address.
-    Ipv4(Ipv4Addr),
+    #[cfg_attr(not(feature = "std"), non_exhaustive)]
+    Ipv4(#[cfg(feature = "std")] Ipv4Addr),
     /// An IPv6 address.
+    #[cfg_attr(not(feature = "std"), non_exhaustive)]
     Ipv6 {
         /// The address.
+        #[cfg(feature = "std")]
         addr: Ipv6Addr,
         /// An optional zone identifier.
         ///
