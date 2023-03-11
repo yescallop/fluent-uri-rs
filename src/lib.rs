@@ -636,6 +636,11 @@ impl Scheme {
 
     /// Returns the scheme as a string slice.
     ///
+    /// Note that the scheme is case-insensitive. You should typically use
+    /// [`eq_lowercase`] for testing if the scheme is a desired one.
+    ///
+    /// [`eq_lowercase`]: Self::eq_lowercase
+    ///
     /// # Examples
     ///
     /// ```
@@ -811,6 +816,10 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     /// Returns the [port] subcomponent.
     ///
     /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
+    ///
+    /// Note that in the generic URI syntax, the port may be empty, with leading zeros, or very large.
+    /// It is up to you to decide whether to deny such a port, fallback to the scheme's default if it
+    /// is empty, ignore the leading zeros, or use a different addressing mechanism that allows a large port.
     ///
     /// # Examples
     ///
