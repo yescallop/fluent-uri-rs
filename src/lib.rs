@@ -10,10 +10,13 @@
 //!
 //! # Feature flags
 //!
-//! All features except `std` are disabled `by default. However, note that these features
+//! All features except `std` are disabled by default. Note that the last two features
 //! each alter the enum [`HostData`] in a backward incompatible way that could make it
 //! impossible for two crates that depend on different features of `fluent-uri` to
 //! be used together.
+//!
+//! - `std`: Enables `std` support. This includes [`Error`] implementations
+//!   and `Ip{v4, v6}Addr` support in [`HostData`].
 //!
 //! - `ipv_future`: Enables the parsing of [IPvFuture] literal addresses,
 //!   which fails with [`InvalidIpLiteral`] when disabled.
@@ -27,11 +30,10 @@
 //!
 //!     This feature is based on the homonymous [draft] and is thus subject to change.
 //!
-//! - `std` (default): Enables `std` support.
-//!
+//! [`Error`]: std::error::Error
 //! [IPvFuture]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
 //! [`InvalidIpLiteral`]: ParseErrorKind::InvalidIpLiteral
-//! [draft]: https://datatracker.ietf.org/doc/html/draft-ietf-6man-rfc6874bis-02
+//! [draft]: https://datatracker.ietf.org/doc/html/draft-ietf-6man-rfc6874bis-05
 
 extern crate alloc;
 

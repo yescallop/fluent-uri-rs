@@ -240,7 +240,7 @@ pub union RawHostData {
     pub ipv6: Ipv6Data,
     #[cfg(feature = "ipv_future")]
     pub ipv_future_dot_i: u32,
-    pub reg_name: (),
+    pub none: (),
 }
 
 #[derive(Clone, Copy)]

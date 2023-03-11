@@ -238,7 +238,7 @@ impl Parser {
             } else {
                 // Empty authority.
                 self.out.tag = Tag::HOST_REG_NAME;
-                host = (self.pos, self.pos, HostData { reg_name: () });
+                host = (self.pos, self.pos, HostData { none: () });
             }
         } else {
             // The whole authority scanned. Try to parse the host and port.
@@ -293,10 +293,10 @@ impl Parser {
                         #[cfg(feature = "std")]
                         ipv4_addr: _addr.into(),
                         #[cfg(not(feature = "std"))]
-                        reg_name: (),
+                        none: (),
                     },
                 ),
-                _ => (Tag::HOST_REG_NAME, HostData { reg_name: () }),
+                _ => (Tag::HOST_REG_NAME, HostData { none: () }),
             };
 
             self.out.tag = tag;
@@ -488,10 +488,10 @@ impl Parser {
                     #[cfg(feature = "std")]
                     ipv4_addr: _addr.into(),
                     #[cfg(not(feature = "std"))]
-                    reg_name: (),
+                    none: (),
                 },
             ),
-            _ => (Tag::HOST_REG_NAME, HostData { reg_name: () }),
+            _ => (Tag::HOST_REG_NAME, HostData { none: () }),
         };
         self.out.tag = tag;
         Ok(data)
