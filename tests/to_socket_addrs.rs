@@ -35,4 +35,24 @@ fn test_to_socket_addrs() {
         .to_socket_addrs(80)
         .unwrap()
         .eq([SocketAddrV6::new(Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 1), 80, 0, 17).into()]));
+
+    let u = Uri::parse("//127.0.0.1:65537").unwrap();
+    assert_eq!(
+        u.authority()
+            .unwrap()
+            .to_socket_addrs(80)
+            .unwrap_err()
+            .to_string(),
+        "invalid port value"
+    );
+
+    let u = Uri::parse("//[vF.whatever]").unwrap();
+    assert_eq!(
+        u.authority()
+            .unwrap()
+            .to_socket_addrs(80)
+            .unwrap_err()
+            .to_string(),
+        "address mechanism not supported"
+    );
 }

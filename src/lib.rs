@@ -12,7 +12,10 @@
 //!
 //! # Feature flags
 //!
-//! - `std` (default): Enables `std` support.
+//! - `std` (default): Enables `std` support. This includes [`Error`] implementations
+//!   and `Ip{v4, v6}Addr` support in [`ParsedHost`].
+//!
+//! [`Error`]: std::error::Error
 
 extern crate alloc;
 
@@ -609,6 +612,8 @@ impl Scheme {
     /// Note that the scheme is case-insensitive. You should typically use
     /// [`eq_lowercase`] for testing if the scheme is a desired one.
     ///
+    /// [`eq_lowercase`]: Self::eq_lowercase
+    ///
     /// # Examples
     ///
     /// ```
@@ -619,8 +624,6 @@ impl Scheme {
     /// assert_eq!(scheme.as_str(), "HTTP");
     /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
-    ///
-    /// [`eq_lowercase`]: Self::eq_lowercase
     #[inline]
     pub fn as_str(&self) -> &str {
         &self.0
