@@ -1,11 +1,15 @@
 #![allow(missing_debug_implementations)]
 
-use std::{
+use alloc::{string::String, vec::Vec};
+use core::{
     cell::Cell,
     mem::MaybeUninit,
     num::NonZeroU32,
     ops::{Deref, DerefMut},
 };
+
+#[cfg(feature = "std")]
+use std::net::{Ipv4Addr, Ipv6Addr};
 
 use super::*;
 use bitflags::bitflags;
@@ -231,15 +235,17 @@ pub struct AuthData {
 
 #[derive(Clone, Copy)]
 pub union RawHostData {
+    #[cfg(feature = "std")]
     pub ipv4_addr: Ipv4Addr,
     pub ipv6: Ipv6Data,
     #[cfg(feature = "ipv_future")]
     pub ipv_future_dot_i: u32,
-    pub reg_name: (),
+    pub none: (),
 }
 
 #[derive(Clone, Copy)]
 pub struct Ipv6Data {
+    #[cfg(feature = "std")]
     pub addr: Ipv6Addr,
     #[cfg(feature = "rfc6874bis")]
     pub zone_id_start: Option<NonZeroU32>,

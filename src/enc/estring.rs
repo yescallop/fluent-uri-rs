@@ -1,4 +1,8 @@
-use std::{borrow::Borrow, fmt, hash, marker::PhantomData, ops::Deref};
+use alloc::string::String;
+use core::{borrow::Borrow, fmt, hash, marker::PhantomData, ops::Deref};
+
+#[cfg(feature = "unstable")]
+use alloc::vec::Vec;
 
 use super::{
     encoder::Encoder,
@@ -341,7 +345,7 @@ impl<E: Encoder> Clone for EString<E> {
 impl<E: Encoder> fmt::Debug for EString<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("EString")
-            .field("encoder", &std::any::type_name::<E>())
+            .field("encoder", &core::any::type_name::<E>())
             .field("contents", &self.string)
             .finish()
     }

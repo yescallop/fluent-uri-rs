@@ -3,13 +3,7 @@ use crate::{
     internal::Pointer,
     AuthData, Data, RawHostData as HostData, Result, Tag, Uri,
 };
-use std::{
-    cell::Cell,
-    marker::PhantomData,
-    net::{Ipv4Addr, Ipv6Addr},
-    num::NonZeroU32,
-    str,
-};
+use core::{cell::Cell, marker::PhantomData, num::NonZeroU32, str};
 
 use super::{internal::Storage, Ipv6Data};
 
@@ -244,7 +238,7 @@ impl Parser {
             } else {
                 // Empty authority.
                 self.out.tag = Tag::HOST_REG_NAME;
-                host = (self.pos, self.pos, HostData { reg_name: () });
+                host = (self.pos, self.pos, HostData { none: () });
             }
         } else {
             // The whole authority scanned. Try to parse the host and port.
@@ -293,10 +287,16 @@ impl Parser {
 
             let v4 = self.scan_v4();
             let (tag, data) = match v4 {
-                Some(addr) if !self.has_remaining() => {
-                    (Tag::HOST_IPV4, HostData { ipv4_addr: addr })
-                }
-                _ => (Tag::HOST_REG_NAME, HostData { reg_name: () }),
+                Some(_addr) if !self.has_remaining() => (
+                    Tag::HOST_IPV4,
+                    HostData {
+                        #[cfg(feature = "std")]
+                        ipv4_addr: _addr.into(),
+                        #[cfg(not(feature = "std"))]
+                        none: (),
+                    },
+                ),
+                _ => (Tag::HOST_REG_NAME, HostData { none: () }),
             };
 
             self.out.tag = tag;
@@ -330,11 +330,12 @@ impl Parser {
             return Ok(None);
         }
 
-        let host = if let Some(addr) = self.scan_v6() {
+        let host = if let Some(_addr) = self.scan_v6() {
             self.out.tag = Tag::HOST_IPV6;
             HostData {
                 ipv6: Ipv6Data {
-                    addr,
+                    #[cfg(feature = "std")]
+                    addr: _addr.into(),
                     #[cfg(feature = "rfc6874bis")]
                     zone_id_start: self.read_zone_id()?,
                 },
@@ -356,7 +357,7 @@ impl Parser {
         Ok(Some(host))
     }
 
-    fn scan_v6(&mut self) -> Option<Ipv6Addr> {
+    fn scan_v6(&mut self) -> Option<[u16; 8]> {
         let mut segs = [0; 8];
         let mut ellipsis_i = 8;
 
@@ -383,7 +384,7 @@ impl Parser {
                         // Not enough space, triple colons, or no colon.
                         return None;
                     }
-                    let octets = self.scan_v4()?.octets();
+                    let octets = self.scan_v4()?.to_be_bytes();
                     segs[i] = u16::from_be_bytes([octets[0], octets[1]]);
                     segs[i + 1] = u16::from_be_bytes([octets[2], octets[3]]);
                     i += 2;
@@ -411,7 +412,7 @@ impl Parser {
             }
         }
 
-        Some(segs.into())
+        Some(segs)
     }
 
     fn scan_v6_segment(&mut self) -> Option<Seg> {
@@ -481,22 +482,30 @@ impl Parser {
         self.scan(REG_NAME)?;
 
         let (tag, data) = match v4 {
-            Some(addr) if self.pos == v4_end => (Tag::HOST_IPV4, HostData { ipv4_addr: addr }),
-            _ => (Tag::HOST_REG_NAME, HostData { reg_name: () }),
+            Some(_addr) if self.pos == v4_end => (
+                Tag::HOST_IPV4,
+                HostData {
+                    #[cfg(feature = "std")]
+                    ipv4_addr: _addr.into(),
+                    #[cfg(not(feature = "std"))]
+                    none: (),
+                },
+            ),
+            _ => (Tag::HOST_REG_NAME, HostData { none: () }),
         };
         self.out.tag = tag;
         Ok(data)
     }
 
-    fn scan_v4(&mut self) -> Option<Ipv4Addr> {
-        let mut res = self.scan_v4_octet()? << 24;
+    fn scan_v4(&mut self) -> Option<u32> {
+        let mut addr = self.scan_v4_octet()? << 24;
         for i in (0..3).rev() {
             if !self.read_str(".") {
                 return None;
             }
-            res |= self.scan_v4_octet()? << (i * 8);
+            addr |= self.scan_v4_octet()? << (i * 8);
         }
-        Some(Ipv4Addr::from(res))
+        Some(addr)
     }
 
     fn scan_v4_octet(&mut self) -> Option<u32> {

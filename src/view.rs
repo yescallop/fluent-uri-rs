@@ -1,4 +1,4 @@
-use std::{num::NonZeroU32, ops::Deref};
+use core::{num::NonZeroU32, ops::Deref};
 
 use super::*;
 use crate::enc::SplitView;

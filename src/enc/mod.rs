@@ -89,13 +89,16 @@ pub fn validate<S: AsRef<[u8]> + ?Sized>(s: &S, table: &Table) -> Result<()> {
     }
 }
 
-use std::{
+use alloc::{
     borrow::{self, Cow},
+    string::{FromUtf8Error, String},
+    vec::Vec,
+};
+use core::{
     fmt, hash,
     iter::FusedIterator,
     mem,
     str::{self, Utf8Error},
-    string::FromUtf8Error,
 };
 
 use crate::view::View;
@@ -275,7 +278,7 @@ impl EStr {
     /// assert_eq!(dec.to_str()?, "233");
     /// assert!(dec.decoded_any());
     /// assert_eq!(buf, b"233");
-    /// # Ok::<_, std::str::Utf8Error>(())
+    /// # Ok::<_, core::str::Utf8Error>(())
     /// ```
     #[cfg(feature = "unstable")]
     #[inline]
@@ -778,7 +781,7 @@ impl FusedIterator for SplitView<'_> {}
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BufferTooSmallError(());
 
-#[cfg(feature = "unstable")]
+#[cfg(all(feature = "unstable", feature = "std"))]
 impl std::error::Error for BufferTooSmallError {}
 
 #[cfg(feature = "unstable")]
@@ -791,7 +794,8 @@ impl fmt::Display for BufferTooSmallError {
 #[cfg(feature = "unstable")]
 pub(crate) mod internal {
     use crate::enc::BufferTooSmallError;
-    use std::{collections::TryReserveError, mem::MaybeUninit};
+    use alloc::{collections::TryReserveError, string::String, vec::Vec};
+    use core::mem::MaybeUninit;
 
     pub trait AsMutVec {
         unsafe fn as_mut_vec(&mut self) -> &mut Vec<u8>;
