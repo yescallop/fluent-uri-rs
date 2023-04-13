@@ -167,5 +167,8 @@ pub const PATH: &Table = &PCHAR.or(&gen(b"/"));
 /// query = fragment = *( pchar / "/" / "?" )
 pub const QUERY_FRAGMENT: &Table = &PCHAR.or(&gen(b"/?"));
 
-/// RFC 6874bis: ZoneID = 1*( unreserved )
-pub const ZONE_ID: &Table = UNRESERVED;
+/// lc-unreserved = %x61-7A / DIGIT / "-" / "." / "_" / "~"
+pub const LC_UNRESERVED: &Table = &gen(b"abcdefghijklmnopqrstuvwxyz").or(DIGIT).or(&gen(b"-._~"));
+
+/// ZoneID = 1*( lc-unreserved )
+pub const ZONE_ID: &Table = LC_UNRESERVED;

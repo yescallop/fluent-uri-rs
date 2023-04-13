@@ -6,7 +6,7 @@
 //! (yet to be published as an RFC).
 //!
 //! [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
-//! [rfc6874bis]: https://datatracker.ietf.org/doc/html/draft-ietf-6man-rfc6874bis-05
+//! [rfc6874bis]: https://datatracker.ietf.org/doc/html/draft-ietf-6man-rfc6874bis-07/
 //!
 //! See the documentation of [`Uri`] for more details.
 //!

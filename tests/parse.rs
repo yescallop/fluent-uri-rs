@@ -183,17 +183,17 @@ fn parse_absolute() {
     }
 
     {
-        let u = Uri::parse("http://[fe80::520f:f5ff:fe51:cf0%17]").unwrap();
+        let u = Uri::parse("http://[fe80::520f:f5ff:fe51:cf0%eth0]").unwrap();
         assert_eq!(u.scheme().unwrap().as_str(), "http");
         let a = u.authority().unwrap();
-        assert_eq!(a.as_str(), "[fe80::520f:f5ff:fe51:cf0%17]");
+        assert_eq!(a.as_str(), "[fe80::520f:f5ff:fe51:cf0%eth0]");
         assert_eq!(a.userinfo(), None);
-        assert_eq!(a.host().as_str(), "[fe80::520f:f5ff:fe51:cf0%17]");
+        assert_eq!(a.host().as_str(), "[fe80::520f:f5ff:fe51:cf0%eth0]");
         assert_eq!(
             a.host().parsed(),
             ParsedHost::Ipv6 {
                 addr: Ipv6Addr::new(0xfe80, 0, 0, 0, 0x520f, 0xf5ff, 0xfe51, 0xcf0),
-                zone_id: Some("17"),
+                zone_id: Some("eth0"),
             }
         );
         assert_eq!(a.port(), None);
@@ -404,10 +404,12 @@ fn parse_error() {
     assert_eq!(e.to_string(), "invalid IP literal at index 6");
 
     // Empty Zone ID
-    {
-        let e = Uri::parse("ftp://[fe80::abcd%]").unwrap_err();
-        assert_eq!(e.to_string(), "invalid IP literal at index 6");
-    }
+    let e = Uri::parse("ftp://[fe80::abcd%]").unwrap_err();
+    assert_eq!(e.to_string(), "invalid IP literal at index 6");
+
+    // Uppercase letters in Zone ID
+    let e = Uri::parse("ftp://[fe80::abcd%Ethernet1]").unwrap_err();
+    assert_eq!(e.to_string(), "invalid IP literal at index 6");
 
     // Invalid IPv6 address
     let e = Uri::parse("example://[44:55::66::77]").unwrap_err();

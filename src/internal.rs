@@ -215,6 +215,7 @@ impl<T: Storage> DerefMut for Uri<T> {
 }
 
 bitflags! {
+    #[derive(Clone, Copy)]
     pub struct Tag: u32 {
         const HOST_REG_NAME = 0b00000001;
         const HOST_IPV4     = 0b00000010;
