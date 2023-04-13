@@ -2,8 +2,8 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
-//! A generic URI parser that strictly adheres to IETF [RFC 3986] and [rfc6874bis]
-//! (yet to be published as an RFC).
+//! A generic URI parser that strictly adheres to IETF [RFC 3986] and
+//! [draft-ietf-6man-rfc6874bis-07][rfc6874bis] (yet to be published as an RFC).
 //!
 //! [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
 //! [rfc6874bis]: https://datatracker.ietf.org/doc/html/draft-ietf-6man-rfc6874bis-07/
@@ -12,7 +12,7 @@
 //!
 //! # Feature flags
 //!
-//! - `std` (default): Enables `std` support. This includes [`Error`] implementations
+//! - `std`: Enables `std` support (by default). This includes [`Error`] implementations
 //!   and `Ip{v4, v6}Addr` support in [`ParsedHost`].
 //!
 //! [`Error`]: std::error::Error
