@@ -168,7 +168,9 @@ pub const PATH: &Table = &PCHAR.or(&gen(b"/"));
 pub const QUERY_FRAGMENT: &Table = &PCHAR.or(&gen(b"/?"));
 
 /// lc-unreserved = %x61-7A / DIGIT / "-" / "." / "_" / "~"
-pub const LC_UNRESERVED: &Table = &gen(b"abcdefghijklmnopqrstuvwxyz").or(DIGIT).or(&gen(b"-._~"));
+pub const LC_UNRESERVED: &Table = &gen(b"abcdefghijklmnopqrstuvwxyz")
+    .or(DIGIT)
+    .or(&gen(b"-._~"));
 
 /// ZoneID = 1*( lc-unreserved )
 pub const ZONE_ID: &Table = LC_UNRESERVED;

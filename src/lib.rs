@@ -826,10 +826,11 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     ///
     /// The default port is used if the port component is not present or is empty.
     ///
-    /// An IPv6 zone identifier is parsed according to [rfc6874bis]. It may be a 32-bit unsigned
-    /// integer with or without leading zeros, or a network interface name on Unix-like systems.
+    /// An IPv6 zone identifier is parsed according to [draft-ietf-6man-rfc6874bis-07][rfc6874bis].
+    /// It may be a 32-bit unsigned integer with or without leading zeros, or a network
+    /// interface name on Unix-like systems.
     ///
-    /// [rfc6874bis]: https://datatracker.ietf.org/doc/html/draft-ietf-6man-rfc6874bis-05
+    /// [rfc6874bis]: https://datatracker.ietf.org/doc/html/draft-ietf-6man-rfc6874bis-07
     #[cfg(feature = "std")]
     pub fn to_socket_addrs(&'i self, default_port: u16) -> io::Result<vec::IntoIter<SocketAddr>> {
         let port = self
