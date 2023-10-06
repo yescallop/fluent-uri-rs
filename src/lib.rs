@@ -261,9 +261,11 @@ impl<'a> Uri<&'a str> {
 impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Uri<T> {
     #[inline]
     /// Returns the URI reference as a string slice.
-    pub fn as_str(&'i self) -> &'o str {
-        // SAFETY: The indexes are within bounds and the validation is done.
-        unsafe { self.slice(0, self.len()) }
+    pub fn as_str(&self) -> &str {
+        // SAFETY: The indexes are within bounds.
+        let bytes = unsafe { slice::from_raw_parts(self.ptr.get(), self.len() as usize) };
+        // SAFETY: The parser guarantees that the bytes are valid UTF-8.
+        unsafe { str::from_utf8_unchecked(bytes) }
     }
 
     /// Creates a mutable copy of this `Uri` in the given buffer.
@@ -301,6 +303,12 @@ impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> Uri<T> {
             data: self.data.clone(),
             _marker: PhantomData,
         })
+    }
+}
+
+impl<'i, 'o, T: Io<'i, 'o> + AsRef<str>> core::hash::Hash for Uri<T> {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.as_str().hash(state);
     }
 }
 
@@ -1068,5 +1076,30 @@ mod tests {
         assert_eq!(u, u);
         let v = Uri::parse("http://127.0.0.1:80807/").unwrap();
         assert_ne!(u, v);
+    }
+
+    #[test]
+    fn hashes_uri() {
+        use std::{
+            collections::hash_map::DefaultHasher,
+            hash::{Hash, Hasher},
+        };
+
+        let str_0 = "http://127.0.0.1:80807/";
+        let str_1 = "http://127.0.0.1:80808/";
+        assert_eq!(
+            calculate_hash(&str_0),
+            calculate_hash(&Uri::parse(str_0).unwrap())
+        );
+        assert_ne!(
+            calculate_hash(&str_0),
+            calculate_hash(&Uri::parse(str_1).unwrap())
+        );
+
+        fn calculate_hash<T: Hash>(t: &T) -> u64 {
+            let mut s = DefaultHasher::new();
+            t.hash(&mut s);
+            s.finish()
+        }
     }
 }
