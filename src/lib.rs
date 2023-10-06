@@ -443,7 +443,22 @@ impl<'i, 'o, T: Io<'i, 'o>> Uri<T> {
     pub fn is_absolute(&self) -> bool {
         self.scheme_end.is_some() && self.fragment_start.is_none()
     }
+
+    #[inline]
+    fn as_bytes(&self) -> &[u8] {
+        // SAFETY: The indexes are within bounds.
+        unsafe { slice::from_raw_parts(self.ptr.get(), self.len() as usize) }
+    }
 }
+
+impl<'i, 'o, T: Io<'i, 'o>> PartialEq for Uri<T> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.as_bytes() == other.as_bytes()
+    }
+}
+
+impl<'i, 'o, T: Io<'i, 'o>> Eq for Uri<T> {}
 
 impl<'a> Uri<&'a mut [u8]> {
     /// Parses a URI reference from a mutable byte sequence into a `Uri<&mut [u8]>`.
@@ -1040,5 +1055,18 @@ impl Path {
         let mut split = path.split('/');
         split.finished = self.as_str().is_empty();
         split
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn compares_uri() {
+        let u = Uri::parse("http://127.0.0.1:80808/").unwrap();
+        assert_eq!(u, u);
+        let v = Uri::parse("http://127.0.0.1:80807/").unwrap();
+        assert_ne!(u, v);
     }
 }
