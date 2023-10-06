@@ -603,6 +603,14 @@ impl Clone for Uri<String> {
     }
 }
 
+impl core::str::FromStr for Uri<String> {
+    type Err = ParseError;
+
+    fn from_str(s: &str) -> core::result::Result<Self, Self::Err> {
+        Uri::<&str>::parse(s).map(|uri| uri.to_owned())
+    }
+}
+
 impl<T: Storage> Default for Uri<T> {
     /// Creates an empty `Uri`.
     #[inline]
