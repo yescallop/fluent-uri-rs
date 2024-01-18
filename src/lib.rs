@@ -3,10 +3,10 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 //! A generic URI parser that strictly adheres to IETF [RFC 3986] and
-//! [draft-ietf-6man-rfc6874bis-08][rfc6874bis] (yet to be published as an RFC).
+//! [draft-ietf-6man-rfc6874bis-09][rfc6874bis] (yet to be published as an RFC).
 //!
 //! [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
-//! [rfc6874bis]: https://datatracker.ietf.org/doc/html/draft-ietf-6man-rfc6874bis-08/
+//! [rfc6874bis]: https://datatracker.ietf.org/doc/html/draft-ietf-6man-rfc6874bis-09/
 //!
 //! See the documentation of [`Uri`] for more details.
 //!
@@ -827,11 +827,11 @@ impl<'i, 'o, T: Io<'i, 'o>> Authority<T> {
     ///
     /// The default port is used if the port component is not present or is empty.
     ///
-    /// An IPv6 zone identifier is parsed according to [draft-ietf-6man-rfc6874bis-08][rfc6874bis].
+    /// An IPv6 zone identifier is parsed according to [draft-ietf-6man-rfc6874bis-09][rfc6874bis].
     /// It may be a 32-bit unsigned integer with or without leading zeros, or a network
     /// interface name on Unix-like systems.
     ///
-    /// [rfc6874bis]: https://datatracker.ietf.org/doc/html/draft-ietf-6man-rfc6874bis-08
+    /// [rfc6874bis]: https://datatracker.ietf.org/doc/html/draft-ietf-6man-rfc6874bis-09
     #[cfg(feature = "std")]
     pub fn to_socket_addrs(&'i self, default_port: u16) -> io::Result<vec::IntoIter<SocketAddr>> {
         let port = self
