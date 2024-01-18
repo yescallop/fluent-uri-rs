@@ -3,33 +3,13 @@ name = "fluent-uri"
 version = "0.2.0"
 authors = ["Scallop Ye <yescallop@gmail.com>"]
 edition = "2021"
-description = "A generic URI parser that strictly adheres to IETF RFC 3986."
+description = "An RFC 3986 compliant generic URI parser"
 documentation = "https://docs.rs/fluent-uri"
 repository = "https://github.com/yescallop/fluent-uri-rs"
 license = "MIT"
 keywords = ["parser", "uri", "rfc3986"]
 categories = ["encoding", "parser-implementations"]
 
-[dependencies]
-bitflags = "2"
-
-[target.'cfg(unix)'.dependencies]
-libc = "0.2"
-
 [features]
 default = ["std"]
 std = []
-unstable = []
-
-# Commented out to reduce compile time.
-
-# [[bench]]
-# name = "bench"
-# harness = false
-# required-features = ["unstable"]
-
-# [dev-dependencies]
-# criterion = "0.3"
-# url = "2.2.2"
-# uriparse = "0.6.4"
-# iri-string = "0.6.0"
