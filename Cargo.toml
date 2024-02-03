@@ -10,6 +10,13 @@ license = "MIT"
 keywords = ["parser", "uri", "rfc3986"]
 categories = ["encoding", "parser-implementations"]
 
+[dependencies]
+bitflags = "2"
+ref-cast = "1"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [features]
 default = ["std"]
 std = []
