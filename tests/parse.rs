@@ -171,7 +171,7 @@ fn parse_absolute() {
     assert_eq!(a.as_str(), "[vFe.foo.bar]");
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host().as_str(), "[vFe.foo.bar]");
-    assert_eq!(a.host().parsed(), ParsedHost::IpvFuture("vFe.foo.bar"));
+    assert_eq!(a.host().parsed(), ParsedHost::IpvFuture);
     assert_eq!(a.port(), None);
     assert_eq!(u.path().as_str(), "");
     assert!(u.path().segments().eq(None::<&str>));

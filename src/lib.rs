@@ -600,7 +600,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
                 };
                 Ok(vec![SocketAddrV6::new(addr, port, 0, scope_id).into()].into_iter())
             }
-            ParsedHost::IpvFuture(_) => Err(io::Error::new(
+            ParsedHost::IpvFuture => Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "address mechanism not supported",
             )),
@@ -680,10 +680,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Host<T> {
                 zone_id,
             }
         } else {
-            let (start, end) = self.bounds();
-            // SAFETY: The indexes are within bounds.
-            let addr = unsafe { self.auth.uri.slice(start + 1, end - 1) };
-            ParsedHost::IpvFuture(addr)
+            ParsedHost::IpvFuture
         }
     }
 }
@@ -708,7 +705,7 @@ pub enum ParsedHost<'a> {
         zone_id: Option<&'a str>,
     },
     /// An IP address of future version.
-    IpvFuture(&'a str),
+    IpvFuture,
     /// A registered name.
     RegName(&'a EStr),
 }
