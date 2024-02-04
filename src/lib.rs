@@ -125,6 +125,7 @@ impl<T: Storage> Uri<T> {
     /// # Panics
     ///
     /// Panics if the input length is greater than [`i32::MAX`].
+    #[inline]
     pub fn parse<I>(input: I) -> Result<Uri<I::Storage>, I::Err>
     where
         I: ToUri<Storage = T>,
@@ -135,6 +136,7 @@ impl<T: Storage> Uri<T> {
 
 impl Uri<&str> {
     /// Creates a new `Uri<String>` by cloning the contents of this `Uri<&str>`.
+    #[inline]
     pub fn to_owned(&self) -> Uri<String> {
         Uri {
             storage: self.storage.to_owned(),
@@ -362,6 +364,7 @@ impl From<Uri<&str>> for Uri<String> {
 impl FromStr for Uri<String> {
     type Err = ParseError;
 
+    #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Uri::parse(s).map(|uri| uri.to_owned())
     }
@@ -756,6 +759,7 @@ impl Path {
     /// assert!(uri.path().segments().eq(["path", "to", "", "dir", ""]));
     /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
+    #[inline]
     pub fn segments(&self) -> Split<'_> {
         let mut path = self.as_str();
         if path.starts_with('/') {

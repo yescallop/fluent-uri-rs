@@ -259,6 +259,7 @@ impl<'a> Decode<'a> {
     }
 
     /// Converts the decoded bytes to a string lossily.
+    #[inline]
     pub fn into_string_lossy(self) -> Cow<'a, str> {
         match self {
             Self::Borrowed(s) => Cow::Borrowed(s),

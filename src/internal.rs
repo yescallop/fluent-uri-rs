@@ -15,6 +15,7 @@ pub trait Str {
 }
 
 impl Str for &str {
+    #[inline]
     fn concretize<'a>(self) -> &'a str
     where
         Self: 'a,
@@ -27,11 +28,14 @@ pub trait Storage {
     type Str<'a>: Str
     where
         Self: 'a;
+
     fn as_str_opaque(&self) -> Self::Str<'_>;
 }
 
 impl<'o> Storage for &'o str {
     type Str<'i> = &'o str where Self: 'i;
+
+    #[inline]
     fn as_str_opaque(&self) -> Self::Str<'_> {
         self
     }
@@ -39,6 +43,8 @@ impl<'o> Storage for &'o str {
 
 impl Storage for String {
     type Str<'a> = &'a str where Self: 'a;
+
+    #[inline]
     fn as_str_opaque(&self) -> Self::Str<'_> {
         self
     }
@@ -74,6 +80,7 @@ impl<'i, 'o, T: Storage + 'i> StorageHelper<'i, 'o> for T
 where
     T::Str<'i>: 'o,
 {
+    #[inline]
     fn as_str(&'i self) -> &'o str {
         let s: T::Str<'i> = self.as_str_opaque();
         s.concretize()
@@ -96,6 +103,7 @@ impl<'a, S: AsRef<[u8]> + ?Sized> ToUri for &'a S {
     type Storage = &'a str;
     type Err = ParseError;
 
+    #[inline]
     fn to_uri(self) -> Result<Uri<Self::Storage>, Self::Err> {
         let bytes = self.as_ref();
         if bytes.len() > i32::MAX as usize {
@@ -115,6 +123,7 @@ impl ToUri for String {
     type Storage = String;
     type Err = ParseError<String>;
 
+    #[inline]
     fn to_uri(self) -> Result<Uri<Self::Storage>, Self::Err> {
         if self.len() > i32::MAX as usize {
             len_overflow();
@@ -134,6 +143,7 @@ impl ToUri for Vec<u8> {
     type Storage = String;
     type Err = ParseError<Vec<u8>>;
 
+    #[inline]
     fn to_uri(self) -> Result<Uri<Self::Storage>, Self::Err> {
         if self.len() > i32::MAX as usize {
             len_overflow();
@@ -164,6 +174,7 @@ pub struct Meta {
 #[doc(hidden)]
 impl<T: Storage> ops::Deref for Uri<T> {
     type Target = Meta;
+
     #[inline]
     fn deref(&self) -> &Meta {
         &self.meta
