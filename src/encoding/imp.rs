@@ -1,4 +1,5 @@
 use super::table;
+use alloc::vec::Vec;
 use core::ptr;
 
 pub(super) const fn validate_estr(s: &[u8]) -> bool {

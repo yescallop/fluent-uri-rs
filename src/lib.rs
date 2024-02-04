@@ -25,7 +25,7 @@ mod parser;
 
 extern crate alloc;
 
-use alloc::string::String;
+use alloc::{borrow::ToOwned, string::String};
 use core::{
     borrow::Borrow,
     cmp::Ordering,

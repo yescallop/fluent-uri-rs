@@ -1,7 +1,11 @@
 pub(crate) mod imp;
 pub(crate) mod table;
 
-use alloc::{borrow::Cow, string::FromUtf8Error};
+use alloc::{
+    borrow::Cow,
+    string::{FromUtf8Error, String},
+    vec::Vec,
+};
 use core::{borrow::Borrow, cmp::Ordering, hash, iter::FusedIterator, str};
 use ref_cast::{ref_cast_custom, RefCastCustom};
 
