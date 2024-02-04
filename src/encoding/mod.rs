@@ -2,7 +2,7 @@ pub(crate) mod imp;
 pub(crate) mod table;
 
 use alloc::{borrow::Cow, string::FromUtf8Error};
-use core::{borrow, hash, iter::FusedIterator, str};
+use core::{borrow::Borrow, cmp::Ordering, hash, iter::FusedIterator, str};
 use ref_cast::{ref_cast_custom, RefCastCustom};
 
 /// Percent-encoded string slices.
@@ -26,10 +26,13 @@ impl AsRef<[u8]> for EStr {
     }
 }
 
-/// Implements equality comparisons on `EStr`s.
-///
-/// `EStr`s are compared by their byte values. Percent-encoding
-/// normalization is **not** performed prior to comparison.
+impl Borrow<str> for &EStr {
+    #[inline]
+    fn borrow(&self) -> &str {
+        self.as_str()
+    }
+}
+
 impl PartialEq for EStr {
     #[inline]
     fn eq(&self, other: &EStr) -> bool {
@@ -60,10 +63,25 @@ impl hash::Hash for EStr {
     }
 }
 
-impl borrow::Borrow<str> for &EStr {
+/// Implements comparison operations on `EStr`s.
+///
+/// `EStr`s are compared [lexicographically](Ord#lexicographical-comparison) by their byte values.
+/// Normalization is **not** performed prior to comparison.
+impl PartialOrd for EStr {
     #[inline]
-    fn borrow(&self) -> &str {
-        self.as_str()
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.inner.partial_cmp(&other.inner)
+    }
+}
+
+/// Implements ordering on `EStr`s.
+///
+/// `EStr`s are compared [lexicographically](Ord#lexicographical-comparison) by their byte values.
+/// Normalization is **not** performed prior to comparison.
+impl Ord for EStr {
+    #[inline]
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.inner.cmp(&other.inner)
     }
 }
 

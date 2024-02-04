@@ -20,7 +20,7 @@ impl fmt::Display for EStr {
     }
 }
 
-impl<T> fmt::Debug for ParseError<T> {
+impl<I> fmt::Debug for ParseError<I> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ParseError")
             .field("index", &self.index)
@@ -29,7 +29,7 @@ impl<T> fmt::Debug for ParseError<T> {
     }
 }
 
-impl<T> fmt::Display for ParseError<T> {
+impl<I> fmt::Display for ParseError<I> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let msg = match self.kind {
             ParseErrorKind::InvalidOctet => "invalid percent-encoded octet at index ",

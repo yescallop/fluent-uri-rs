@@ -85,7 +85,7 @@ where
 }
 
 pub trait ToUri {
-    type Storage;
+    type Storage: Storage;
     type Err;
 
     fn to_uri(self) -> Result<Uri<Self::Storage>, Self::Err>;
@@ -93,7 +93,7 @@ pub trait ToUri {
 
 #[cold]
 fn len_overflow() -> ! {
-    panic!("input length exceeds i32::MAX");
+    panic!("input length > i32::MAX");
 }
 
 impl<'a, S: AsRef<[u8]> + ?Sized> ToUri for &'a S {
@@ -166,7 +166,7 @@ pub struct Meta {
 }
 
 #[doc(hidden)]
-impl<T> Deref for Uri<T> {
+impl<T: Storage> Deref for Uri<T> {
     type Target = Meta;
     #[inline]
     fn deref(&self) -> &Meta {
@@ -175,7 +175,7 @@ impl<T> Deref for Uri<T> {
 }
 
 #[doc(hidden)]
-impl<T> DerefMut for Uri<T> {
+impl<T: Storage> DerefMut for Uri<T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Meta {
         &mut self.meta

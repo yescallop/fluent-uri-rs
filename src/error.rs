@@ -2,7 +2,7 @@ use crate::internal::ToUri;
 use core::fmt::Debug;
 
 /// Detailed cause of a [`ParseError`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) enum ParseErrorKind {
     /// Invalid percent-encoded octet that is either non-hexadecimal or incomplete.
     ///
@@ -55,4 +55,4 @@ impl<I: ToUri> ParseError<I> {
 }
 
 #[cfg(feature = "std")]
-impl<I: Debug> std::error::Error for ParseError<I> {}
+impl<I> std::error::Error for ParseError<I> {}

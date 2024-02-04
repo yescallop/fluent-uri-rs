@@ -73,32 +73,32 @@ pub use error::ParseError;
 /// ```
 /// use fluent_uri::Uri;
 ///
-/// let uri_str = "http://example.com/";
+/// let s = "http://example.com/";
 ///
 /// // Create a `Uri<&str>` from a string slice.
-/// let uri: Uri<&str> = Uri::parse(uri_str)?;
+/// let uri: Uri<&str> = Uri::parse(s)?;
 ///
 /// // Create a `Uri<String>` from an owned string.
-/// let uri_owned: Uri<String> = Uri::parse(uri_str.to_owned()).map_err(|e| e.plain())?;
+/// let uri_owned: Uri<String> = Uri::parse(s.to_owned()).map_err(|e| e.plain())?;
 ///
 /// // When referencing a `Uri`, use `Uri<&str>`.
-/// fn do_something(uri: Uri<&str>) {
+/// fn foo(uri: Uri<&str>) {
 ///     // Convert a `Uri<&str>` to `Uri<String>`.
 ///     let uri_owned: Uri<String> = uri.to_owned();
 /// }
 ///
-/// do_something(uri);
-/// // Borrow a `Uri<String>` as a reference to `Uri<&str>`.
-/// do_something(uri_owned.borrow());
+/// foo(uri);
+/// // Borrow a `Uri<String>` as `Uri<&str>`.
+/// foo(uri_owned.borrow());
 /// # Ok::<_, fluent_uri::ParseError>(())
 /// ```
 #[derive(Clone, Copy, Default)]
-pub struct Uri<T> {
+pub struct Uri<T: Storage> {
     storage: T,
     meta: Meta,
 }
 
-impl<T> Uri<T> {
+impl<T: Storage> Uri<T> {
     /// Parses a URI reference from a byte sequence into a `Uri`.
     ///
     /// The return type is
@@ -124,7 +124,7 @@ impl<T> Uri<T> {
     ///
     /// # Panics
     ///
-    /// Panics if the length or capacity of the input is greater than [`i32::MAX`].
+    /// Panics if the input length is greater than [`i32::MAX`].
     pub fn parse<I>(input: I) -> Result<Uri<I::Storage>, I::Err>
     where
         I: ToUri<Storage = T>,
@@ -138,7 +138,7 @@ impl Uri<&str> {
     pub fn to_owned(&self) -> Uri<String> {
         Uri {
             storage: self.storage.to_owned(),
-            meta: self.meta.clone(),
+            meta: self.meta,
         }
     }
 }
@@ -150,7 +150,7 @@ impl Uri<String> {
     pub fn borrow(&self) -> Uri<&str> {
         Uri {
             storage: &self.storage,
-            meta: self.meta.clone(),
+            meta: self.meta,
         }
     }
 
@@ -436,7 +436,7 @@ impl Scheme {
 /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
 #[derive(RefCastCustom)]
 #[repr(transparent)]
-pub struct Authority<T> {
+pub struct Authority<T: Storage> {
     uri: Uri<T>,
 }
 
@@ -607,7 +607,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
 /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
 #[derive(RefCastCustom)]
 #[repr(transparent)]
-pub struct Host<T> {
+pub struct Host<T: Storage> {
     auth: Authority<T>,
 }
 

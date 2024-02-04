@@ -26,12 +26,12 @@ pub(super) const fn validate_estr(s: &[u8]) -> bool {
 ///
 /// # Safety
 ///
-/// `i` must not exceed `s.len()`.
+/// `i` must not be greater than `s.len()`.
 unsafe fn copy_new(s: &[u8], i: usize) -> Vec<u8> {
     let mut buf = Vec::with_capacity(s.len());
 
     unsafe {
-        // SAFETY: Since `i <= s.len() <= buf.capacity()`, `s` is valid
+        // SAFETY: Since `i <= s.len() = buf.capacity()`, `s` is valid
         // for reads of `i` bytes, and `buf` is valid for writes of `i` bytes.
         // Newly allocated `buf` cannot overlap with `s`.
         ptr::copy_nonoverlapping(s.as_ptr(), buf.as_mut_ptr(), i);
@@ -70,7 +70,7 @@ fn decode_octet_unchecked(hi: u8, lo: u8) -> u8 {
 ///
 /// # Safety
 ///
-/// `v.len() + 1` must not exceed `v.capacity()`.
+/// `v.len()` must be less than `v.capacity()`.
 unsafe fn push(v: &mut Vec<u8>, x: u8) {
     debug_assert!(v.len() < v.capacity());
     // SAFETY: The caller must ensure that the capacity is enough.
@@ -92,7 +92,7 @@ pub(super) unsafe fn decode_unchecked(s: &[u8]) -> Option<Vec<u8>> {
         Some(i) => i,
         None => return None,
     };
-    // SAFETY: `i` cannot exceed `s.len()`.
+    // SAFETY: `i <= s.len()` holds.
     let mut buf = unsafe { copy_new(s, i) };
 
     while i < s.len() {
