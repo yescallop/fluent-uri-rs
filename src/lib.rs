@@ -27,15 +27,13 @@ extern crate alloc;
 
 use alloc::string::String;
 use core::{
+    borrow::Borrow,
+    cmp::Ordering,
     hash, iter,
-    marker::PhantomData,
-    slice,
     str::{self, FromStr},
 };
 use encoding::{EStr, Split};
-use internal::{
-    AuthorityMeta, Capped, Flags, HostMeta, Meta, Pointer, Storage, StorageHelper, ToUri,
-};
+use internal::{AuthorityMeta, Flags, HostMeta, Meta, Storage, StorageHelper, ToUri};
 use ref_cast::{ref_cast_custom, RefCastCustom};
 
 #[cfg(feature = "std")]
@@ -78,27 +76,29 @@ pub use error::ParseError;
 /// let uri_str = "http://example.com/";
 ///
 /// // Create a `Uri<&str>` from a string slice.
-/// let uri_a: Uri<&str> = Uri::parse(uri_str)?;
+/// let uri: Uri<&str> = Uri::parse(uri_str)?;
 ///
 /// // Create a `Uri<String>` from an owned string.
-/// let uri_b: Uri<String> = Uri::parse(uri_str.to_owned()).map_err(|e| e.plain())?;
+/// let uri_owned: Uri<String> = Uri::parse(uri_str.to_owned()).map_err(|e| e.plain())?;
 ///
-/// // Convert a `Uri<&str>` to a `Uri<String>`.
-/// let uri_c: Uri<String> = uri_a.to_owned();
+/// // When referencing a `Uri`, use `Uri<&str>`.
+/// fn do_something(uri: Uri<&str>) {
+///     // Convert a `Uri<&str>` to `Uri<String>`.
+///     let uri_owned: Uri<String> = uri.to_owned();
+/// }
 ///
-/// // Borrow a `Uri<String>` as a `Uri<&str>`.
-/// let uri_d: &Uri<&str> = uri_b.borrow();
+/// do_something(uri);
+/// // Borrow a `Uri<String>` as a reference to `Uri<&str>`.
+/// do_something(uri_owned.borrow());
 /// # Ok::<_, fluent_uri::ParseError>(())
 /// ```
-#[derive(Clone, Default)]
-#[repr(C)]
-pub struct Uri<T: Storage> {
-    ptr: T::Ptr,
+#[derive(Clone, Copy, Default)]
+pub struct Uri<T> {
+    storage: T,
     meta: Meta,
-    _marker: PhantomData<T>,
 }
 
-impl<T: Storage> Uri<T> {
+impl<T> Uri<T> {
     /// Parses a URI reference from a byte sequence into a `Uri`.
     ///
     /// The return type is
@@ -137,46 +137,49 @@ impl Uri<&str> {
     /// Creates a new `Uri<String>` by cloning the contents of this `Uri<&str>`.
     pub fn to_owned(&self) -> Uri<String> {
         Uri {
-            ptr: Capped::new(self.as_str().into()),
+            storage: self.storage.to_owned(),
             meta: self.meta.clone(),
-            _marker: PhantomData,
         }
     }
 }
 
 impl Uri<String> {
-    /// Borrows this `Uri<String>` as a reference to `Uri<&str>`.
+    /// Borrows this `Uri<String>` as `Uri<&str>`.
     #[inline]
-    // We can't impl `Borrow` due to the limitation of lifetimes.
     #[allow(clippy::should_implement_trait)]
-    pub fn borrow(&self) -> &Uri<&str> {
-        // SAFETY: `Uri<String>` has the same layout as `Uri<&str>`.
-        unsafe { &*(self as *const Uri<String> as *const Uri<&str>) }
+    pub fn borrow(&self) -> Uri<&str> {
+        Uri {
+            storage: &self.storage,
+            meta: self.meta.clone(),
+        }
     }
 
     /// Consumes this `Uri<String>` and yields the underlying [`String`] storage.
     #[inline]
     pub fn into_string(self) -> String {
-        // SAFETY: The validation is done.
-        unsafe { String::from_utf8_unchecked(self.ptr.into_bytes()) }
+        self.storage
+    }
+}
+
+impl<T: Storage> Uri<T> {
+    #[inline]
+    fn len(&self) -> u32 {
+        self.as_str().len() as _
     }
 }
 
 impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
+    /// Returns the URI reference as a string slice.
     #[inline]
-    fn len(&self) -> u32 {
-        self.ptr.len()
+    pub fn as_str(&'i self) -> &'o str {
+        self.storage.as_str()
     }
 
     #[inline]
     unsafe fn slice(&'i self, start: u32, end: u32) -> &'o str {
-        debug_assert!(start <= end && end <= self.len());
         // SAFETY: The caller must ensure that the indexes are within bounds.
-        let bytes = unsafe {
-            slice::from_raw_parts(self.ptr.get().add(start as usize), (end - start) as usize)
-        };
-        // SAFETY: The parser guarantees that the bytes are valid UTF-8.
-        unsafe { str::from_utf8_unchecked(bytes) }
+        // The parser guarantees that the bytes are ASCII.
+        unsafe { self.as_str().get_unchecked(start as usize..end as usize) }
     }
 
     #[inline]
@@ -185,12 +188,6 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
         let s = unsafe { self.slice(start, end) };
         // SAFETY: The caller must ensure that the subslice is properly encoded.
         unsafe { EStr::new_unchecked(s.as_bytes()) }
-    }
-
-    /// Returns the URI reference as a string slice.
-    #[inline]
-    pub fn as_str(&'i self) -> &'o str {
-        unsafe { self.slice(0, self.len()) }
     }
 
     /// Returns the [scheme] component.
@@ -303,10 +300,6 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
     }
 }
 
-/// Implements equality comparisons on `Uri`s.
-///
-/// `Uri`s are compared by their byte values.
-/// Normalization is **not** performed prior to comparison.
 impl<T: Storage, U: Storage> PartialEq<Uri<U>> for Uri<T> {
     #[inline]
     fn eq(&self, other: &Uri<U>) -> bool {
@@ -323,9 +316,48 @@ impl<T: Storage> hash::Hash for Uri<T> {
     }
 }
 
-// SAFETY: Both `&str` and `String` are Send and Sync.
-unsafe impl<T: Storage> Send for Uri<T> {}
-unsafe impl<T: Storage> Sync for Uri<T> {}
+/// Implements comparison operations on `Uri`s.
+///
+/// `Uri`s are compared [lexicographically](Ord#lexicographical-comparison) by their byte values.
+/// Normalization is **not** performed prior to comparison.
+impl<T: Storage, U: Storage> PartialOrd<Uri<U>> for Uri<T> {
+    #[inline]
+    fn partial_cmp(&self, other: &Uri<U>) -> Option<Ordering> {
+        self.as_str().partial_cmp(other.as_str())
+    }
+}
+
+/// Implements ordering of `Uri`s.
+///
+/// `Uri`s are ordered [lexicographically](Ord#lexicographical-comparison) by their byte values.
+/// Normalization is **not** performed prior to ordering.
+impl<T: Storage> Ord for Uri<T> {
+    #[inline]
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.as_str().cmp(other.as_str())
+    }
+}
+
+impl<T: Storage> AsRef<str> for Uri<T> {
+    #[inline]
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl<T: Storage> Borrow<str> for Uri<T> {
+    #[inline]
+    fn borrow(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl From<Uri<&str>> for Uri<String> {
+    #[inline]
+    fn from(value: Uri<&str>) -> Self {
+        value.to_owned()
+    }
+}
 
 impl FromStr for Uri<String> {
     type Err = ParseError;
@@ -404,7 +436,7 @@ impl Scheme {
 /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
 #[derive(RefCastCustom)]
 #[repr(transparent)]
-pub struct Authority<T: Storage> {
+pub struct Authority<T> {
     uri: Uri<T>,
 }
 
@@ -575,7 +607,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
 /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
 #[derive(RefCastCustom)]
 #[repr(transparent)]
-pub struct Host<T: Storage> {
+pub struct Host<T> {
     auth: Authority<T>,
 }
 
@@ -725,8 +757,8 @@ impl Path {
     /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     pub fn segments(&self) -> Split<'_> {
-        let mut path = self.inner.as_str();
-        if self.is_absolute() {
+        let mut path = self.as_str();
+        if path.starts_with('/') {
             // SAFETY: Skipping "/" is fine.
             path = unsafe { path.get_unchecked(1..) };
         }

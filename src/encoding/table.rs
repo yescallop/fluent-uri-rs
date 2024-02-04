@@ -5,26 +5,6 @@
 //!
 //! [RFC 2234]: https://datatracker.ietf.org/doc/html/rfc2234/
 
-const fn gen_octet_table(hi: bool) -> [u8; 256] {
-    let mut out = [0xFF; 256];
-    let shift = if hi { 4 } else { 0 };
-
-    let mut i = 0;
-    while i < 10 {
-        out[(i + b'0') as usize] = i << shift;
-        i += 1;
-    }
-    while i < 16 {
-        out[(i - 10 + b'A') as usize] = i << shift;
-        out[(i - 10 + b'a') as usize] = i << shift;
-        i += 1;
-    }
-    out
-}
-
-pub(crate) const OCTET_TABLE_HI: &[u8; 256] = &gen_octet_table(true);
-pub(crate) const OCTET_TABLE_LO: &[u8; 256] = &gen_octet_table(false);
-
 /// A table determining the byte patterns allowed in a string.
 ///
 /// It is guaranteed that the unencoded bytes allowed are ASCII and that

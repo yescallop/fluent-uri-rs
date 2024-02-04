@@ -1,6 +1,5 @@
-use core::ptr;
-
 use super::table;
+use core::ptr;
 
 pub(super) const fn validate_estr(s: &[u8]) -> bool {
     let mut i = 0;
@@ -42,9 +41,29 @@ unsafe fn copy_new(s: &[u8], i: usize) -> Vec<u8> {
     buf
 }
 
+const fn gen_octet_table(hi: bool) -> [u8; 256] {
+    let mut out = [0xFF; 256];
+    let shift = if hi { 4 } else { 0 };
+
+    let mut i = 0;
+    while i < 10 {
+        out[(i + b'0') as usize] = i << shift;
+        i += 1;
+    }
+    while i < 16 {
+        out[(i - 10 + b'A') as usize] = i << shift;
+        out[(i - 10 + b'a') as usize] = i << shift;
+        i += 1;
+    }
+    out
+}
+
+const OCTET_TABLE_HI: &[u8; 256] = &gen_octet_table(true);
+pub(crate) const OCTET_TABLE_LO: &[u8; 256] = &gen_octet_table(false);
+
 /// Decodes a percent-encoded octet assuming validity.
 fn decode_octet_unchecked(hi: u8, lo: u8) -> u8 {
-    table::OCTET_TABLE_HI[hi as usize] | table::OCTET_TABLE_LO[lo as usize]
+    OCTET_TABLE_HI[hi as usize] | OCTET_TABLE_LO[lo as usize]
 }
 
 /// Pushes a raw byte without checking bounds.

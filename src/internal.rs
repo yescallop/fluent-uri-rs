@@ -1,147 +1,51 @@
 #![allow(missing_debug_implementations)]
 
 use crate::{parser, ParseError, Uri};
-use alloc::{borrow::ToOwned, string::String, vec::Vec};
+use alloc::{string::String, vec::Vec};
 use bitflags::bitflags;
 use core::{
-    marker::PhantomData,
-    mem::{ManuallyDrop, MaybeUninit},
     num::NonZeroU32,
     ops::{Deref, DerefMut},
-    ptr::NonNull,
-    slice, str,
+    str,
 };
 
 #[cfg(feature = "std")]
 use std::net::{Ipv4Addr, Ipv6Addr};
 
-pub trait Pointer: Clone + Default {
-    fn get(&self) -> *mut u8;
-    fn len(&self) -> u32;
+pub trait Str {
+    fn as_str<'a>(self) -> &'a str
+    where
+        Self: 'a;
 }
 
-#[derive(Clone)]
-#[repr(C)]
-pub struct Uncapped {
-    ptr: NonNull<u8>,
-    len: u32,
-    _pad: MaybeUninit<u32>,
-}
-
-impl Uncapped {
-    pub fn new(s: &[u8]) -> Uncapped {
-        Uncapped {
-            // SAFETY: `s.as_ptr()` cannot be null.
-            ptr: unsafe { NonNull::new_unchecked(s.as_ptr() as _) },
-            len: s.len() as _,
-            _pad: MaybeUninit::uninit(),
-        }
-    }
-}
-
-impl Pointer for Uncapped {
-    #[inline]
-    fn get(&self) -> *mut u8 {
-        self.ptr.as_ptr()
-    }
-
-    #[inline]
-    fn len(&self) -> u32 {
-        self.len
-    }
-}
-
-impl Default for Uncapped {
-    #[inline]
-    fn default() -> Self {
-        Self {
-            ptr: NonNull::dangling(),
-            len: 0,
-            _pad: MaybeUninit::uninit(),
-        }
-    }
-}
-
-#[repr(C)]
-pub struct Capped {
-    ptr: NonNull<u8>,
-    len: u32,
-    cap: u32,
-}
-
-impl Capped {
-    #[inline]
-    pub fn new(s: Vec<u8>) -> Capped {
-        let s = ManuallyDrop::new(s);
-        Capped {
-            // SAFETY: `s.as_ptr()` cannot be null.
-            ptr: unsafe { NonNull::new_unchecked(s.as_ptr() as _) },
-            len: s.len() as _,
-            cap: s.capacity() as _,
-        }
-    }
-
-    #[inline]
-    pub fn into_bytes(self) -> Vec<u8> {
-        let me = ManuallyDrop::new(self);
-        // SAFETY: `Capped` is created from a `Vec<u8>`.
-        unsafe { Vec::from_raw_parts(me.get(), me.len as _, me.cap as _) }
-    }
-}
-
-impl Pointer for Capped {
-    #[inline]
-    fn get(&self) -> *mut u8 {
-        self.ptr.as_ptr()
-    }
-
-    #[inline]
-    fn len(&self) -> u32 {
-        self.len
-    }
-}
-
-impl Clone for Capped {
-    #[inline]
-    fn clone(&self) -> Capped {
-        // SAFETY: `Capped` is created from a `Vec<u8>`.
-        let s = unsafe { slice::from_raw_parts(self.get(), self.len as _) };
-        Capped::new(s.to_owned())
-    }
-}
-
-impl Default for Capped {
-    #[inline]
-    fn default() -> Self {
-        Self {
-            ptr: NonNull::dangling(),
-            len: 0,
-            cap: 0,
-        }
-    }
-}
-
-impl Drop for Capped {
-    #[inline]
-    fn drop(&mut self) {
-        // SAFETY: `Capped` is created from a `Vec<u8>`.
-        let _ = unsafe { Vec::from_raw_parts(self.get(), 0, self.cap as _) };
+impl Str for &str {
+    fn as_str<'a>(self) -> &'a str
+    where
+        Self: 'a,
+    {
+        self
     }
 }
 
 pub trait Storage {
-    type Ptr: Pointer;
-    type Ref<'a>;
+    type Str<'a>: Str
+    where
+        Self: 'a;
+    fn _as_str<'a>(&'a self) -> Self::Str<'a>;
 }
 
 impl<'o> Storage for &'o str {
-    type Ptr = Uncapped;
-    type Ref<'i> = &'o str;
+    type Str<'i> = &'o str where Self: 'i;
+    fn _as_str<'a>(&'a self) -> Self::Str<'a> {
+        self
+    }
 }
 
 impl Storage for String {
-    type Ptr = Capped;
-    type Ref<'a> = &'a str;
+    type Str<'a> = &'a str where Self: 'a;
+    fn _as_str<'a>(&'a self) -> Self::Str<'a> {
+        self
+    }
 }
 
 /// Helper trait that allows output references outlive a `Uri`.
@@ -166,12 +70,22 @@ impl Storage for String {
 ///     fluent_uri::Uri::parse(&s).unwrap().as_str()
 /// }
 /// ```
-pub trait StorageHelper<'i, 'o>: Storage {}
+pub trait StorageHelper<'i, 'o>: Storage {
+    fn as_str(&'i self) -> &'o str;
+}
 
-impl<'i, 'o, T: Storage> StorageHelper<'i, 'o> for T where T::Ref<'i>: 'o {}
+impl<'i, 'o, T: Storage + 'i> StorageHelper<'i, 'o> for T
+where
+    T::Str<'i>: 'o,
+{
+    fn as_str(&'i self) -> &'o str {
+        let s: T::Str<'i> = self._as_str();
+        s.as_str()
+    }
+}
 
 pub trait ToUri {
-    type Storage: Storage;
+    type Storage;
     type Err;
 
     fn to_uri(self) -> Result<Uri<Self::Storage>, Self::Err>;
@@ -194,16 +108,11 @@ impl<'a, S: AsRef<[u8]> + ?Sized> ToUri for &'a S {
 
         let meta = parser::parse(bytes)?;
         Ok(Uri {
-            ptr: Uncapped::new(bytes),
+            // SAFETY: The parser guarantees that the bytes are valid UTF-8.
+            storage: unsafe { str::from_utf8_unchecked(bytes) },
             meta,
-            _marker: PhantomData,
         })
     }
-}
-
-#[cold]
-fn cap_overflow() -> ! {
-    panic!("input capacity exceeds i32::MAX");
 }
 
 impl ToUri for String {
@@ -211,15 +120,14 @@ impl ToUri for String {
     type Err = ParseError<String>;
 
     fn to_uri(self) -> Result<Uri<Self::Storage>, Self::Err> {
-        if self.capacity() > i32::MAX as usize {
-            cap_overflow();
+        if self.len() > i32::MAX as usize {
+            len_overflow();
         }
 
         match parser::parse(self.as_bytes()) {
             Ok(meta) => Ok(Uri {
-                ptr: Capped::new(self.into()),
+                storage: self,
                 meta,
-                _marker: PhantomData,
             }),
             Err(e) => Err(e.with_input(self)),
         }
@@ -231,22 +139,22 @@ impl ToUri for Vec<u8> {
     type Err = ParseError<Vec<u8>>;
 
     fn to_uri(self) -> Result<Uri<Self::Storage>, Self::Err> {
-        if self.capacity() > i32::MAX as usize {
-            cap_overflow();
+        if self.len() > i32::MAX as usize {
+            len_overflow();
         }
 
         match parser::parse(&self) {
             Ok(meta) => Ok(Uri {
-                ptr: Capped::new(self),
+                // SAFETY: The parser guarantees that the bytes are valid UTF-8.
+                storage: unsafe { String::from_utf8_unchecked(self) },
                 meta,
-                _marker: PhantomData,
             }),
             Err(e) => Err(e.with_input(self)),
         }
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Copy, Default)]
 pub struct Meta {
     pub flags: Flags,
     // The index of the trailing colon.
@@ -258,7 +166,7 @@ pub struct Meta {
 }
 
 #[doc(hidden)]
-impl<C: Storage> Deref for Uri<C> {
+impl<T> Deref for Uri<T> {
     type Target = Meta;
     #[inline]
     fn deref(&self) -> &Meta {
@@ -267,7 +175,7 @@ impl<C: Storage> Deref for Uri<C> {
 }
 
 #[doc(hidden)]
-impl<C: Storage> DerefMut for Uri<C> {
+impl<T> DerefMut for Uri<T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Meta {
         &mut self.meta
@@ -283,7 +191,7 @@ bitflags! {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct AuthorityMeta {
     pub start: NonZeroU32,
     pub host_bounds: (u32, u32),

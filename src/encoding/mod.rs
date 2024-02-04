@@ -1,4 +1,4 @@
-mod imp;
+pub(crate) mod imp;
 pub(crate) mod table;
 
 use alloc::{borrow::Cow, string::FromUtf8Error};
@@ -107,6 +107,8 @@ impl EStr {
     }
 
     /// Decodes the `EStr`.
+    ///
+    /// This function allocates only when there is any percent-encoded octet in the `EStr`.
     ///
     /// # Examples
     ///

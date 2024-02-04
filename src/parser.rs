@@ -1,5 +1,5 @@
 use crate::{
-    encoding::table::*,
+    encoding::{imp::OCTET_TABLE_LO, table::*},
     internal::{AuthorityMeta, Flags, HostMeta, Meta},
     ParseError,
 };
@@ -11,9 +11,9 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Meta> {
     let mut parser = Parser {
         ptr: bytes.as_ptr(),
         len: bytes.len() as u32,
-        out: Meta::default(),
         pos: 0,
         mark: 0,
+        out: Meta::default(),
     };
     parser.parse_from_scheme()?;
     Ok(parser.out)
@@ -37,9 +37,9 @@ macro_rules! err {
 struct Parser {
     ptr: *const u8,
     len: u32,
-    out: Meta,
     pos: u32,
     mark: u32,
+    out: Meta,
 }
 
 enum PathKind {
