@@ -1,5 +1,4 @@
 use crate::internal::ToUri;
-use core::fmt::Debug;
 
 /// Detailed cause of a [`ParseError`].
 #[derive(Clone, Copy, Debug)]

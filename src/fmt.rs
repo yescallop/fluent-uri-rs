@@ -4,24 +4,24 @@ use crate::{
     internal::Storage,
     Authority, Host, Path, Scheme, Uri,
 };
-use core::fmt;
+use core::fmt::{Debug, Display, Formatter, Result};
 
-impl fmt::Debug for EStr {
+impl Debug for EStr {
     #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(self.as_str(), f)
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        Debug::fmt(self.as_str(), f)
     }
 }
 
-impl fmt::Display for EStr {
+impl Display for EStr {
     #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self.as_str(), f)
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        Display::fmt(self.as_str(), f)
     }
 }
 
-impl<I> fmt::Debug for ParseError<I> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<I> Debug for ParseError<I> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_struct("ParseError")
             .field("index", &self.index)
             .field("kind", &self.kind)
@@ -29,8 +29,8 @@ impl<I> fmt::Debug for ParseError<I> {
     }
 }
 
-impl<I> fmt::Display for ParseError<I> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<I> Display for ParseError<I> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         let msg = match self.kind {
             ParseErrorKind::InvalidOctet => "invalid percent-encoded octet at index ",
             ParseErrorKind::UnexpectedChar => "unexpected character at index ",
@@ -40,8 +40,8 @@ impl<I> fmt::Display for ParseError<I> {
     }
 }
 
-impl<T: Storage> fmt::Debug for Uri<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<T: Storage> Debug for Uri<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_struct("Uri")
             .field("scheme", &self.scheme())
             .field("authority", &self.authority())
@@ -52,29 +52,29 @@ impl<T: Storage> fmt::Debug for Uri<T> {
     }
 }
 
-impl<T: Storage> fmt::Display for Uri<T> {
+impl<T: Storage> Display for Uri<T> {
     #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self.as_str(), f)
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        Display::fmt(self.as_str(), f)
     }
 }
 
-impl fmt::Debug for Scheme {
+impl Debug for Scheme {
     #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(self.as_str(), f)
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        Debug::fmt(self.as_str(), f)
     }
 }
 
-impl fmt::Display for Scheme {
+impl Display for Scheme {
     #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self.as_str(), f)
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        Display::fmt(self.as_str(), f)
     }
 }
 
-impl<T: Storage> fmt::Debug for Authority<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<T: Storage> Debug for Authority<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_struct("Authority")
             .field("userinfo", &self.userinfo())
             .field("host", &self.host())
@@ -83,15 +83,15 @@ impl<T: Storage> fmt::Debug for Authority<T> {
     }
 }
 
-impl<T: Storage> fmt::Display for Authority<T> {
+impl<T: Storage> Display for Authority<T> {
     #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self.as_str(), f)
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        Display::fmt(self.as_str(), f)
     }
 }
 
-impl<T: Storage> fmt::Debug for Host<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<T: Storage> Debug for Host<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_struct("Host")
             .field("value", &self.as_str())
             .field("parsed", &self.parsed())
@@ -99,23 +99,23 @@ impl<T: Storage> fmt::Debug for Host<T> {
     }
 }
 
-impl<T: Storage> fmt::Display for Host<T> {
+impl<T: Storage> Display for Host<T> {
     #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self.as_str(), f)
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        Display::fmt(self.as_str(), f)
     }
 }
 
-impl fmt::Debug for Path {
+impl Debug for Path {
     #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(self.as_str(), f)
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        Debug::fmt(self.as_str(), f)
     }
 }
 
-impl fmt::Display for Path {
+impl Display for Path {
     #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self.as_str(), f)
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        Display::fmt(self.as_str(), f)
     }
 }

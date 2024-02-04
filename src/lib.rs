@@ -323,7 +323,7 @@ impl<T: Storage> hash::Hash for Uri<T> {
 impl<T: Storage, U: Storage> PartialOrd<Uri<U>> for Uri<T> {
     #[inline]
     fn partial_cmp(&self, other: &Uri<U>) -> Option<Ordering> {
-        self.as_str().partial_cmp(other.as_str())
+        Some(self.as_str().cmp(other.as_str()))
     }
 }
 

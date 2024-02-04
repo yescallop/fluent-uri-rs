@@ -3,23 +3,19 @@
 use crate::{parser, ParseError, Uri};
 use alloc::{string::String, vec::Vec};
 use bitflags::bitflags;
-use core::{
-    num::NonZeroU32,
-    ops::{Deref, DerefMut},
-    str,
-};
+use core::{num::NonZeroU32, ops, str};
 
 #[cfg(feature = "std")]
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 pub trait Str {
-    fn as_str<'a>(self) -> &'a str
+    fn concretize<'a>(self) -> &'a str
     where
         Self: 'a;
 }
 
 impl Str for &str {
-    fn as_str<'a>(self) -> &'a str
+    fn concretize<'a>(self) -> &'a str
     where
         Self: 'a,
     {
@@ -31,19 +27,19 @@ pub trait Storage {
     type Str<'a>: Str
     where
         Self: 'a;
-    fn _as_str<'a>(&'a self) -> Self::Str<'a>;
+    fn as_str_opaque(&self) -> Self::Str<'_>;
 }
 
 impl<'o> Storage for &'o str {
     type Str<'i> = &'o str where Self: 'i;
-    fn _as_str<'a>(&'a self) -> Self::Str<'a> {
+    fn as_str_opaque(&self) -> Self::Str<'_> {
         self
     }
 }
 
 impl Storage for String {
     type Str<'a> = &'a str where Self: 'a;
-    fn _as_str<'a>(&'a self) -> Self::Str<'a> {
+    fn as_str_opaque(&self) -> Self::Str<'_> {
         self
     }
 }
@@ -79,8 +75,8 @@ where
     T::Str<'i>: 'o,
 {
     fn as_str(&'i self) -> &'o str {
-        let s: T::Str<'i> = self._as_str();
-        s.as_str()
+        let s: T::Str<'i> = self.as_str_opaque();
+        s.concretize()
     }
 }
 
@@ -166,7 +162,7 @@ pub struct Meta {
 }
 
 #[doc(hidden)]
-impl<T: Storage> Deref for Uri<T> {
+impl<T: Storage> ops::Deref for Uri<T> {
     type Target = Meta;
     #[inline]
     fn deref(&self) -> &Meta {
@@ -175,7 +171,7 @@ impl<T: Storage> Deref for Uri<T> {
 }
 
 #[doc(hidden)]
-impl<T: Storage> DerefMut for Uri<T> {
+impl<T: Storage> ops::DerefMut for Uri<T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Meta {
         &mut self.meta

@@ -70,7 +70,7 @@ impl hash::Hash for EStr {
 impl PartialOrd for EStr {
     #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.inner.partial_cmp(&other.inner)
+        Some(self.cmp(other))
     }
 }
 
