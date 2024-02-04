@@ -32,8 +32,22 @@ macro_rules! err {
 
 /// URI parser.
 ///
-/// The invariants hold that `mark <= pos <= len`,
-/// where `pos` is non-decreasing and `bytes[..pos]` is valid UTF-8.
+/// # Invariants
+///
+/// `mark <= pos <= len`, where `pos` is non-decreasing
+/// and `pos` consecutive bytes starting from `ptr` are ASCII.
+///
+/// # Preconditions and guarantees
+///
+/// Before parsing, ensure that `len` is no larger than `i32::MAX`
+/// and that `pos`, `mark` and `out` are default initialized.
+///
+/// Start and finish parsing by calling `parse_from_scheme`.
+/// The following are guaranteed when parsing succeeds:
+///
+/// - `len` consecutive bytes starting from `ptr` are ASCII.
+/// - All output indexes are within bounds and correctly ordered.
+/// - All URI components defined by output indexes are validated.
 struct Parser {
     ptr: *const u8,
     len: u32,
@@ -64,12 +78,18 @@ impl Parser {
         self.pos < self.len
     }
 
+    /// Gets a byte without checking bounds.
+    ///
+    /// # Safety
+    ///
+    /// The index must be less than `len`.
     unsafe fn get_unchecked(&self, i: u32) -> u8 {
         debug_assert!(i < self.len, "index out of bounds");
-        // SAFETY: The caller must ensure that the index is within bounds.
+        // SAFETY: The caller must uphold the safety contract.
         unsafe { *self.ptr.add(i as usize) }
     }
 
+    #[inline]
     fn get(&self, i: u32) -> u8 {
         assert!(i < self.len, "index out of bounds");
         // SAFETY: We have checked that `i < len`.
@@ -98,7 +118,7 @@ impl Parser {
 
     fn scan(&mut self, table: &Table) -> Result<()> {
         if table.allows_enc() {
-            self.scan_enc(table, |_| ())
+            self.scan_enc(table, |_| {})
         } else {
             let mut i = self.pos;
             while i < self.len {
@@ -155,6 +175,7 @@ impl Parser {
         Ok(self.pos != start)
     }
 
+    // The string read must be ASCII.
     fn read_str(&mut self, s: &str) -> bool {
         assert!(s.len() <= i32::MAX as usize);
         let len = s.len() as u32;
@@ -276,7 +297,7 @@ impl Parser {
 
             // The entire host is already scanned so the index is within bounds.
             self.len = host_end;
-            // INVARIANT: It holds that `mark <= pos <= buf.len()`.
+            // INVARIANT: It holds that `mark <= pos <= len`.
             // Here `pos` may decrease but will be restored later.
             self.pos = self.mark;
 
@@ -520,11 +541,7 @@ impl Parser {
         // INVARIANT: Skipping 3 digits is fine.
         self.skip(3);
 
-        if res <= u8::MAX as u32 {
-            Some(res)
-        } else {
-            None
-        }
+        (res <= u8::MAX as u32).then_some(res)
     }
 
     fn peek_digit(&self, i: u32) -> Option<u32> {

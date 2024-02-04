@@ -96,7 +96,10 @@ pub use error::ParseError;
 /// ```
 #[derive(Clone, Copy, Default)]
 pub struct Uri<T: Storage> {
+    /// Stores the URI reference. Guaranteed to contain only ASCII bytes.
     storage: T,
+    /// Metadata of the URI reference.
+    /// Guaranteed identical to parser output with `storage` as input.
     meta: Meta,
 }
 
@@ -177,19 +180,29 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
         self.storage.as_str()
     }
 
+    /// Returns a string slice of the `Uri` between the given indexes.
+    ///
+    /// # Safety
+    ///
+    /// `start <= end <= self.len()` must hold.
     #[inline]
     unsafe fn slice(&'i self, start: u32, end: u32) -> &'o str {
-        // SAFETY: The caller must ensure that the indexes are within bounds.
-        // The parser guarantees that the bytes are ASCII.
+        // SAFETY: The caller must uphold the safety contract.
+        // It is guaranteed that the bytes are ASCII,
+        // so the indexes are always on UTF-8 sequence boundaries.
         unsafe { self.as_str().get_unchecked(start as usize..end as usize) }
     }
 
+    /// Returns an `EStr` slice of the `Uri` between the given indexes.
+    ///
+    /// # Safety
+    ///
+    /// `start <= end <= self.len()` must hold.
+    /// The subslice must be properly encoded.
     #[inline]
     unsafe fn eslice(&'i self, start: u32, end: u32) -> &'o EStr {
-        // SAFETY: The caller must ensure that the indexes are within bounds.
-        let s = unsafe { self.slice(start, end) };
-        // SAFETY: The caller must ensure that the subslice is properly encoded.
-        unsafe { EStr::new_unchecked(s.as_bytes()) }
+        // SAFETY: The caller must uphold the safety contract.
+        unsafe { EStr::new_unchecked(self.slice(start, end).as_bytes()) }
     }
 
     /// Returns the [scheme] component.
@@ -197,7 +210,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
     /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
     #[inline]
     pub fn scheme(&'i self) -> Option<&'o Scheme> {
-        // SAFETY: The indexes are within bounds.
+        // SAFETY: It is guaranteed that the indexing is safe.
         self.scheme_end
             .map(|i| Scheme::new(unsafe { self.slice(0, i.get()) }))
     }
@@ -208,7 +221,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
     #[inline]
     pub fn authority(&self) -> Option<&Authority<T>> {
         if self.auth_meta.is_some() {
-            // SAFETY: The authority is present.
+            // SAFETY: We have checked that `auth_meta` is `Some`.
             Some(unsafe { Authority::new(self) })
         } else {
             None
@@ -220,7 +233,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
     /// [path]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
     #[inline]
     pub fn path(&'i self) -> &'o Path {
-        // SAFETY: The indexes are within bounds and the validation is done.
+        // SAFETY: It is guaranteed that the indexing is safe and the path is validated.
         Path::new(unsafe { self.eslice(self.path_bounds.0, self.path_bounds.1) })
     }
 
@@ -229,7 +242,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
     /// [query]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.4
     #[inline]
     pub fn query(&'i self) -> Option<&'o EStr> {
-        // SAFETY: The indexes are within bounds and the validation is done.
+        // SAFETY: It is guaranteed that the indexing is safe and the query is validated.
         self.query_end
             .map(|i| unsafe { self.eslice(self.path_bounds.1 + 1, i.get()) })
     }
@@ -248,7 +261,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
     /// [fragment]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.5
     #[inline]
     pub fn fragment(&'i self) -> Option<&'o EStr> {
-        // SAFETY: The indexes are within bounds and the validation is done.
+        // SAFETY: It is guaranteed that the indexing is safe and the fragment is validated.
         self.fragment_start()
             .map(|i| unsafe { self.eslice(i, self.len()) })
     }
@@ -444,13 +457,18 @@ pub struct Authority<T: Storage> {
 }
 
 impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
+    /// Converts from `&Uri<T>` to `&Authority<T>`.
+    ///
+    /// # Safety
+    ///
+    /// `uri.auth_meta` must be `Some`.
     #[ref_cast_custom]
     #[inline]
     unsafe fn new(uri: &Uri<T>) -> &Authority<T>;
 
     #[inline]
     fn meta(&self) -> &AuthMeta {
-        // SAFETY: When authority is present, `auth_meta` must be `Some`.
+        // SAFETY: `Authority::new` guarantees that `auth_meta` is `Some`.
         unsafe { self.uri.auth_meta.as_ref().unwrap_unchecked() }
     }
 
@@ -483,7 +501,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
     /// ```
     #[inline]
     pub fn as_str(&'i self) -> &'o str {
-        // SAFETY: The indexes are within bounds and the validation is done.
+        // SAFETY: It is guaranteed that the indexing is safe.
         unsafe { self.uri.slice(self.start(), self.end()) }
     }
 
@@ -504,7 +522,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
     #[inline]
     pub fn userinfo(&'i self) -> Option<&'o EStr> {
         let (start, host_start) = (self.start(), self.host_bounds().0);
-        // SAFETY: The indexes are within bounds and the validation is done.
+        // SAFETY: It is guaranteed that the indexing is safe and the userinfo is validated.
         (start != host_start).then(|| unsafe { self.uri.eslice(start, host_start - 1) })
     }
 
@@ -545,7 +563,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
     #[inline]
     pub fn port(&'i self) -> Option<&'o str> {
         let (host_end, end) = (self.host_bounds().1, self.end());
-        // SAFETY: The indexes are within bounds and the validation is done.
+        // SAFETY: It is guaranteed that the indexing is safe.
         (host_end != end).then(|| unsafe { self.uri.slice(host_end + 1, end) })
     }
 
@@ -588,6 +606,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
                         #[cfg(unix)]
                         {
                             let if_name = std::ffi::CString::new(zone_id).unwrap();
+                            // SAFETY: We are passing the C string correctly.
                             let if_index = unsafe { libc::if_nametoindex(if_name.as_ptr()) };
                             if if_index == 0 {
                                 return Err(io::Error::last_os_error());
@@ -647,7 +666,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Host<T> {
     /// ```
     #[inline]
     pub fn as_str(&'i self) -> &'o str {
-        // SAFETY: The indexes are within bounds.
+        // SAFETY: It is guaranteed that the indexing is safe.
         unsafe { self.auth.uri.slice(self.bounds().0, self.bounds().1) }
     }
 
@@ -656,7 +675,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Host<T> {
         let _meta = self.meta();
         let flags = self.auth.uri.flags;
         if flags.contains(Flags::HOST_REG_NAME) {
-            // SAFETY: The validation is done.
+            // SAFETY: It is guaranteed that the registered name is validated.
             ParsedHost::RegName(unsafe { EStr::new_unchecked(self.as_str().as_bytes()) })
         } else if flags.contains(Flags::HOST_IPV4) {
             ParsedHost::Ipv4(
@@ -669,7 +688,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Host<T> {
         } else if flags.contains(Flags::HOST_IPV6) {
             let zone_id = flags.contains(Flags::HAS_ZONE_ID).then(|| {
                 let (start, end) = self.bounds();
-                // SAFETY: The indexes are within bounds.
+                // SAFETY: It is guaranteed that the indexing is safe.
                 let addr = unsafe { self.auth.uri.slice(start + 1, end - 1) };
                 addr.rsplit_once('%').unwrap().1
             });
@@ -774,11 +793,10 @@ impl Path {
     #[inline]
     pub fn segments(&self) -> Split<'_> {
         let mut path = self.as_str();
-        if path.starts_with('/') {
-            // SAFETY: Skipping "/" is fine.
-            path = unsafe { path.get_unchecked(1..) };
+        if let Some(rest) = path.strip_prefix('/') {
+            path = rest;
         }
-        // SAFETY: The validation is done.
+        // SAFETY: Stripping '/' leaves the path properly encoded.
         let path = unsafe { EStr::new_unchecked(path.as_bytes()) };
 
         let mut split = path.split('/');

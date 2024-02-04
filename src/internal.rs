@@ -112,7 +112,7 @@ impl<'a, S: AsRef<[u8]> + ?Sized> ToUri for &'a S {
 
         let meta = parser::parse(bytes)?;
         Ok(Uri {
-            // SAFETY: The parser guarantees that the bytes are valid UTF-8.
+            // SAFETY: The parser guarantees that the bytes are ASCII.
             storage: unsafe { str::from_utf8_unchecked(bytes) },
             meta,
         })
@@ -151,7 +151,7 @@ impl ToUri for Vec<u8> {
 
         match parser::parse(&self) {
             Ok(meta) => Ok(Uri {
-                // SAFETY: The parser guarantees that the bytes are valid UTF-8.
+                // SAFETY: The parser guarantees that the bytes are ASCII.
                 storage: unsafe { String::from_utf8_unchecked(self) },
                 meta,
             }),

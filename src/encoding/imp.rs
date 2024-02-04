@@ -32,7 +32,7 @@ unsafe fn copy_new(s: &[u8], i: usize) -> Vec<u8> {
     let mut buf = Vec::with_capacity(s.len());
 
     unsafe {
-        // SAFETY: Since `i <= s.len() = buf.capacity()`, `s` is valid
+        // SAFETY: Since `i <= s.len() == buf.capacity()`, `s` is valid
         // for reads of `i` bytes, and `buf` is valid for writes of `i` bytes.
         // Newly allocated `buf` cannot overlap with `s`.
         ptr::copy_nonoverlapping(s.as_ptr(), buf.as_mut_ptr(), i);
@@ -85,8 +85,8 @@ unsafe fn push(v: &mut Vec<u8>, x: u8) {
 ///
 /// # Safety
 ///
-/// This function does not check that the string is properly encoded.
-/// Any invalid encoded octet in the string will result in undefined behavior.
+/// The string must be properly encoded.
+/// Any ill-encoded octet will result in undefined behavior.
 pub(super) unsafe fn decode_unchecked(s: &[u8]) -> Option<Vec<u8>> {
     // Skip bytes that are not '%'.
     let mut i = match s.iter().position(|&x| x == b'%') {

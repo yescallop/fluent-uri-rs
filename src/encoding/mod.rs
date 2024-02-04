@@ -103,7 +103,7 @@ impl EStr {
         None => unreachable!(),
     };
 
-    /// Converts a string slice to an `EStr`.
+    /// Converts a string slice to `EStr`.
     ///
     /// Returns `None` if the string is not properly encoded.
     #[inline]
@@ -116,7 +116,11 @@ impl EStr {
         }
     }
 
-    /// Converts a byte sequence into an `EStr` assuming validity.
+    /// Converts a byte sequence to `EStr` assuming validity.
+    ///
+    /// # Safety
+    ///
+    /// The bytes must be valid percent-encoded UTF-8.
     #[ref_cast_custom]
     #[inline]
     pub(crate) const unsafe fn new_unchecked(s: &[u8]) -> &EStr;
@@ -124,7 +128,7 @@ impl EStr {
     /// Yields the underlying string slice.
     #[inline]
     pub fn as_str(&self) -> &str {
-        // SAFETY: The validation is done.
+        // SAFETY: `EStr::new_unchecked` guarantees that the bytes are valid UTF-8.
         unsafe { str::from_utf8_unchecked(&self.inner) }
     }
 
@@ -144,7 +148,7 @@ impl EStr {
     /// ```
     #[inline]
     pub fn decode(&self) -> Decode<'_> {
-        // SAFETY: `EStr::new_unchecked` ensures that the string is properly encoded.
+        // SAFETY: `EStr::new_unchecked` guarantees that the string is properly encoded.
         match unsafe { imp::decode_unchecked(&self.inner) } {
             Some(vec) => Decode::Owned(vec),
             None => Decode::Borrowed(self.as_str()),
