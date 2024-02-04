@@ -10,6 +10,10 @@ license = "MIT"
 keywords = ["parser", "uri", "rfc3986"]
 categories = ["encoding", "parser-implementations"]
 
+[features]
+default = ["std"]
+std = ["dep:libc"]
+
 [dependencies]
 bitflags = "2"
 ref-cast = "1"
@@ -17,6 +21,5 @@ ref-cast = "1"
 [target.'cfg(unix)'.dependencies]
 libc = { version = "0.2", optional = true }
 
-[features]
-default = ["std"]
-std = ["dep:libc"]
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs"]

@@ -1,6 +1,7 @@
 #![warn(missing_debug_implementations, missing_docs, rust_2018_idioms)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 //! An [RFC 3986] compliant generic URI parser.
 //!
@@ -12,7 +13,8 @@
 //!
 //! - `std`: Enables `std` support (by default).
 //!
-//!   This includes [`Error`] implementations and `Ip{v4, v6}Addr` support in [`ParsedHost`].
+//!   This includes [`Error`] implementations, `Ip{v4, v6}Addr` support in [`ParsedHost`],
+//!   and [`Authority::to_socket_addrs`].
 //!
 //! [`Error`]: std::error::Error
 
@@ -684,7 +686,11 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Host<T> {
 pub enum ParsedHost<'a> {
     /// An IPv4 address.
     #[cfg_attr(not(feature = "std"), non_exhaustive)]
-    Ipv4(#[cfg(feature = "std")] Ipv4Addr),
+    Ipv4(
+        /// The address.
+        #[cfg(feature = "std")]
+        Ipv4Addr,
+    ),
     /// An IPv6 address.
     #[cfg_attr(not(feature = "std"), non_exhaustive)]
     Ipv6 {
