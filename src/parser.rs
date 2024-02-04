@@ -1,6 +1,6 @@
 use crate::{
     encoding::{imp::OCTET_TABLE_LO, table::*},
-    internal::{AuthorityMeta, Flags, HostMeta, Meta},
+    internal::{AuthMeta, Flags, HostMeta, Meta},
     ParseError,
 };
 use core::{num::NonZeroU32, str};
@@ -302,7 +302,7 @@ impl Parser {
             (self.len, self.pos) = state;
         }
 
-        self.out.authority_meta = Some(AuthorityMeta {
+        self.out.auth_meta = Some(AuthMeta {
             // SAFETY: Authority won't start at index 0.
             start: unsafe { NonZeroU32::new_unchecked(start) },
             host_bounds: (host.0, host.1),
@@ -325,23 +325,29 @@ impl Parser {
             return Ok(None);
         }
 
-        let Some(_addr) = self.scan_v6() else {
+        let meta = if let Some(_addr) = self.scan_v6() {
+            self.out.flags = Flags::HOST_IPV6;
+            if self.read_zone_id()? {
+                self.out.flags |= Flags::HAS_ZONE_ID;
+            }
+            HostMeta {
+                #[cfg(feature = "std")]
+                ipv6_addr: _addr.into(),
+                #[cfg(not(feature = "std"))]
+                none: (),
+            }
+        } else if self.marked_len() == 1 {
+            self.read_ipv_future()?;
+            // No flags for IPvFuture.
+            HostMeta { none: () }
+        } else {
             err!(self.mark, InvalidIpLiteral);
         };
-
-        if self.read_zone_id()? {
-            self.out.flags = Flags::HAS_ZONE_ID;
-        }
 
         if !self.read_str("]") {
             err!(self.mark, InvalidIpLiteral);
         }
-        Ok(Some(HostMeta {
-            #[cfg(feature = "std")]
-            ipv6_addr: _addr.into(),
-            #[cfg(not(feature = "std"))]
-            none: (),
-        }))
+        Ok(Some(meta))
     }
 
     fn scan_v6(&mut self) -> Option<[u16; 8]> {
@@ -534,6 +540,17 @@ impl Parser {
             // INVARIANT: Skipping `i` digits is fine.
             self.skip(i);
         });
+    }
+
+    fn read_ipv_future(&mut self) -> Result<()> {
+        if matches!(self.peek(0), Some(b'v' | b'V')) {
+            // INVARIANT: Skipping "v" or "V" is fine.
+            self.skip(1);
+            if self.read(HEXDIG)? && self.read_str(".") && self.read(IPV_FUTURE)? {
+                return Ok(());
+            }
+        }
+        err!(self.mark, InvalidIpLiteral);
     }
 
     fn parse_from_path(&mut self, kind: PathKind) -> Result<()> {

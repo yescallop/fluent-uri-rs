@@ -165,7 +165,7 @@ pub struct Meta {
     pub flags: Flags,
     // The index of the trailing colon.
     pub scheme_end: Option<NonZeroU32>,
-    pub authority_meta: Option<AuthorityMeta>,
+    pub auth_meta: Option<AuthMeta>,
     pub path_bounds: (u32, u32),
     // One byte past the last byte of query.
     pub query_end: Option<NonZeroU32>,
@@ -194,12 +194,13 @@ bitflags! {
     pub struct Flags: u32 {
         const HOST_REG_NAME = 0b00000001;
         const HOST_IPV4     = 0b00000010;
-        const HAS_ZONE_ID   = 0b00000100;
+        const HOST_IPV6     = 0b00000100;
+        const HAS_ZONE_ID   = 0b00001000;
     }
 }
 
 #[derive(Clone, Copy)]
-pub struct AuthorityMeta {
+pub struct AuthMeta {
     pub start: NonZeroU32,
     pub host_bounds: (u32, u32),
     pub host_meta: HostMeta,

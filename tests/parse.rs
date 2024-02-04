@@ -165,6 +165,19 @@ fn parse_absolute() {
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);
 
+    let u = Uri::parse("http://[vFe.foo.bar]").unwrap();
+    assert_eq!(u.scheme().unwrap().as_str(), "http");
+    let a = u.authority().unwrap();
+    assert_eq!(a.as_str(), "[vFe.foo.bar]");
+    assert_eq!(a.userinfo(), None);
+    assert_eq!(a.host().as_str(), "[vFe.foo.bar]");
+    assert_eq!(a.host().parsed(), ParsedHost::IpvFuture("vFe.foo.bar"));
+    assert_eq!(a.port(), None);
+    assert_eq!(u.path().as_str(), "");
+    assert!(u.path().segments().eq(None::<&str>));
+    assert_eq!(u.query(), None);
+    assert_eq!(u.fragment(), None);
+
     let u = Uri::parse("http://[fe80::520f:f5ff:fe51:cf0%eth0]").unwrap();
     assert_eq!(u.scheme().unwrap().as_str(), "http");
     let a = u.authority().unwrap();
@@ -368,9 +381,21 @@ fn parse_error() {
     let e = Uri::parse("http://[]").unwrap_err();
     assert_eq!(e.to_string(), "invalid IP literal at index 7");
 
-    // IPvFuture is not supported.
-    let e = Uri::parse("http://[vF.addr]").unwrap_err();
+    // Non-hexadecimal version in IPvFuture
+    let e = Uri::parse("http://[vG.addr]").unwrap_err();
     assert_eq!(e.to_string(), "invalid IP literal at index 7");
+
+    // Empty version in IPvFuture
+    let e = Uri::parse("http://[v.addr]").unwrap_err();
+    assert_eq!(e.to_string(), "invalid IP literal at index 7");
+
+    // Empty address in IPvFuture
+    let e = Uri::parse("ftp://[vF.]").unwrap_err();
+    assert_eq!(e.to_string(), "invalid IP literal at index 6");
+
+    // Percent-encoded address in IPvFuture
+    let e = Uri::parse("ftp://[vF.%20]").unwrap_err();
+    assert_eq!(e.to_string(), "invalid IP literal at index 6");
 
     // Empty Zone ID
     let e = Uri::parse("ftp://[fe80::abcd%]").unwrap_err();

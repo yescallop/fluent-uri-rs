@@ -35,7 +35,7 @@ use core::{
     str::{self, FromStr},
 };
 use encoding::{EStr, Split};
-use internal::{AuthorityMeta, Flags, HostMeta, Meta, Storage, StorageHelper, ToUri};
+use internal::{AuthMeta, Flags, HostMeta, Meta, Storage, StorageHelper, ToUri};
 use ref_cast::{ref_cast_custom, RefCastCustom};
 
 #[cfg(feature = "std")]
@@ -209,7 +209,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
     /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
     #[inline]
     pub fn authority(&self) -> Option<&Authority<T>> {
-        if self.authority_meta.is_some() {
+        if self.auth_meta.is_some() {
             // SAFETY: The authority is present.
             Some(unsafe { Authority::new(self) })
         } else {
@@ -451,9 +451,9 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
     unsafe fn new(uri: &Uri<T>) -> &Authority<T>;
 
     #[inline]
-    fn meta(&self) -> &AuthorityMeta {
-        // SAFETY: When authority is present, `authority_meta` must be `Some`.
-        unsafe { self.uri.authority_meta.as_ref().unwrap_unchecked() }
+    fn meta(&self) -> &AuthMeta {
+        // SAFETY: When authority is present, `auth_meta` must be `Some`.
+        unsafe { self.uri.auth_meta.as_ref().unwrap_unchecked() }
     }
 
     #[inline]
@@ -602,6 +602,10 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
                 };
                 Ok(vec![SocketAddrV6::new(addr, port, 0, scope_id).into()].into_iter())
             }
+            ParsedHost::IpvFuture(_) => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "address mechanism not supported",
+            )),
             ParsedHost::RegName(name) => (name.as_str(), port).to_socket_addrs(),
         }
     }
@@ -653,30 +657,35 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Host<T> {
     pub fn parsed(&'i self) -> ParsedHost<'o> {
         let _meta = self.meta();
         let flags = self.auth.uri.flags;
-        // SAFETY: We only access the union after checking the flags.
-        unsafe {
-            if flags.contains(Flags::HOST_REG_NAME) {
-                // SAFETY: The validation is done.
-                return ParsedHost::RegName(EStr::new_unchecked(self.as_str().as_bytes()));
-            } else if flags.contains(Flags::HOST_IPV4) {
-                return ParsedHost::Ipv4(
-                    #[cfg(feature = "std")]
-                    _meta.ipv4_addr,
-                );
-            }
-            ParsedHost::Ipv6 {
+        if flags.contains(Flags::HOST_REG_NAME) {
+            // SAFETY: The validation is done.
+            ParsedHost::RegName(unsafe { EStr::new_unchecked(self.as_str().as_bytes()) })
+        } else if flags.contains(Flags::HOST_IPV4) {
+            ParsedHost::Ipv4(
+                // SAFETY: We have checked the flags.
                 #[cfg(feature = "std")]
-                addr: _meta.ipv6_addr,
+                unsafe {
+                    _meta.ipv4_addr
+                },
+            )
+        } else if flags.contains(Flags::HOST_IPV6) {
+            let zone_id = flags.contains(Flags::HAS_ZONE_ID).then(|| {
+                let (start, end) = self.bounds();
                 // SAFETY: The indexes are within bounds.
-                zone_id: flags.contains(Flags::HAS_ZONE_ID).then(|| {
-                    self.auth
-                        .uri
-                        .slice(self.bounds().0 + 1, self.bounds().1 - 1)
-                        .rsplit_once('%')
-                        .unwrap()
-                        .1
-                }),
+                let addr = unsafe { self.auth.uri.slice(start + 1, end - 1) };
+                addr.rsplit_once('%').unwrap().1
+            });
+            ParsedHost::Ipv6 {
+                // SAFETY: We have checked the flags.
+                #[cfg(feature = "std")]
+                addr: unsafe { _meta.ipv6_addr },
+                zone_id,
             }
+        } else {
+            let (start, end) = self.bounds();
+            // SAFETY: The indexes are within bounds.
+            let addr = unsafe { self.auth.uri.slice(start + 1, end - 1) };
+            ParsedHost::IpvFuture(addr)
         }
     }
 }
@@ -700,6 +709,8 @@ pub enum ParsedHost<'a> {
         /// An optional zone identifier.
         zone_id: Option<&'a str>,
     },
+    /// An IP address of future version.
+    IpvFuture(&'a str),
     /// A registered name.
     RegName(&'a EStr),
 }

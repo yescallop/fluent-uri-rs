@@ -122,6 +122,9 @@ pub const SCHEME: &Table = &ALPHA.or(DIGIT).or(&gen(b"+-."));
 /// userinfo = *( unreserved / pct-encoded / sub-delims / ":" )
 pub const USERINFO: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b":")).enc();
 
+/// IPvFuture = "v" 1\*HEXDIG "." 1\*( unreserved / sub-delims / ":" )
+pub const IPV_FUTURE: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b":"));
+
 /// reg-name = *( unreserved / pct-encoded / sub-delims )
 pub const REG_NAME: &Table = &UNRESERVED.or(SUB_DELIMS).enc();
 

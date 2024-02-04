@@ -46,4 +46,15 @@ fn test_to_socket_addrs() {
             .to_string(),
         "invalid port value"
     );
+
+    let u = Uri::parse("//[vF.whatever]").unwrap();
+    assert_eq!(
+        u.authority()
+            .unwrap()
+            .to_socket_addrs(80)
+            .err()
+            .unwrap()
+            .to_string(),
+        "address mechanism not supported"
+    );
 }
