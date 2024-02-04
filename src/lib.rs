@@ -115,11 +115,9 @@ impl<T: Storage> Uri<T> {
     ///
     /// # Behavior
     ///
-    /// This function validates the input strictly as per [RFC 3986] with only two exceptions:
-    ///
-    /// - An IPvFuture address is rejected.
-    /// - A case-sensitive IPv6 zone identifier containing only [unreserved] characters
-    ///   is accepted, as in `http://[fe80::1%eth0]`.
+    /// This function validates the input strictly as per [RFC 3986],
+    /// with the only exception that a case-sensitive IPv6 zone identifier containing
+    /// only [unreserved] characters is accepted, as in `http://[fe80::1%eth0]`.
     ///
     /// [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
     /// [unreserved]: https://datatracker.ietf.org/doc/html/rfc3986/#section-2.3
