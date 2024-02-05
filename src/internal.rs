@@ -164,7 +164,7 @@ impl<T: Storage> ops::DerefMut for Uri<T> {
 
 #[derive(Clone, Copy)]
 pub struct AuthMeta {
-    pub start: NonZeroU32,
+    pub start: u32,
     pub host_bounds: (u32, u32),
     pub host_meta: HostMeta,
 }

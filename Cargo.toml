@@ -12,13 +12,13 @@ categories = ["encoding", "parser-implementations"]
 
 [features]
 default = ["std"]
-std = ["dep:libc"]
+std = ["dep:nix"]
 
 [dependencies]
 ref-cast = "1"
 
 [target.'cfg(unix)'.dependencies]
-libc = { version = "0.2", optional = true }
+nix = { version = "0.27", optional = true, features = ["net"] }
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]

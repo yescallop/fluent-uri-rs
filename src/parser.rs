@@ -33,8 +33,7 @@ macro_rules! err {
 ///
 /// # Invariants
 ///
-/// `mark <= pos <= len`, where `pos` is non-decreasing
-/// and `pos` consecutive bytes starting from `ptr` are ASCII.
+/// `mark <= pos <= len`, where `pos` is non-decreasing and `bytes[..pos]` is ASCII.
 ///
 /// # Preconditions and guarantees
 ///
@@ -44,7 +43,7 @@ macro_rules! err {
 /// Start and finish parsing by calling `parse_from_scheme`.
 /// The following are guaranteed when parsing succeeds:
 ///
-/// - `len` consecutive bytes starting from `ptr` are ASCII.
+/// - `bytes` is ASCII.
 /// - All output indexes are within bounds and correctly ordered.
 /// - All URI components defined by output indexes are validated.
 struct Parser<'a> {
@@ -298,8 +297,7 @@ impl<'a> Parser<'a> {
         }
 
         self.out.auth_meta = Some(AuthMeta {
-            // Authority won't start at index 0.
-            start: NonZeroU32::new(start as _).unwrap(),
+            start: start as _,
             host_bounds: (host.0 as _, host.1 as _),
             host_meta: host.2,
         });

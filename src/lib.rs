@@ -1,5 +1,5 @@
 #![warn(missing_debug_implementations, missing_docs, rust_2018_idioms)]
-#![deny(unsafe_op_in_unsafe_fn)]
+#![forbid(unsafe_code)]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
@@ -52,17 +52,14 @@ pub use error::ParseError;
 ///
 /// # Variants
 ///
-/// There are two variants of `Uri` in total:
+/// Two variants of `Uri` are available: `Uri<&str>` and `Uri<String>`.
 ///
-/// - `Uri<&str>`: borrowed; immutable.
-/// - `Uri<String>`: owned; immutable.
-///
-/// `Uri<&'a str>` outputs references with lifetime `'a` where possible.
-/// This allows you to drop a temporary `Uri` while keeping the output references:
+/// `Uri<&'a str>` outputs references with lifetime `'a` where possible:
 ///
 /// ```
 /// use fluent_uri::Uri;
 ///
+/// // Drop a temporary `Uri` while keeping the reference to path.
 /// let path = Uri::parse("foo:bar")?.path();
 /// assert_eq!(path.as_str(), "bar");
 /// # Ok::<_, fluent_uri::ParseError>(())
@@ -447,7 +444,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
 
     #[inline]
     fn start(&self) -> u32 {
-        self.meta().start.get()
+        self.meta().start
     }
 
     #[inline]
@@ -574,15 +571,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
                             "invalid zone identifier value",
                         ));
                         #[cfg(unix)]
-                        {
-                            let if_name = std::ffi::CString::new(zone_id).unwrap();
-                            // SAFETY: It is safe to pass a valid C string pointer to `if_nametoindex`.
-                            let if_index = unsafe { libc::if_nametoindex(if_name.as_ptr()) };
-                            if if_index == 0 {
-                                return Err(io::Error::last_os_error());
-                            }
-                            if_index
-                        }
+                        nix::net::if_::if_nametoindex(zone_id)?
                     }
                 } else {
                     0
