@@ -1,8 +1,6 @@
-use super::table;
 use alloc::vec::Vec;
-use core::ptr;
 
-pub(super) const fn validate_estr(s: &[u8]) -> bool {
+pub(super) const fn validate(s: &[u8]) -> bool {
     let mut i = 0;
     while i < s.len() {
         let x = s[i];
@@ -12,7 +10,7 @@ pub(super) const fn validate_estr(s: &[u8]) -> bool {
             }
             let (hi, lo) = (s[i + 1], s[i + 2]);
 
-            if table::HEXDIG.get(hi) & table::HEXDIG.get(lo) == 0 {
+            if !hi.is_ascii_hexdigit() || !lo.is_ascii_hexdigit() {
                 return false;
             }
             i += 3;
@@ -23,27 +21,8 @@ pub(super) const fn validate_estr(s: &[u8]) -> bool {
     true
 }
 
-/// Copies the first `i` bytes from `s` into a new buffer.
-///
-/// # Safety
-///
-/// `i` must not be greater than `s.len()`.
-unsafe fn copy_new(s: &[u8], i: usize) -> Vec<u8> {
-    let mut buf = Vec::with_capacity(s.len());
-
-    unsafe {
-        // SAFETY: Since `i <= s.len() == buf.capacity()`, `s` is valid
-        // for reads of `i` bytes, and `buf` is valid for writes of `i` bytes.
-        // Newly allocated `buf` cannot overlap with `s`.
-        ptr::copy_nonoverlapping(s.as_ptr(), buf.as_mut_ptr(), i);
-        // The first `i` bytes are now initialized so it's safe to set the length.
-        buf.set_len(i);
-    }
-    buf
-}
-
 const fn gen_octet_table(hi: bool) -> [u8; 256] {
-    let mut out = [0xFF; 256];
+    let mut out = [0xff; 256];
     let shift = if hi { 4 } else { 0 };
 
     let mut i = 0;
@@ -62,53 +41,30 @@ const fn gen_octet_table(hi: bool) -> [u8; 256] {
 const OCTET_TABLE_HI: &[u8; 256] = &gen_octet_table(true);
 pub(crate) const OCTET_TABLE_LO: &[u8; 256] = &gen_octet_table(false);
 
-/// Decodes a percent-encoded octet assuming validity.
-fn decode_octet_unchecked(hi: u8, lo: u8) -> u8 {
+/// Decodes a percent-encoded octet, assuming that the bytes are hexadecimal.
+fn decode_octet(hi: u8, lo: u8) -> u8 {
+    debug_assert!(hi.is_ascii_hexdigit() && lo.is_ascii_hexdigit());
     OCTET_TABLE_HI[hi as usize] | OCTET_TABLE_LO[lo as usize]
 }
 
-/// Pushes a raw byte without checking bounds.
-///
-/// # Safety
-///
-/// `v.len()` must be less than `v.capacity()`.
-unsafe fn push(v: &mut Vec<u8>, x: u8) {
-    debug_assert!(v.len() < v.capacity());
-    // SAFETY: The caller must ensure that the capacity is enough.
-    unsafe {
-        *v.as_mut_ptr().add(v.len()) = x;
-        v.set_len(v.len() + 1);
-    }
-}
-
-/// Decodes a percent-encoded string assuming validity.
-///
-/// # Safety
-///
-/// The string must be properly encoded.
-/// Any ill-encoded octet will result in undefined behavior.
-pub(super) unsafe fn decode_unchecked(s: &[u8]) -> Option<Vec<u8>> {
+/// Decodes a percent-encoded string, assuming that the string is properly encoded.
+pub(super) fn decode(s: &[u8]) -> Option<Vec<u8>> {
     // Skip bytes that are not '%'.
     let mut i = match s.iter().position(|&x| x == b'%') {
         Some(i) => i,
         None => return None,
     };
-    // SAFETY: `i <= s.len()` holds.
-    let mut buf = unsafe { copy_new(s, i) };
+
+    let mut buf = Vec::with_capacity(s.len());
+    buf.extend_from_slice(&s[..i]);
 
     while i < s.len() {
         let x = s[i];
         if x == b'%' {
-            // SAFETY: The caller must ensure that the string is properly encoded.
-            let (hi, lo) = unsafe { (*s.get_unchecked(i + 1), *s.get_unchecked(i + 2)) };
-            let octet = decode_octet_unchecked(hi, lo);
-
-            // SAFETY: The output will never be longer than the input.
-            unsafe { push(&mut buf, octet) }
+            buf.push(decode_octet(s[i + 1], s[i + 2]));
             i += 3;
         } else {
-            // SAFETY: The output will never be longer than the input.
-            unsafe { push(&mut buf, x) }
+            buf.push(x);
             i += 1;
         }
     }

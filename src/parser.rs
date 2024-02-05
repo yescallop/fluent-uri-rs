@@ -1,6 +1,6 @@
 use crate::{
     encoding::{imp::OCTET_TABLE_LO, table::*},
-    internal::{AuthMeta, Flags, HostMeta, Meta},
+    internal::{AuthMeta, HostMeta, Meta},
     ParseError,
 };
 use core::{num::NonZeroU32, str};
@@ -9,8 +9,7 @@ type Result<T> = core::result::Result<T, ParseError>;
 
 pub(crate) fn parse(bytes: &[u8]) -> Result<Meta> {
     let mut parser = Parser {
-        ptr: bytes.as_ptr(),
-        len: bytes.len() as u32,
+        bytes,
         pos: 0,
         mark: 0,
         out: Meta::default(),
@@ -23,7 +22,7 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Meta> {
 macro_rules! err {
     ($index:expr, $kind:ident) => {
         return Err(crate::error::ParseError {
-            index: $index,
+            index: $index as u32,
             kind: crate::error::ParseErrorKind::$kind,
             input: (),
         })
@@ -48,11 +47,10 @@ macro_rules! err {
 /// - `len` consecutive bytes starting from `ptr` are ASCII.
 /// - All output indexes are within bounds and correctly ordered.
 /// - All URI components defined by output indexes are validated.
-struct Parser {
-    ptr: *const u8,
-    len: u32,
-    pos: u32,
-    mark: u32,
+struct Parser<'a> {
+    bytes: &'a [u8],
+    pos: usize,
+    mark: usize,
     out: Meta,
 }
 
@@ -73,38 +71,28 @@ enum Seg {
     SingleColon,
 }
 
-impl Parser {
+impl<'a> Parser<'a> {
+    fn len(&self) -> usize {
+        self.bytes.len()
+    }
+
     fn has_remaining(&self) -> bool {
-        self.pos < self.len
+        self.pos < self.len()
     }
 
-    /// Gets a byte without checking bounds.
-    ///
-    /// # Safety
-    ///
-    /// The index must be less than `len`.
-    unsafe fn get_unchecked(&self, i: u32) -> u8 {
-        debug_assert!(i < self.len, "index out of bounds");
-        // SAFETY: The caller must uphold the safety contract.
-        unsafe { *self.ptr.add(i as usize) }
+    fn get(&self, i: usize) -> u8 {
+        self.bytes[i]
     }
 
-    #[inline]
-    fn get(&self, i: u32) -> u8 {
-        assert!(i < self.len, "index out of bounds");
-        // SAFETY: We have checked that `i < len`.
-        unsafe { self.get_unchecked(i) }
-    }
-
-    fn peek(&self, i: u32) -> Option<u8> {
-        (self.pos + i < self.len).then(|| self.get(self.pos + i))
+    fn peek(&self, i: usize) -> Option<u8> {
+        self.bytes.get(self.pos + i).copied()
     }
 
     // Any call to this method must keep the invariants.
-    fn skip(&mut self, n: u32) {
+    fn skip(&mut self, n: usize) {
         // INVARIANT: `pos` is non-decreasing.
         self.pos += n;
-        debug_assert!(self.pos <= self.len);
+        debug_assert!(self.pos <= self.len());
     }
 
     fn mark(&mut self) {
@@ -112,7 +100,7 @@ impl Parser {
         self.mark = self.pos;
     }
 
-    fn marked_len(&self) -> u32 {
+    fn marked_len(&self) -> usize {
         self.pos - self.mark
     }
 
@@ -121,7 +109,7 @@ impl Parser {
             self.scan_enc(table, |_| {})
         } else {
             let mut i = self.pos;
-            while i < self.len {
+            while i < self.len() {
                 if !table.allows(self.get(i)) {
                     break;
                 }
@@ -137,15 +125,14 @@ impl Parser {
     fn scan_enc(&mut self, table: &Table, mut f: impl FnMut(u8)) -> Result<()> {
         let mut i = self.pos;
 
-        while i < self.len {
+        while i < self.len() {
             let x = self.get(i);
             if x == b'%' {
-                if i + 2 >= self.len {
+                if i + 2 >= self.len() {
                     err!(i, InvalidOctet);
                 }
-                // SAFETY: We have checked that `i + 2 < len`.
-                // Overflow is impossible since `len` is no larger than `i32::MAX`.
-                let (hi, lo) = unsafe { (self.get_unchecked(i + 1), self.get_unchecked(i + 2)) };
+
+                let (hi, lo) = (self.get(i + 1), self.get(i + 2));
 
                 if HEXDIG.get(hi) & HEXDIG.get(lo) == 0 {
                     err!(i, InvalidOctet);
@@ -177,19 +164,13 @@ impl Parser {
 
     // The string read must be ASCII.
     fn read_str(&mut self, s: &str) -> bool {
-        assert!(s.len() <= i32::MAX as usize);
-        let len = s.len() as u32;
-
-        // SAFETY: We have checked that `pos + s.len() <= len`.
-        // Overflow is impossible since both `len` and `s.len()` are no larger than `i32::MAX`.
-        let res = self.pos + len <= self.len
-            && (0..len)
-                .all(|i| unsafe { self.get_unchecked(self.pos + i) } == s.as_bytes()[i as usize]);
-        if res {
+        if self.bytes[self.pos..].starts_with(s.as_bytes()) {
             // INVARIANT: The remaining bytes start with `s` so it's fine to skip `s.len()`.
-            self.skip(len);
+            self.skip(s.len());
+            true
+        } else {
+            false
         }
-        res
     }
 
     fn parse_from_scheme(&mut self) -> Result<()> {
@@ -199,7 +180,7 @@ impl Parser {
         if self.peek(0) == Some(b':') {
             // Scheme starts with a letter.
             if self.pos != 0 && self.get(0).is_ascii_alphabetic() {
-                self.out.scheme_end = NonZeroU32::new(self.pos);
+                self.out.scheme_end = NonZeroU32::new(self.pos as _);
             } else {
                 err!(0, UnexpectedChar);
             }
@@ -253,8 +234,7 @@ impl Parser {
                 self.read_port();
             } else {
                 // Empty authority.
-                self.out.flags = Flags::HOST_REG_NAME;
-                host = (self.pos, self.pos, HostMeta { none: () });
+                host = (self.pos, self.pos, HostMeta::RegName);
             }
         } else {
             // The whole authority scanned. Try to parse the host and port.
@@ -265,8 +245,8 @@ impl Parser {
                 1 => {
                     let mut i = self.pos - 1;
                     loop {
-                        // SAFETY: There must be a colon in the way.
-                        let x = unsafe { self.get_unchecked(i) };
+                        // There must be a colon in the way.
+                        let x = self.get(i);
                         if !x.is_ascii_digit() {
                             if x == b':' {
                                 break;
@@ -282,8 +262,8 @@ impl Parser {
                 _ => {
                     let mut i = self.mark;
                     loop {
-                        // SAFETY: There must be a colon in the way.
-                        let x = unsafe { self.get_unchecked(i) };
+                        // There must be a colon in the way.
+                        let x = self.get(i);
                         if x == b':' {
                             err!(i, UnexpectedChar)
                         }
@@ -293,40 +273,34 @@ impl Parser {
             };
 
             // Save the state.
-            let state = (self.len, self.pos);
+            let state = (self.bytes, self.pos);
 
             // The entire host is already scanned so the index is within bounds.
-            self.len = host_end;
+            self.bytes = &self.bytes[..host_end];
             // INVARIANT: It holds that `mark <= pos <= len`.
             // Here `pos` may decrease but will be restored later.
             self.pos = self.mark;
 
             let v4 = self.scan_v4();
-            let (flags, meta) = match v4 {
-                Some(_addr) if !self.has_remaining() => (
-                    Flags::HOST_IPV4,
-                    HostMeta {
-                        #[cfg(feature = "std")]
-                        ipv4_addr: _addr.into(),
-                        #[cfg(not(feature = "std"))]
-                        none: (),
-                    },
+            let meta = match v4 {
+                Some(_addr) if !self.has_remaining() => HostMeta::Ipv4(
+                    #[cfg(feature = "std")]
+                    _addr.into(),
                 ),
-                _ => (Flags::HOST_REG_NAME, HostMeta { none: () }),
+                _ => HostMeta::RegName,
             };
 
-            self.out.flags = flags;
             host = (self.mark, host_end, meta);
 
             // Restore the state.
             // INVARIANT: Restoring the state would not affect the invariants.
-            (self.len, self.pos) = state;
+            (self.bytes, self.pos) = state;
         }
 
         self.out.auth_meta = Some(AuthMeta {
-            // SAFETY: Authority won't start at index 0.
-            start: unsafe { NonZeroU32::new_unchecked(start) },
-            host_bounds: (host.0, host.1),
+            // Authority won't start at index 0.
+            start: NonZeroU32::new(start as _).unwrap(),
+            host_bounds: (host.0 as _, host.1 as _),
             host_meta: host.2,
         });
         self.parse_from_path(PathKind::AbEmpty)
@@ -347,20 +321,20 @@ impl Parser {
         }
 
         let meta = if let Some(_addr) = self.scan_v6() {
-            self.out.flags = Flags::HOST_IPV6;
             if self.read_zone_id()? {
-                self.out.flags |= Flags::HAS_ZONE_ID;
-            }
-            HostMeta {
-                #[cfg(feature = "std")]
-                ipv6_addr: _addr.into(),
-                #[cfg(not(feature = "std"))]
-                none: (),
+                HostMeta::Ipv6Zoned(
+                    #[cfg(feature = "std")]
+                    _addr.into(),
+                )
+            } else {
+                HostMeta::Ipv6(
+                    #[cfg(feature = "std")]
+                    _addr.into(),
+                )
             }
         } else if self.marked_len() == 1 {
             self.read_ipv_future()?;
-            // No flags for IPvFuture.
-            HostMeta { none: () }
+            HostMeta::IpvFuture
         } else {
             err!(self.mark, InvalidIpLiteral);
         };
@@ -493,20 +467,13 @@ impl Parser {
         let v4_end = self.pos;
         self.scan(REG_NAME)?;
 
-        let (flags, meta) = match v4 {
-            Some(_addr) if self.pos == v4_end => (
-                Flags::HOST_IPV4,
-                HostMeta {
-                    #[cfg(feature = "std")]
-                    ipv4_addr: _addr.into(),
-                    #[cfg(not(feature = "std"))]
-                    none: (),
-                },
+        Ok(match v4 {
+            Some(_addr) if self.pos == v4_end => HostMeta::Ipv4(
+                #[cfg(feature = "std")]
+                _addr.into(),
             ),
-            _ => (Flags::HOST_REG_NAME, HostMeta { none: () }),
-        };
-        self.out.flags = flags;
-        Ok(meta)
+            _ => HostMeta::RegName,
+        })
     }
 
     fn scan_v4(&mut self) -> Option<u32> {
@@ -544,7 +511,7 @@ impl Parser {
         (res <= u8::MAX as u32).then_some(res)
     }
 
-    fn peek_digit(&self, i: u32) -> Option<u32> {
+    fn peek_digit(&self, i: usize) -> Option<u32> {
         self.peek(i).and_then(|x| (x as char).to_digit(10))
     }
 
@@ -575,7 +542,7 @@ impl Parser {
             PathKind::General => {
                 let start = self.pos;
                 self.read(PATH)?;
-                (start, self.pos)
+                (start as _, self.pos as _)
             }
             PathKind::AbEmpty => {
                 let start = self.pos;
@@ -583,7 +550,7 @@ impl Parser {
                 if self.read(PATH)? && self.get(start) != b'/' {
                     err!(start, UnexpectedChar);
                 }
-                (start, self.pos)
+                (start as _, self.pos as _)
             }
             PathKind::ContinuedNoScheme => {
                 self.scan(SEGMENT_NC)?;
@@ -595,13 +562,13 @@ impl Parser {
                 }
 
                 self.scan(PATH)?;
-                (self.mark, self.pos)
+                (self.mark as _, self.pos as _)
             }
         };
 
         if self.read_str("?") {
             self.read(QUERY_FRAGMENT)?;
-            self.out.query_end = NonZeroU32::new(self.pos);
+            self.out.query_end = NonZeroU32::new(self.pos as _);
         }
 
         if self.read_str("#") {

@@ -1,5 +1,3 @@
-use crate::internal::ToUri;
-
 /// Detailed cause of a [`ParseError`].
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ParseErrorKind {
@@ -35,12 +33,12 @@ impl ParseError<()> {
     }
 }
 
-impl<I: ToUri> ParseError<I> {
+impl ParseError<String> {
     /// Recovers the input that were attempted to parse into a [`Uri`].
     ///
     /// [`Uri`]: crate::Uri
     #[inline]
-    pub fn into_input(self) -> I {
+    pub fn into_input(self) -> String {
         self.input
     }
 

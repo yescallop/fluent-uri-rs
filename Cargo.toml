@@ -15,7 +15,6 @@ default = ["std"]
 std = ["dep:libc"]
 
 [dependencies]
-bitflags = "2"
 ref-cast = "1"
 
 [target.'cfg(unix)'.dependencies]

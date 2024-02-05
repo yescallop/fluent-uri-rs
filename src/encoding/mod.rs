@@ -13,27 +13,27 @@ use ref_cast::{ref_cast_custom, RefCastCustom};
 #[derive(RefCastCustom)]
 #[repr(transparent)]
 pub struct EStr {
-    inner: [u8],
+    inner: str,
 }
 
 impl AsRef<str> for EStr {
     #[inline]
     fn as_ref(&self) -> &str {
-        self.as_str()
+        &self.inner
     }
 }
 
 impl AsRef<[u8]> for EStr {
     #[inline]
     fn as_ref(&self) -> &[u8] {
-        &self.inner
+        self.inner.as_bytes()
     }
 }
 
 impl Borrow<str> for &EStr {
     #[inline]
     fn borrow(&self) -> &str {
-        self.as_str()
+        &self.inner
     }
 }
 
@@ -47,14 +47,14 @@ impl PartialEq for EStr {
 impl PartialEq<str> for EStr {
     #[inline]
     fn eq(&self, other: &str) -> bool {
-        self.as_str() == other
+        &self.inner == other
     }
 }
 
 impl PartialEq<EStr> for str {
     #[inline]
     fn eq(&self, other: &EStr) -> bool {
-        self == other.as_str()
+        self == &other.inner
     }
 }
 
@@ -93,43 +93,32 @@ impl Default for &EStr {
     /// Creates an empty `EStr`.
     #[inline]
     fn default() -> Self {
-        EStr::EMPTY
+        EStr::new_validated("")
     }
 }
 
 impl EStr {
-    const EMPTY: &'static EStr = match EStr::new("") {
-        Some(s) => s,
-        None => unreachable!(),
-    };
-
     /// Converts a string slice to `EStr`.
     ///
     /// Returns `None` if the string is not properly encoded.
     #[inline]
     pub const fn new(s: &str) -> Option<&EStr> {
-        if imp::validate_estr(s.as_bytes()) {
-            // SAFETY: The validation is done.
-            Some(unsafe { EStr::new_unchecked(s.as_bytes()) })
+        if imp::validate(s.as_bytes()) {
+            Some(EStr::new_validated(s))
         } else {
             None
         }
     }
 
-    /// Converts a byte sequence to `EStr` assuming validity.
-    ///
-    /// # Safety
-    ///
-    /// The bytes must be valid percent-encoded UTF-8.
+    /// Converts a string slice to `EStr` assuming validity.
     #[ref_cast_custom]
     #[inline]
-    pub(crate) const unsafe fn new_unchecked(s: &[u8]) -> &EStr;
+    pub(crate) const fn new_validated(s: &str) -> &EStr;
 
     /// Yields the underlying string slice.
     #[inline]
     pub fn as_str(&self) -> &str {
-        // SAFETY: `EStr::new_unchecked` guarantees that the bytes are valid UTF-8.
-        unsafe { str::from_utf8_unchecked(&self.inner) }
+        &self.inner
     }
 
     /// Decodes the `EStr`.
@@ -148,8 +137,7 @@ impl EStr {
     /// ```
     #[inline]
     pub fn decode(&self) -> Decode<'_> {
-        // SAFETY: `EStr::new_unchecked` guarantees that the string is properly encoded.
-        match unsafe { imp::decode_unchecked(&self.inner) } {
+        match imp::decode(self.inner.as_bytes()) {
             Some(vec) => Decode::Owned(vec),
             None => Decode::Borrowed(self.as_str()),
         }
@@ -177,11 +165,8 @@ impl EStr {
             delim.is_ascii() && table::RESERVED.allows(delim as u8),
             "splitting with non-reserved character"
         );
-
         Split {
-            s: &self.inner,
-            delim: delim as u8,
-            finished: false,
+            inner: self.inner.split(delim),
         }
     }
 
@@ -213,12 +198,9 @@ impl EStr {
             delim.is_ascii() && table::RESERVED.allows(delim as u8),
             "splitting with non-reserved character"
         );
-        let bytes = &self.inner;
-
-        let i = bytes.iter().position(|&x| x == delim as u8)?;
-        let (head, tail) = (&bytes[..i], &bytes[i + 1..]);
-        // SAFETY: Splitting at a reserved character leaves valid percent-encoded UTF-8.
-        unsafe { Some((EStr::new_unchecked(head), EStr::new_unchecked(tail))) }
+        self.inner
+            .split_once(delim)
+            .map(|(a, b)| (EStr::new_validated(a), EStr::new_validated(b)))
     }
 }
 
@@ -259,23 +241,9 @@ impl<'a> Decode<'a> {
     /// An error is returned if the decoded bytes are not valid UTF-8.
     #[inline]
     pub fn into_string(self) -> Result<Cow<'a, str>, FromUtf8Error> {
-        // A (maybe) more efficient approach: only validating encoded sequences.
         match self {
             Self::Borrowed(s) => Ok(Cow::Borrowed(s)),
             Self::Owned(vec) => String::from_utf8(vec).map(Cow::Owned),
-        }
-    }
-
-    /// Converts the decoded bytes to a string lossily.
-    #[inline]
-    pub fn into_string_lossy(self) -> Cow<'a, str> {
-        match self {
-            Self::Borrowed(s) => Cow::Borrowed(s),
-            Self::Owned(vec) => Cow::Owned(match String::from_utf8_lossy(&vec) {
-                // SAFETY: If a borrowed string slice is returned, the bytes must be valid UTF-8.
-                Cow::Borrowed(_) => unsafe { String::from_utf8_unchecked(vec) },
-                Cow::Owned(string) => string,
-            }),
         }
     }
 }
@@ -288,9 +256,7 @@ impl<'a> Decode<'a> {
 #[derive(Clone, Debug)]
 #[must_use = "iterators are lazy and do nothing unless consumed"]
 pub struct Split<'a> {
-    s: &'a [u8],
-    delim: u8,
-    pub(crate) finished: bool,
+    inner: str::Split<'a, char>,
 }
 
 impl<'a> Iterator for Split<'a> {
@@ -298,55 +264,19 @@ impl<'a> Iterator for Split<'a> {
 
     #[inline]
     fn next(&mut self) -> Option<&'a EStr> {
-        if self.finished {
-            return None;
-        }
-
-        let head;
-        match self.s.iter().position(|&x| x == self.delim) {
-            Some(i) => {
-                head = &self.s[..i];
-                self.s = &self.s[i + 1..];
-            }
-            None => {
-                self.finished = true;
-                head = self.s;
-            }
-        }
-        // SAFETY: Splitting at a reserved character leaves valid percent-encoded UTF-8.
-        Some(unsafe { EStr::new_unchecked(head) })
+        self.inner.next().map(EStr::new_validated)
     }
 
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        if self.finished {
-            (0, Some(0))
-        } else {
-            (1, Some(self.s.len() + 1))
-        }
+        self.inner.size_hint()
     }
 }
 
 impl<'a> DoubleEndedIterator for Split<'a> {
     #[inline]
     fn next_back(&mut self) -> Option<&'a EStr> {
-        if self.finished {
-            return None;
-        }
-
-        let tail;
-        match self.s.iter().rposition(|&x| x == self.delim) {
-            Some(i) => {
-                tail = &self.s[i + 1..];
-                self.s = &self.s[..i];
-            }
-            None => {
-                self.finished = true;
-                tail = self.s;
-            }
-        }
-        // SAFETY: Splitting at a reserved character leaves valid percent-encoded UTF-8.
-        Some(unsafe { EStr::new_unchecked(tail) })
+        self.inner.next_back().map(EStr::new_validated)
     }
 }
 

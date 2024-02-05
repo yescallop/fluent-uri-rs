@@ -1,8 +1,7 @@
 #![allow(missing_debug_implementations)]
 
 use crate::{parser, ParseError, Uri};
-use alloc::{string::String, vec::Vec};
-use bitflags::bitflags;
+use alloc::string::String;
 use core::{num::NonZeroU32, ops, str};
 
 #[cfg(feature = "std")]
@@ -99,23 +98,19 @@ fn len_overflow() -> ! {
     panic!("input length > i32::MAX");
 }
 
-impl<'a, S: AsRef<[u8]> + ?Sized> ToUri for &'a S {
+impl<'a, S: AsRef<str> + ?Sized> ToUri for &'a S {
     type Storage = &'a str;
     type Err = ParseError;
 
     #[inline]
     fn to_uri(self) -> Result<Uri<Self::Storage>, Self::Err> {
-        let bytes = self.as_ref();
-        if bytes.len() > i32::MAX as usize {
+        let s = self.as_ref();
+        if s.len() > i32::MAX as usize {
             len_overflow();
         }
 
-        let meta = parser::parse(bytes)?;
-        Ok(Uri {
-            // SAFETY: The parser guarantees that the bytes are ASCII.
-            storage: unsafe { str::from_utf8_unchecked(bytes) },
-            meta,
-        })
+        let meta = parser::parse(s.as_bytes())?;
+        Ok(Uri { storage: s, meta })
     }
 }
 
@@ -139,30 +134,8 @@ impl ToUri for String {
     }
 }
 
-impl ToUri for Vec<u8> {
-    type Storage = String;
-    type Err = ParseError<Vec<u8>>;
-
-    #[inline]
-    fn to_uri(self) -> Result<Uri<Self::Storage>, Self::Err> {
-        if self.len() > i32::MAX as usize {
-            len_overflow();
-        }
-
-        match parser::parse(&self) {
-            Ok(meta) => Ok(Uri {
-                // SAFETY: The parser guarantees that the bytes are ASCII.
-                storage: unsafe { String::from_utf8_unchecked(self) },
-                meta,
-            }),
-            Err(e) => Err(e.with_input(self)),
-        }
-    }
-}
-
 #[derive(Clone, Copy, Default)]
 pub struct Meta {
-    pub flags: Flags,
     // The index of the trailing colon.
     pub scheme_end: Option<NonZeroU32>,
     pub auth_meta: Option<AuthMeta>,
@@ -189,16 +162,6 @@ impl<T: Storage> ops::DerefMut for Uri<T> {
     }
 }
 
-bitflags! {
-    #[derive(Clone, Copy, Default)]
-    pub struct Flags: u32 {
-        const HOST_REG_NAME = 0b00000001;
-        const HOST_IPV4     = 0b00000010;
-        const HOST_IPV6     = 0b00000100;
-        const HAS_ZONE_ID   = 0b00001000;
-    }
-}
-
 #[derive(Clone, Copy)]
 pub struct AuthMeta {
     pub start: NonZeroU32,
@@ -207,10 +170,10 @@ pub struct AuthMeta {
 }
 
 #[derive(Clone, Copy)]
-pub union HostMeta {
-    #[cfg(feature = "std")]
-    pub ipv4_addr: Ipv4Addr,
-    #[cfg(feature = "std")]
-    pub ipv6_addr: Ipv6Addr,
-    pub none: (),
+pub enum HostMeta {
+    Ipv4(#[cfg(feature = "std")] Ipv4Addr),
+    Ipv6(#[cfg(feature = "std")] Ipv6Addr),
+    Ipv6Zoned(#[cfg(feature = "std")] Ipv6Addr),
+    IpvFuture,
+    RegName,
 }

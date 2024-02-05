@@ -35,7 +35,7 @@ use core::{
     str::{self, FromStr},
 };
 use encoding::{EStr, Split};
-use internal::{AuthMeta, Flags, HostMeta, Meta, Storage, StorageHelper, ToUri};
+use internal::{AuthMeta, HostMeta, Meta, Storage, StorageHelper, ToUri};
 use ref_cast::{ref_cast_custom, RefCastCustom};
 
 #[cfg(feature = "std")]
@@ -104,17 +104,14 @@ pub struct Uri<T: Storage> {
 }
 
 impl<T: Storage> Uri<T> {
-    /// Parses a URI reference from a byte sequence into a `Uri`.
+    /// Parses a URI reference from a string into a `Uri`.
     ///
     /// The return type is
     ///
-    /// - `Result<Uri<&str>, ParseError>` for `I = &S` where `S: AsRef<[u8]> + ?Sized`.
-    /// - `Result<Uri<String>, ParseError<I>>` for `I = String` or `I = Vec<u8>`.
+    /// - `Result<Uri<&str>, ParseError>` for `I = &S` where `S: AsRef<str> + ?Sized`.
+    /// - `Result<Uri<String>, ParseError<String>>` for `I = String`.
     ///
-    /// You may recover the input [`String`] or [`Vec<u8>`] by
-    /// calling [`into_input`] on a [`ParseError`].
-    ///
-    /// [`into_input`]: ParseError::into_input
+    /// You may recover an input [`String`] by calling [`ParseError::into_input`].
     ///
     /// # Behavior
     ///
@@ -181,28 +178,15 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
     }
 
     /// Returns a string slice of the `Uri` between the given indexes.
-    ///
-    /// # Safety
-    ///
-    /// `start <= end <= self.len()` must hold.
     #[inline]
-    unsafe fn slice(&'i self, start: u32, end: u32) -> &'o str {
-        // SAFETY: The caller must uphold the safety contract.
-        // It is guaranteed that the bytes are ASCII,
-        // so the indexes are always on UTF-8 sequence boundaries.
-        unsafe { self.as_str().get_unchecked(start as usize..end as usize) }
+    fn slice(&'i self, start: u32, end: u32) -> &'o str {
+        &self.as_str()[start as usize..end as usize]
     }
 
     /// Returns an `EStr` slice of the `Uri` between the given indexes.
-    ///
-    /// # Safety
-    ///
-    /// `start <= end <= self.len()` must hold.
-    /// The subslice must be properly encoded.
     #[inline]
-    unsafe fn eslice(&'i self, start: u32, end: u32) -> &'o EStr {
-        // SAFETY: The caller must uphold the safety contract.
-        unsafe { EStr::new_unchecked(self.slice(start, end).as_bytes()) }
+    fn eslice(&'i self, start: u32, end: u32) -> &'o EStr {
+        EStr::new_validated(self.slice(start, end))
     }
 
     /// Returns the [scheme] component.
@@ -210,9 +194,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
     /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
     #[inline]
     pub fn scheme(&'i self) -> Option<&'o Scheme> {
-        // SAFETY: It is guaranteed that the indexing is safe.
-        self.scheme_end
-            .map(|i| Scheme::new(unsafe { self.slice(0, i.get()) }))
+        self.scheme_end.map(|i| Scheme::new(self.slice(0, i.get())))
     }
 
     /// Returns the [authority] component.
@@ -221,8 +203,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
     #[inline]
     pub fn authority(&self) -> Option<&Authority<T>> {
         if self.auth_meta.is_some() {
-            // SAFETY: We have checked that `auth_meta` is `Some`.
-            Some(unsafe { Authority::new(self) })
+            Some(Authority::new(self))
         } else {
             None
         }
@@ -233,8 +214,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
     /// [path]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
     #[inline]
     pub fn path(&'i self) -> &'o Path {
-        // SAFETY: It is guaranteed that the indexing is safe and the path is validated.
-        Path::new(unsafe { self.eslice(self.path_bounds.0, self.path_bounds.1) })
+        Path::new(self.eslice(self.path_bounds.0, self.path_bounds.1))
     }
 
     /// Returns the [query] component.
@@ -242,9 +222,8 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
     /// [query]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.4
     #[inline]
     pub fn query(&'i self) -> Option<&'o EStr> {
-        // SAFETY: It is guaranteed that the indexing is safe and the query is validated.
         self.query_end
-            .map(|i| unsafe { self.eslice(self.path_bounds.1 + 1, i.get()) })
+            .map(|i| self.eslice(self.path_bounds.1 + 1, i.get()))
     }
 
     #[inline]
@@ -261,9 +240,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
     /// [fragment]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.5
     #[inline]
     pub fn fragment(&'i self) -> Option<&'o EStr> {
-        // SAFETY: It is guaranteed that the indexing is safe and the fragment is validated.
-        self.fragment_start()
-            .map(|i| unsafe { self.eslice(i, self.len()) })
+        self.fragment_start().map(|i| self.eslice(i, self.len()))
     }
 
     /// Returns `true` if the URI reference is [relative], i.e., without a scheme.
@@ -457,19 +434,15 @@ pub struct Authority<T: Storage> {
 }
 
 impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
-    /// Converts from `&Uri<T>` to `&Authority<T>`.
-    ///
-    /// # Safety
-    ///
-    /// `uri.auth_meta` must be `Some`.
+    /// Converts from `&Uri<T>` to `&Authority<T>`,
+    /// assuming that authority is present.
     #[ref_cast_custom]
     #[inline]
-    unsafe fn new(uri: &Uri<T>) -> &Authority<T>;
+    fn new(uri: &Uri<T>) -> &Authority<T>;
 
     #[inline]
     fn meta(&self) -> &AuthMeta {
-        // SAFETY: `Authority::new` guarantees that `auth_meta` is `Some`.
-        unsafe { self.uri.auth_meta.as_ref().unwrap_unchecked() }
+        self.uri.auth_meta.as_ref().unwrap()
     }
 
     #[inline]
@@ -501,8 +474,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
     /// ```
     #[inline]
     pub fn as_str(&'i self) -> &'o str {
-        // SAFETY: It is guaranteed that the indexing is safe.
-        unsafe { self.uri.slice(self.start(), self.end()) }
+        self.uri.slice(self.start(), self.end())
     }
 
     /// Returns the [userinfo] subcomponent.
@@ -522,8 +494,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
     #[inline]
     pub fn userinfo(&'i self) -> Option<&'o EStr> {
         let (start, host_start) = (self.start(), self.host_bounds().0);
-        // SAFETY: It is guaranteed that the indexing is safe and the userinfo is validated.
-        (start != host_start).then(|| unsafe { self.uri.eslice(start, host_start - 1) })
+        (start != host_start).then(|| self.uri.eslice(start, host_start - 1))
     }
 
     /// Returns the [host] subcomponent.
@@ -563,8 +534,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
     #[inline]
     pub fn port(&'i self) -> Option<&'o str> {
         let (host_end, end) = (self.host_bounds().1, self.end());
-        // SAFETY: It is guaranteed that the indexing is safe.
-        (host_end != end).then(|| unsafe { self.uri.slice(host_end + 1, end) })
+        (host_end != end).then(|| self.uri.slice(host_end + 1, end))
     }
 
     /// Converts this authority to an iterator of resolved [`SocketAddr`]s.
@@ -606,7 +576,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
                         #[cfg(unix)]
                         {
                             let if_name = std::ffi::CString::new(zone_id).unwrap();
-                            // SAFETY: We are passing the C string correctly.
+                            // SAFETY: It is safe to pass a valid C string pointer to `if_nametoindex`.
                             let if_index = unsafe { libc::if_nametoindex(if_name.as_ptr()) };
                             if if_index == 0 {
                                 return Err(io::Error::last_os_error());
@@ -666,40 +636,40 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Host<T> {
     /// ```
     #[inline]
     pub fn as_str(&'i self) -> &'o str {
-        // SAFETY: It is guaranteed that the indexing is safe.
-        unsafe { self.auth.uri.slice(self.bounds().0, self.bounds().1) }
+        self.auth.uri.slice(self.bounds().0, self.bounds().1)
+    }
+
+    fn zone_id(&'i self) -> &'o str {
+        let (start, end) = self.bounds();
+        let addr = self.auth.uri.slice(start + 1, end - 1);
+        addr.rsplit_once('%').unwrap().1
     }
 
     /// Returns the parsed host component.
     pub fn parsed(&'i self) -> ParsedHost<'o> {
-        let _meta = self.meta();
-        let flags = self.auth.uri.flags;
-        if flags.contains(Flags::HOST_REG_NAME) {
-            // SAFETY: It is guaranteed that the registered name is validated.
-            ParsedHost::RegName(unsafe { EStr::new_unchecked(self.as_str().as_bytes()) })
-        } else if flags.contains(Flags::HOST_IPV4) {
-            ParsedHost::Ipv4(
-                // SAFETY: We have checked the flags.
-                #[cfg(feature = "std")]
-                unsafe {
-                    _meta.ipv4_addr
-                },
-            )
-        } else if flags.contains(Flags::HOST_IPV6) {
-            let zone_id = flags.contains(Flags::HAS_ZONE_ID).then(|| {
-                let (start, end) = self.bounds();
-                // SAFETY: It is guaranteed that the indexing is safe.
-                let addr = unsafe { self.auth.uri.slice(start + 1, end - 1) };
-                addr.rsplit_once('%').unwrap().1
-            });
-            ParsedHost::Ipv6 {
-                // SAFETY: We have checked the flags.
-                #[cfg(feature = "std")]
-                addr: unsafe { _meta.ipv6_addr },
-                zone_id,
-            }
-        } else {
-            ParsedHost::IpvFuture
+        #[cfg(feature = "std")]
+        match *self.meta() {
+            HostMeta::Ipv4(addr) => ParsedHost::Ipv4(addr),
+            HostMeta::Ipv6(addr) => ParsedHost::Ipv6 {
+                addr,
+                zone_id: None,
+            },
+            HostMeta::Ipv6Zoned(addr) => ParsedHost::Ipv6 {
+                addr,
+                zone_id: Some(self.zone_id()),
+            },
+            HostMeta::IpvFuture => ParsedHost::IpvFuture,
+            HostMeta::RegName => ParsedHost::RegName(EStr::new_validated(self.as_str())),
+        }
+        #[cfg(not(feature = "std"))]
+        match self.meta() {
+            HostMeta::Ipv4() => ParsedHost::Ipv4(),
+            HostMeta::Ipv6() => ParsedHost::Ipv6 { zone_id: None },
+            HostMeta::Ipv6Zoned() => ParsedHost::Ipv6 {
+                zone_id: Some(self.zone_id()),
+            },
+            HostMeta::IpvFuture => ParsedHost::IpvFuture,
+            HostMeta::RegName => ParsedHost::RegName(EStr::new_validated(self.as_str())),
         }
     }
 }
@@ -796,11 +766,12 @@ impl Path {
         if let Some(rest) = path.strip_prefix('/') {
             path = rest;
         }
-        // SAFETY: Stripping '/' leaves the path properly encoded.
-        let path = unsafe { EStr::new_unchecked(path.as_bytes()) };
+        let path = EStr::new_validated(path);
 
         let mut split = path.split('/');
-        split.finished = self.as_str().is_empty();
+        if self.as_str().is_empty() {
+            split.next();
+        }
         split
     }
 }
