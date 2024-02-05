@@ -33,7 +33,8 @@ macro_rules! err {
 ///
 /// # Invariants
 ///
-/// `mark <= pos <= len`, where `pos` is non-decreasing and `bytes[..pos]` is ASCII.
+/// `mark <= pos <= len`, where `pos` and `mark` are non-decreasing
+/// and `bytes[..pos]` is ASCII.
 ///
 /// # Preconditions and guarantees
 ///
@@ -95,7 +96,8 @@ impl<'a> Parser<'a> {
     }
 
     fn mark(&mut self) {
-        // INVARIANT: It holds that `mark <= pos`.
+        // INVARIANT: `mark` is non-decreasing as `pos` is.
+        // `mark <= pos` is preserved.
         self.mark = self.pos;
     }
 
@@ -103,9 +105,11 @@ impl<'a> Parser<'a> {
         self.pos - self.mark
     }
 
-    fn scan(&mut self, table: &Table) -> Result<()> {
+    // Returns `true` if any byte is read.
+    fn read(&mut self, table: &Table) -> Result<bool> {
+        let start = self.pos;
         if table.allows_enc() {
-            self.scan_enc(table, |_| {})
+            self.read_enc(table, |_| {})?;
         } else {
             let mut i = self.pos;
             while i < self.len() {
@@ -117,11 +121,11 @@ impl<'a> Parser<'a> {
             }
             // INVARIANT: `i` is non-decreasing and all bytes scanned are ASCII.
             self.pos = i;
-            Ok(())
         }
+        Ok(self.pos > start)
     }
 
-    fn scan_enc(&mut self, table: &Table, mut f: impl FnMut(u8)) -> Result<()> {
+    fn read_enc(&mut self, table: &Table, mut f: impl FnMut(u8)) -> Result<()> {
         let mut i = self.pos;
 
         while i < self.len() {
@@ -154,13 +158,6 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    // Returns `true` if any byte is read.
-    fn read(&mut self, table: &Table) -> Result<bool> {
-        let start = self.pos;
-        self.scan(table)?;
-        Ok(self.pos != start)
-    }
-
     // The string read must be ASCII.
     fn read_str(&mut self, s: &str) -> bool {
         if self.bytes[self.pos..].starts_with(s.as_bytes()) {
@@ -174,11 +171,11 @@ impl<'a> Parser<'a> {
 
     fn parse_from_scheme(&mut self) -> Result<()> {
         // Mark initially set to 0.
-        self.scan(SCHEME)?;
+        self.read(SCHEME)?;
 
         if self.peek(0) == Some(b':') {
             // Scheme starts with a letter.
-            if self.pos != 0 && self.get(0).is_ascii_alphabetic() {
+            if self.pos > 0 && self.get(0).is_ascii_alphabetic() {
                 self.out.scheme_end = NonZeroU32::new(self.pos as _);
             } else {
                 err!(0, UnexpectedChar);
@@ -212,7 +209,7 @@ impl<'a> Parser<'a> {
         let mut colon_cnt = 0;
 
         self.mark();
-        self.scan_enc(TABLE, |v| {
+        self.read_enc(TABLE, |v| {
             colon_cnt += (v & 1) as u32;
         })?;
 
@@ -280,7 +277,7 @@ impl<'a> Parser<'a> {
             // Here `pos` may decrease but will be restored later.
             self.pos = self.mark;
 
-            let v4 = self.scan_v4();
+            let v4 = self.read_v4();
             let meta = match v4 {
                 Some(_addr) if !self.has_remaining() => HostMeta::Ipv4(
                     #[cfg(feature = "std")]
@@ -318,7 +315,7 @@ impl<'a> Parser<'a> {
             return Ok(None);
         }
 
-        let meta = if let Some(_addr) = self.scan_v6() {
+        let meta = if let Some(_addr) = self.read_v6() {
             if self.read_zone_id()? {
                 HostMeta::Ipv6Zoned(
                     #[cfg(feature = "std")]
@@ -343,13 +340,13 @@ impl<'a> Parser<'a> {
         Ok(Some(meta))
     }
 
-    fn scan_v6(&mut self) -> Option<[u16; 8]> {
+    fn read_v6(&mut self) -> Option<[u16; 8]> {
         let mut segs = [0; 8];
         let mut ellipsis_i = 8;
 
         let mut i = 0;
         while i < 8 {
-            match self.scan_v6_segment() {
+            match self.read_v6_segment() {
                 Some(Seg::Normal(seg, colon)) => {
                     if colon == (i == 0 || i == ellipsis_i) {
                         // Preceding colon, triple colons, or no colon.
@@ -370,7 +367,7 @@ impl<'a> Parser<'a> {
                         // Not enough space, triple colons, or no colon.
                         return None;
                     }
-                    let octets = self.scan_v4()?.to_be_bytes();
+                    let octets = self.read_v4()?.to_be_bytes();
                     segs[i] = u16::from_be_bytes([octets[0], octets[1]]);
                     segs[i + 1] = u16::from_be_bytes([octets[2], octets[3]]);
                     i += 2;
@@ -401,7 +398,7 @@ impl<'a> Parser<'a> {
         Some(segs)
     }
 
-    fn scan_v6_segment(&mut self) -> Option<Seg> {
+    fn read_v6_segment(&mut self) -> Option<Seg> {
         let colon = self.read_str(":");
         if !self.has_remaining() {
             return if colon { Some(Seg::SingleColon) } else { None };
@@ -461,9 +458,9 @@ impl<'a> Parser<'a> {
 
     // The marked length must be zero when this method is called.
     fn read_v4_or_reg_name(&mut self) -> Result<HostMeta> {
-        let v4 = self.scan_v4();
+        let v4 = self.read_v4();
         let v4_end = self.pos;
-        self.scan(REG_NAME)?;
+        self.read(REG_NAME)?;
 
         Ok(match v4 {
             Some(_addr) if self.pos == v4_end => HostMeta::Ipv4(
@@ -474,18 +471,18 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn scan_v4(&mut self) -> Option<u32> {
-        let mut addr = self.scan_v4_octet()? << 24;
+    fn read_v4(&mut self) -> Option<u32> {
+        let mut addr = self.read_v4_octet()? << 24;
         for i in (0..3).rev() {
             if !self.read_str(".") {
                 return None;
             }
-            addr |= self.scan_v4_octet()? << (i * 8);
+            addr |= self.read_v4_octet()? << (i * 8);
         }
         Some(addr)
     }
 
-    fn scan_v4_octet(&mut self) -> Option<u32> {
+    fn read_v4_octet(&mut self) -> Option<u32> {
         let mut res = self.peek_digit(0)?;
         if res == 0 {
             // INVARIANT: Skipping "0" is fine.
@@ -551,7 +548,7 @@ impl<'a> Parser<'a> {
                 (start as _, self.pos as _)
             }
             PathKind::ContinuedNoScheme => {
-                self.scan(SEGMENT_NC)?;
+                self.read(SEGMENT_NC)?;
 
                 if self.peek(0) == Some(b':') {
                     // In a relative reference, the first path
@@ -559,7 +556,7 @@ impl<'a> Parser<'a> {
                     err!(self.pos, UnexpectedChar);
                 }
 
-                self.scan(PATH)?;
+                self.read(PATH)?;
                 (self.mark as _, self.pos as _)
             }
         };
