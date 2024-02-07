@@ -1,6 +1,6 @@
 use super::{encoder::Encoder, EStr};
 use alloc::string::String;
-use core::{borrow::Borrow, cmp::Ordering, fmt, hash, marker::PhantomData, ops::Deref};
+use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref};
 
 /// A percent-encoded, growable string.
 ///
@@ -78,7 +78,7 @@ impl<E: Encoder> EString<E> {
     /// Coerces to an `EStr`.
     #[inline]
     pub fn as_estr(&self) -> &EStr {
-        EStr::new_validated(&self.buf)
+        EStr::new(&self.buf)
     }
 
     /// Encodes a byte sequence and appends the result onto the end of this `EString`.
@@ -316,19 +316,5 @@ impl<E: Encoder> Ord for EString<E> {
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         self.inner.cmp(&other.inner)
-    }
-}
-
-impl<E: Encoder> fmt::Debug for EString<E> {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(&self.buf, f)
-    }
-}
-
-impl<E: Encoder> fmt::Display for EString<E> {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(&self.buf, f)
     }
 }

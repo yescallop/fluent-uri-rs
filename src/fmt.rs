@@ -1,5 +1,5 @@
 use crate::{
-    encoding::EStr,
+    encoding::{encoder::Encoder, EStr, EString},
     error::{ParseError, ParseErrorKind},
     internal::Storage,
     Authority, Host, Path, Scheme, Uri,
@@ -14,6 +14,20 @@ impl Debug for EStr {
 }
 
 impl Display for EStr {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        Display::fmt(self.as_str(), f)
+    }
+}
+
+impl<E: Encoder> Debug for EString<E> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        Debug::fmt(self.as_str(), f)
+    }
+}
+
+impl<E: Encoder> Display for EString<E> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         Display::fmt(self.as_str(), f)

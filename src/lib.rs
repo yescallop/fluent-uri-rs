@@ -190,7 +190,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
     /// Returns an `EStr` slice of the `Uri` between the given indexes.
     #[inline]
     fn eslice(&'i self, start: u32, end: u32) -> &'o EStr {
-        EStr::new_validated(self.slice(start, end))
+        EStr::new(self.slice(start, end))
     }
 
     /// Returns the [scheme] component.
@@ -655,7 +655,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Host<T> {
                 zone_id: Some(self.zone_id()),
             },
             HostMeta::IpvFuture => ParsedHost::IpvFuture,
-            HostMeta::RegName => ParsedHost::RegName(EStr::new_validated(self.as_str())),
+            HostMeta::RegName => ParsedHost::RegName(EStr::new(self.as_str())),
         }
         #[cfg(not(feature = "std"))]
         match self.meta() {
@@ -763,7 +763,7 @@ impl Path {
         if let Some(rest) = path.strip_prefix('/') {
             path = rest;
         }
-        let path = EStr::new_validated(path);
+        let path = EStr::new(path);
 
         let mut split = path.split('/');
         if self.as_str().is_empty() {

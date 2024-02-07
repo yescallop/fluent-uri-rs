@@ -4,7 +4,7 @@ use super::state::*;
 pub trait To<T> {}
 
 macro_rules! impl_to {
-    ($x:ty => $( $y:ty ),*) => {
+    ($x:ty => $($y:ty),*) => {
         $(
             impl To<$y> for $x {}
         )*

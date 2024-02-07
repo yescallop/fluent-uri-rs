@@ -37,94 +37,13 @@ pub struct EStr {
     inner: str,
 }
 
-impl AsRef<EStr> for EStr {
-    #[inline]
-    fn as_ref(&self) -> &EStr {
-        self
-    }
-}
-
-impl AsRef<str> for EStr {
-    #[inline]
-    fn as_ref(&self) -> &str {
-        &self.inner
-    }
-}
-
-impl AsRef<[u8]> for EStr {
-    #[inline]
-    fn as_ref(&self) -> &[u8] {
-        self.inner.as_bytes()
-    }
-}
-
-impl PartialEq for EStr {
-    #[inline]
-    fn eq(&self, other: &EStr) -> bool {
-        self.inner == other.inner
-    }
-}
-
-impl PartialEq<str> for EStr {
-    #[inline]
-    fn eq(&self, other: &str) -> bool {
-        &self.inner == other
-    }
-}
-
-impl PartialEq<EStr> for str {
-    #[inline]
-    fn eq(&self, other: &EStr) -> bool {
-        self == &other.inner
-    }
-}
-
-impl Eq for EStr {}
-
-impl hash::Hash for EStr {
-    #[inline]
-    fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        self.inner.hash(state)
-    }
-}
-
-/// Implements comparison operations on `EStr`s.
-///
-/// `EStr`s are compared [lexicographically](Ord#lexicographical-comparison) by their byte values.
-/// Normalization is **not** performed prior to comparison.
-impl PartialOrd for EStr {
-    #[inline]
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-/// Implements ordering on `EStr`s.
-///
-/// `EStr`s are ordered [lexicographically](Ord#lexicographical-comparison) by their byte values.
-/// Normalization is **not** performed prior to ordering.
-impl Ord for EStr {
-    #[inline]
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.inner.cmp(&other.inner)
-    }
-}
-
-impl Default for &EStr {
-    /// Creates an empty `EStr`.
-    #[inline]
-    fn default() -> Self {
-        EStr::new_validated("")
-    }
-}
-
 impl EStr {
     /// Converts a string slice to `EStr`.
     ///
     /// Returns `Err` if the string is not properly encoded.
     pub const fn from_encoded(s: &str) -> Result<&EStr, EncodingError> {
         match imp::validate_estr(s.as_bytes()) {
-            Ok(_) => Ok(EStr::new_validated(s)),
+            Ok(_) => Ok(EStr::new(s)),
             Err(e) => Err(e),
         }
     }
@@ -132,7 +51,7 @@ impl EStr {
     /// Converts a string slice to `EStr` assuming validity.
     #[ref_cast_custom]
     #[inline]
-    pub(crate) const fn new_validated(s: &str) -> &EStr;
+    pub(crate) const fn new(s: &str) -> &EStr;
 
     /// Yields the underlying string slice.
     #[inline]
@@ -219,7 +138,88 @@ impl EStr {
         );
         self.inner
             .split_once(delim)
-            .map(|(a, b)| (EStr::new_validated(a), EStr::new_validated(b)))
+            .map(|(a, b)| (EStr::new(a), EStr::new(b)))
+    }
+}
+
+impl AsRef<EStr> for EStr {
+    #[inline]
+    fn as_ref(&self) -> &EStr {
+        self
+    }
+}
+
+impl AsRef<str> for EStr {
+    #[inline]
+    fn as_ref(&self) -> &str {
+        &self.inner
+    }
+}
+
+impl AsRef<[u8]> for EStr {
+    #[inline]
+    fn as_ref(&self) -> &[u8] {
+        self.inner.as_bytes()
+    }
+}
+
+impl PartialEq for EStr {
+    #[inline]
+    fn eq(&self, other: &EStr) -> bool {
+        self.inner == other.inner
+    }
+}
+
+impl PartialEq<str> for EStr {
+    #[inline]
+    fn eq(&self, other: &str) -> bool {
+        &self.inner == other
+    }
+}
+
+impl PartialEq<EStr> for str {
+    #[inline]
+    fn eq(&self, other: &EStr) -> bool {
+        self == &other.inner
+    }
+}
+
+impl Eq for EStr {}
+
+impl hash::Hash for EStr {
+    #[inline]
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        self.inner.hash(state)
+    }
+}
+
+/// Implements comparison operations on `EStr`s.
+///
+/// `EStr`s are compared [lexicographically](Ord#lexicographical-comparison) by their byte values.
+/// Normalization is **not** performed prior to comparison.
+impl PartialOrd for EStr {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+/// Implements ordering on `EStr`s.
+///
+/// `EStr`s are ordered [lexicographically](Ord#lexicographical-comparison) by their byte values.
+/// Normalization is **not** performed prior to ordering.
+impl Ord for EStr {
+    #[inline]
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.inner.cmp(&other.inner)
+    }
+}
+
+impl Default for &EStr {
+    /// Creates an empty `EStr`.
+    #[inline]
+    fn default() -> Self {
+        EStr::new("")
     }
 }
 
@@ -283,7 +283,7 @@ impl<'a> Iterator for Split<'a> {
 
     #[inline]
     fn next(&mut self) -> Option<&'a EStr> {
-        self.inner.next().map(EStr::new_validated)
+        self.inner.next().map(EStr::new)
     }
 
     #[inline]
@@ -295,7 +295,7 @@ impl<'a> Iterator for Split<'a> {
 impl<'a> DoubleEndedIterator for Split<'a> {
     #[inline]
     fn next_back(&mut self) -> Option<&'a EStr> {
-        self.inner.next_back().map(EStr::new_validated)
+        self.inner.next_back().map(EStr::new)
     }
 }
 
