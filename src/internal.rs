@@ -162,18 +162,19 @@ impl<T: Storage> ops::DerefMut for Uri<T> {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct AuthMeta {
     pub start: u32,
     pub host_bounds: (u32, u32),
     pub host_meta: HostMeta,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub enum HostMeta {
     Ipv4(#[cfg(feature = "std")] Ipv4Addr),
     Ipv6(#[cfg(feature = "std")] Ipv6Addr),
     Ipv6Zoned(#[cfg(feature = "std")] Ipv6Addr),
     IpvFuture,
+    #[default]
     RegName,
 }

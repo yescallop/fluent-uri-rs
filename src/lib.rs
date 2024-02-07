@@ -3,7 +3,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
-//! An [RFC 3986] compliant generic URI parser.
+//! An [RFC 3986] compliant generic URI parser and builder.
 //!
 //! [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
 //!
@@ -18,16 +18,19 @@
 //!
 //! [`Error`]: std::error::Error
 
-/// Percent-encoding utilities.
+pub mod builder;
 pub mod encoding;
 mod error;
 mod fmt;
 mod internal;
 mod parser;
 
+pub use error::ParseError;
+
 extern crate alloc;
 
 use alloc::{borrow::ToOwned, string::String};
+use builder::UriBuilder;
 use core::{
     borrow::Borrow,
     cmp::Ordering,
@@ -43,8 +46,6 @@ use std::{
     io,
     net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV6, ToSocketAddrs},
 };
-
-pub use error::ParseError;
 
 /// A [URI reference] defined in RFC 3986.
 ///
@@ -143,9 +144,15 @@ impl Uri<&str> {
 }
 
 impl Uri<String> {
-    /// Borrows this `Uri<String>` as `Uri<&str>`.
+    /// Creates a new builder for URI reference.
     #[inline]
+    pub fn builder() -> UriBuilder {
+        UriBuilder::new()
+    }
+
+    /// Borrows this `Uri<String>` as `Uri<&str>`.
     #[allow(clippy::should_implement_trait)]
+    #[inline]
     pub fn borrow(&self) -> Uri<&str> {
         Uri {
             storage: &self.storage,
@@ -309,9 +316,9 @@ impl<T: Storage> hash::Hash for Uri<T> {
 ///
 /// `Uri`s are compared [lexicographically](Ord#lexicographical-comparison) by their byte values.
 /// Normalization is **not** performed prior to comparison.
-impl<T: Storage, U: Storage> PartialOrd<Uri<U>> for Uri<T> {
+impl<T: Storage> PartialOrd for Uri<T> {
     #[inline]
-    fn partial_cmp(&self, other: &Uri<U>) -> Option<Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.as_str().cmp(other.as_str()))
     }
 }
@@ -366,8 +373,6 @@ pub struct Scheme {
     inner: str,
 }
 
-const ASCII_CASE_MASK: u8 = 0b010_0000;
-
 impl Scheme {
     #[ref_cast_custom]
     #[inline]
@@ -414,6 +419,8 @@ impl Scheme {
     /// ```
     #[inline]
     pub fn eq_lowercase(&self, other: &str) -> bool {
+        const ASCII_CASE_MASK: u8 = 0b0010_0000;
+
         let (a, b) = (self.inner.as_bytes(), other.as_bytes());
         // The only characters allowed in a scheme are alphabets, digits, "+", "-" and ".",
         // the ASCII codes of which allow us to simply set the sixth bit and compare.
@@ -683,6 +690,7 @@ pub enum ParsedHost<'a> {
         zone_id: Option<&'a str>,
     },
     /// An IP address of future version.
+    #[non_exhaustive]
     IpvFuture,
     /// A registered name.
     RegName(&'a EStr),

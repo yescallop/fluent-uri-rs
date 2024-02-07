@@ -5,10 +5,24 @@
 //!
 //! [RFC 2234]: https://datatracker.ietf.org/doc/html/rfc2234/
 
+use alloc::string::String;
+
+const fn gen_hex_table() -> [u8; 512] {
+    const HEX_DIGITS: &[u8; 16] = b"0123456789ABCDEF";
+
+    let mut i = 0;
+    let mut out = [0; 512];
+    while i < 256 {
+        out[i * 2] = HEX_DIGITS[i >> 4];
+        out[i * 2 + 1] = HEX_DIGITS[i & 0b1111];
+        i += 1;
+    }
+    out
+}
+
+const HEX_TABLE: &[u8; 512] = &gen_hex_table();
+
 /// A table determining the byte patterns allowed in a string.
-///
-/// It is guaranteed that the unencoded bytes allowed are ASCII and that
-/// an unencoded `%` is not allowed.
 #[derive(Clone, Copy, Debug)]
 pub struct Table {
     arr: [u8; 256],
@@ -54,6 +68,37 @@ impl Table {
         self
     }
 
+    /// Subtracts from this table.
+    ///
+    /// Returns a new table that allows all the byte patterns allowed
+    /// by `self` but not allowed by `other`.
+    pub const fn sub(mut self, other: &Table) -> Table {
+        let mut i = 0;
+        while i < 128 {
+            if other.arr[i] != 0 {
+                self.arr[i] = 0;
+            }
+            i += 1;
+        }
+        if other.allows_enc {
+            self.allows_enc = false;
+        }
+        self
+    }
+
+    /// Returns `true` if the table is a subset of another, i.e., `other`
+    /// allows at least all the byte patterns allowed by `self`.
+    pub const fn is_subset(&self, other: &Table) -> bool {
+        let mut i = 0;
+        while i < 128 {
+            if self.arr[i] != 0 && other.arr[i] == 0 {
+                return false;
+            }
+            i += 1;
+        }
+        !self.allows_enc || other.allows_enc
+    }
+
     /// Shifts the table values left.
     pub(crate) const fn shl(mut self, n: u8) -> Table {
         let mut i = 0;
@@ -80,6 +125,51 @@ impl Table {
     #[inline]
     pub const fn allows_enc(&self) -> bool {
         self.allows_enc
+    }
+
+    #[inline]
+    pub(crate) fn encode(&self, x: u8, buf: &mut String) {
+        if self.allows(x) {
+            buf.push(x as char);
+        } else {
+            buf.push('%');
+            buf.push(HEX_TABLE[x as usize * 2] as char);
+            buf.push(HEX_TABLE[x as usize * 2 + 1] as char);
+        }
+    }
+
+    /// Validates the given byte sequence with the table.
+    pub(crate) const fn validate(&self, s: &[u8]) -> bool {
+        let mut i = 0;
+        if !self.allows_enc() {
+            while i < s.len() {
+                if !self.allows(s[i]) {
+                    return false;
+                }
+                i += 1;
+            }
+        } else {
+            while i < s.len() {
+                let x = s[i];
+                if x == b'%' {
+                    if i + 2 >= s.len() {
+                        return false;
+                    }
+                    let (hi, lo) = (s[i + 1], s[i + 2]);
+
+                    if !hi.is_ascii_hexdigit() || !lo.is_ascii_hexdigit() {
+                        return false;
+                    }
+                    i += 3;
+                } else {
+                    if !self.allows(x) {
+                        return false;
+                    }
+                    i += 1;
+                }
+            }
+        }
+        true
     }
 }
 
@@ -135,4 +225,4 @@ pub const PATH: &Table = &PCHAR.or(&gen(b"/"));
 pub const QUERY_FRAGMENT: &Table = &PCHAR.or(&gen(b"/?"));
 
 /// ZoneID = 1*( unreserved )
-pub const ZONE_ID: &Table = UNRESERVED;
+pub(crate) const ZONE_ID: &Table = UNRESERVED;

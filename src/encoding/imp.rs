@@ -1,24 +1,25 @@
+use super::EncodingError;
 use alloc::vec::Vec;
 
-pub(super) const fn validate(s: &[u8]) -> bool {
+pub(crate) const fn validate_estr(s: &[u8]) -> Result<(), EncodingError> {
     let mut i = 0;
     while i < s.len() {
         let x = s[i];
         if x == b'%' {
             if i + 2 >= s.len() {
-                return false;
+                return Err(EncodingError { index: i });
             }
             let (hi, lo) = (s[i + 1], s[i + 2]);
 
             if !hi.is_ascii_hexdigit() || !lo.is_ascii_hexdigit() {
-                return false;
+                return Err(EncodingError { index: i });
             }
             i += 3;
         } else {
             i += 1;
         }
     }
-    true
+    Ok(())
 }
 
 const fn gen_octet_table(hi: bool) -> [u8; 256] {
@@ -48,7 +49,7 @@ fn decode_octet(hi: u8, lo: u8) -> u8 {
 }
 
 /// Decodes a percent-encoded string, assuming that the string is properly encoded.
-pub(super) fn decode(s: &[u8]) -> Option<Vec<u8>> {
+pub(crate) fn decode(s: &[u8]) -> Option<Vec<u8>> {
     // Skip bytes that are not '%'.
     let mut i = match s.iter().position(|&x| x == b'%') {
         Some(i) => i,

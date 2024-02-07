@@ -1,3 +1,5 @@
+use alloc::string::String;
+
 /// Detailed cause of a [`ParseError`].
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ParseErrorKind {

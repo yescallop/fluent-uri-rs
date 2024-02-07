@@ -1,19 +1,47 @@
+//! Percent-encoding utilities.
+
+pub mod encoder;
+mod estring;
 pub(crate) mod imp;
-pub(crate) mod table;
+pub mod table;
 
 use alloc::{
     borrow::Cow,
     string::{FromUtf8Error, String},
     vec::Vec,
 };
-use core::{borrow::Borrow, cmp::Ordering, hash, iter::FusedIterator, str};
+use core::{cmp::Ordering, fmt, hash, iter::FusedIterator, str};
 use ref_cast::{ref_cast_custom, RefCastCustom};
+
+pub use estring::EString;
+
+/// An error occurred when validating percent-encoded strings.
+#[derive(Clone, Copy, Debug)]
+pub struct EncodingError {
+    index: usize,
+}
+
+impl fmt::Display for EncodingError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid percent-encoded octet at index {}", self.index)
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for EncodingError {}
 
 /// Percent-encoded string slices.
 #[derive(RefCastCustom)]
 #[repr(transparent)]
 pub struct EStr {
     inner: str,
+}
+
+impl AsRef<EStr> for EStr {
+    #[inline]
+    fn as_ref(&self) -> &EStr {
+        self
+    }
 }
 
 impl AsRef<str> for EStr {
@@ -27,13 +55,6 @@ impl AsRef<[u8]> for EStr {
     #[inline]
     fn as_ref(&self) -> &[u8] {
         self.inner.as_bytes()
-    }
-}
-
-impl Borrow<str> for &EStr {
-    #[inline]
-    fn borrow(&self) -> &str {
-        &self.inner
     }
 }
 
@@ -80,8 +101,8 @@ impl PartialOrd for EStr {
 
 /// Implements ordering on `EStr`s.
 ///
-/// `EStr`s are compared [lexicographically](Ord#lexicographical-comparison) by their byte values.
-/// Normalization is **not** performed prior to comparison.
+/// `EStr`s are ordered [lexicographically](Ord#lexicographical-comparison) by their byte values.
+/// Normalization is **not** performed prior to ordering.
 impl Ord for EStr {
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
@@ -100,13 +121,11 @@ impl Default for &EStr {
 impl EStr {
     /// Converts a string slice to `EStr`.
     ///
-    /// Returns `None` if the string is not properly encoded.
-    #[inline]
-    pub const fn new(s: &str) -> Option<&EStr> {
-        if imp::validate(s.as_bytes()) {
-            Some(EStr::new_validated(s))
-        } else {
-            None
+    /// Returns `Err` if the string is not properly encoded.
+    pub const fn from_encoded(s: &str) -> Result<&EStr, EncodingError> {
+        match imp::validate_estr(s.as_bytes()) {
+            Ok(_) => Ok(EStr::new_validated(s)),
+            Err(e) => Err(e),
         }
     }
 
@@ -130,7 +149,7 @@ impl EStr {
     /// ```
     /// use fluent_uri::encoding::EStr;
     ///
-    /// let dec = EStr::new("%C2%A1Hola%21").unwrap().decode();
+    /// let dec = EStr::from_encoded("%C2%A1Hola%21").unwrap().decode();
     /// assert_eq!(dec.as_bytes(), &[0xc2, 0xa1, 0x48, 0x6f, 0x6c, 0x61, 0x21]);
     /// assert_eq!(dec.into_string()?, "¡Hola!");
     /// # Ok::<_, std::string::FromUtf8Error>(())
@@ -156,8 +175,8 @@ impl EStr {
     /// ```
     /// use fluent_uri::encoding::EStr;
     ///
-    /// assert!(EStr::new("a,b,c").unwrap().split(',').eq(["a", "b", "c"]));
-    /// assert!(EStr::new(",").unwrap().split(',').eq(["", ""]));
+    /// assert!(EStr::from_encoded("a,b,c").unwrap().split(',').eq(["a", "b", "c"]));
+    /// assert!(EStr::from_encoded(",").unwrap().split(',').eq(["", ""]));
     /// ```
     #[inline]
     pub fn split(&self, delim: char) -> Split<'_> {
@@ -186,11 +205,11 @@ impl EStr {
     /// ```
     /// use fluent_uri::encoding::EStr;
     ///
-    /// let (k, v) = EStr::new("key=value").unwrap().split_once('=').unwrap();
+    /// let (k, v) = EStr::from_encoded("key=value").unwrap().split_once('=').unwrap();
     /// assert_eq!(k, "key");
     /// assert_eq!(v, "value");
     ///
-    /// assert!(EStr::new("abc").unwrap().split_once(';').is_none());
+    /// assert!(EStr::from_encoded("abc").unwrap().split_once(';').is_none());
     /// ```
     #[inline]
     pub fn split_once(&self, delim: char) -> Option<(&EStr, &EStr)> {
@@ -238,7 +257,7 @@ impl<'a> Decode<'a> {
 
     /// Converts the decoded bytes to a string.
     ///
-    /// An error is returned if the decoded bytes are not valid UTF-8.
+    /// Returns `Err` if the decoded bytes are not valid UTF-8.
     #[inline]
     pub fn into_string(self) -> Result<Cow<'a, str>, FromUtf8Error> {
         match self {

@@ -3,7 +3,7 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 use fluent_uri::{encoding::EStr, *};
 
 fn new_estr(s: &str) -> &EStr {
-    EStr::new(s).unwrap()
+    EStr::from_encoded(s).unwrap()
 }
 
 #[test]
@@ -171,7 +171,7 @@ fn parse_absolute() {
     assert_eq!(a.as_str(), "[vFe.foo.bar]");
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host().as_str(), "[vFe.foo.bar]");
-    assert_eq!(a.host().parsed(), ParsedHost::IpvFuture);
+    assert!(matches!(a.host().parsed(), ParsedHost::IpvFuture { .. }));
     assert_eq!(a.port(), None);
     assert_eq!(u.path().as_str(), "");
     assert!(u.path().segments().eq(None::<&str>));
