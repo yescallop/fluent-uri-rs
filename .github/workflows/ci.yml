@@ -1,0 +1,26 @@
+on:
+  push:
+    branches: ["main"]
+
+name: CI
+
+jobs:
+  test-and-doc:
+    name: Test & Doc
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+      - name: Test with default features
+        run: cargo test
+      - name: Build with no features
+        run: cargo build --no-default-features
+      - name: Build docs
+        run: cargo rustdoc --no-deps -- --cfg docsrs
+      - name: Deploy docs
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./target/doc
+          publish_branch: doc
