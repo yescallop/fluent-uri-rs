@@ -1,19 +1,20 @@
 use crate::{
+    component::{Authority, Scheme},
     encoding::{encoder::Encoder, EStr, EString},
     error::{ParseError, ParseErrorKind},
     internal::Storage,
-    Authority, Host, Path, Scheme, Uri,
+    Uri,
 };
 use core::fmt::{Debug, Display, Formatter, Result};
 
-impl Debug for EStr {
+impl<E: Encoder> Debug for EStr<E> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         Debug::fmt(self.as_str(), f)
     }
 }
 
-impl Display for EStr {
+impl<E: Encoder> Display for EStr<E> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         Display::fmt(self.as_str(), f)
@@ -91,43 +92,13 @@ impl<T: Storage> Debug for Authority<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_struct("Authority")
             .field("userinfo", &self.userinfo())
-            .field("host", &self.host())
+            .field("host", &self.host_as_str())
             .field("port", &self.port())
             .finish()
     }
 }
 
 impl<T: Storage> Display for Authority<T> {
-    #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        Display::fmt(self.as_str(), f)
-    }
-}
-
-impl<T: Storage> Debug for Host<T> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        f.debug_struct("Host")
-            .field("value", &self.as_str())
-            .field("parsed", &self.parsed())
-            .finish()
-    }
-}
-
-impl<T: Storage> Display for Host<T> {
-    #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        Display::fmt(self.as_str(), f)
-    }
-}
-
-impl Debug for Path {
-    #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        Debug::fmt(self.as_str(), f)
-    }
-}
-
-impl Display for Path {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         Display::fmt(self.as_str(), f)

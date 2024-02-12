@@ -95,7 +95,7 @@ pub trait ToUri {
 
 #[cold]
 fn len_overflow() -> ! {
-    panic!("input length > i32::MAX");
+    panic!("input length > u32::MAX");
 }
 
 impl<'a, S: AsRef<str> + ?Sized> ToUri for &'a S {
@@ -105,7 +105,7 @@ impl<'a, S: AsRef<str> + ?Sized> ToUri for &'a S {
     #[inline]
     fn to_uri(self) -> Result<Uri<Self::Storage>, Self::Err> {
         let s = self.as_ref();
-        if s.len() > i32::MAX as usize {
+        if s.len() > u32::MAX as usize {
             len_overflow();
         }
 
@@ -120,7 +120,7 @@ impl ToUri for String {
 
     #[inline]
     fn to_uri(self) -> Result<Uri<Self::Storage>, Self::Err> {
-        if self.len() > i32::MAX as usize {
+        if self.len() > u32::MAX as usize {
             len_overflow();
         }
 

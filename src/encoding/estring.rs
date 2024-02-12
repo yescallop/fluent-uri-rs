@@ -1,13 +1,8 @@
 use super::{encoder::Encoder, EStr};
-use alloc::string::String;
+use alloc::{borrow::ToOwned, string::String};
 use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref};
 
 /// A percent-encoded, growable string.
-///
-/// # Panics
-///
-/// This struct triggers a compile-time panic if the table specified
-/// by `E` does not allow percent-encoding.
 ///
 /// # Examples
 ///
@@ -15,58 +10,69 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 ///
 /// ```
 /// use fluent_uri::encoding::{
-///     encoder::{Encoder, QueryEncoder},
+///     encoder::{Encoder, Query},
 ///     table::{self, Table},
 ///     EString,
 /// };
 ///
-/// struct DataEncoder;
+/// struct QueryData;
 ///
-/// impl Encoder for DataEncoder {
-///     const TABLE: &'static Table = &table::QUERY_FRAGMENT.sub(&Table::gen(b"&=+"));
+/// impl Encoder for QueryData {
+///     const TABLE: &'static Table = &table::QUERY.sub(&Table::gen(b"&=+"));
 /// }
 ///
 /// let pairs = [("name", "张三"), ("speech", "¡Olé!")];
-/// let mut buf = EString::<QueryEncoder>::new();
+/// let mut buf = EString::<Query>::new();
 /// for (k, v) in pairs {
 ///     if !buf.is_empty() {
 ///         buf.push_byte(b'&');
 ///     }
-///     buf.push_with::<DataEncoder>(k);
+///     buf.push_with::<QueryData>(k);
 ///     buf.push_byte(b'=');
-///     buf.push_with::<DataEncoder>(v);
+///     buf.push_with::<QueryData>(v);
 /// }
 ///
 /// assert_eq!(buf, "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9!");
 /// ```
 #[derive(Clone, Default)]
 pub struct EString<E: Encoder> {
-    buf: String,
+    pub(crate) buf: String,
     encoder: PhantomData<E>,
 }
 
+impl<E: Encoder> Deref for EString<E> {
+    type Target = EStr<E>;
+
+    #[inline]
+    fn deref(&self) -> &EStr<E> {
+        EStr::new_validated(&self.buf)
+    }
+}
+
 impl<E: Encoder> EString<E> {
-    const ASSERT: () = assert!(
+    const ASSERT_ALLOWS_ENC: () = assert!(
         E::TABLE.allows_enc(),
         "table does not allow percent-encoding"
     );
 
-    /// Creates a new empty `EString`.
     #[inline]
-    pub fn new() -> Self {
+    pub(crate) const fn new_validated(buf: String) -> Self {
         EString {
-            buf: String::new(),
+            buf,
             encoder: PhantomData,
         }
+    }
+
+    /// Creates a new empty `EString`.
+    #[inline]
+    pub const fn new() -> Self {
+        Self::new_validated(String::new())
     }
 
     /// Creates a new empty `EString` with a particular capacity.
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
-        EString {
-            buf: String::with_capacity(capacity),
-            encoder: PhantomData,
-        }
+        Self::new_validated(String::with_capacity(capacity))
     }
 
     /// Consumes this `EString` and yields the underlying `String` storage.
@@ -75,15 +81,22 @@ impl<E: Encoder> EString<E> {
         self.buf
     }
 
-    /// Coerces to an `EStr`.
+    /// Coerces to an `EStr` slice.
     #[inline]
-    pub fn as_estr(&self) -> &EStr {
-        EStr::new(&self.buf)
+    pub fn as_estr(&self) -> &EStr<E> {
+        self
     }
 
     /// Encodes a byte sequence and appends the result onto the end of this `EString`.
+    ///
+    /// # Panics
+    ///
+    /// Panics at compile time if the table specified
+    /// by `E` does not allow percent-encoding.
     #[inline]
     pub fn push<S: AsRef<[u8]> + ?Sized>(&mut self, s: &S) {
+        let _ = Self::ASSERT_ALLOWS_ENC;
+
         for &x in s.as_ref() {
             E::TABLE.encode(x, &mut self.buf)
         }
@@ -97,7 +110,7 @@ impl<E: Encoder> EString<E> {
     ///
     /// # Panics
     ///
-    /// This method triggers a compile-time panic if `SubE` is not a sub-encoder of `E`, or
+    /// Panics at compile time if `SubE` is not a sub-encoder of `E`, or
     /// if the table specified by `SubE` does not allow percent-encoding.
     #[inline]
     pub fn push_with<SubE: Encoder>(&mut self, s: &(impl AsRef<[u8]> + ?Sized)) {
@@ -110,7 +123,8 @@ impl<E: Encoder> EString<E> {
                 "pushing with non-sub-encoder"
             );
         }
-        let _ = (Assert::<SubE, E>::IS_SUB_ENCODER, EString::<SubE>::ASSERT);
+        let _ = Assert::<SubE, E>::IS_SUB_ENCODER;
+        let _ = EString::<SubE>::ASSERT_ALLOWS_ENC;
 
         for &x in s.as_ref() {
             SubE::TABLE.encode(x, &mut self.buf)
@@ -118,9 +132,20 @@ impl<E: Encoder> EString<E> {
     }
 
     /// Encodes a byte and appends the result onto the end of this `EString`.
+    ///
+    /// # Panics
+    ///
+    /// Panics at compile time if the table specified
+    /// by `E` does not allow percent-encoding.
     #[inline]
     pub fn push_byte(&mut self, x: u8) {
         E::TABLE.encode(x, &mut self.buf)
+    }
+
+    /// Appends an `EStr` slice onto the end of this `EString`.
+    #[inline]
+    pub fn push_encoded(&mut self, s: &EStr<E>) {
+        self.buf.push_str(s.as_str())
     }
 
     /// Invokes [`capacity`] on the underlying `String`.
@@ -188,19 +213,10 @@ impl<E: Encoder> EString<E> {
     }
 }
 
-impl<E: Encoder> Deref for EString<E> {
-    type Target = EStr;
-
+impl<E: Encoder> AsRef<EStr<E>> for EString<E> {
     #[inline]
-    fn deref(&self) -> &EStr {
-        self.as_estr()
-    }
-}
-
-impl<E: Encoder> AsRef<EStr> for EString<E> {
-    #[inline]
-    fn as_ref(&self) -> &EStr {
-        self.as_estr()
+    fn as_ref(&self) -> &EStr<E> {
+        self
     }
 }
 
@@ -218,10 +234,17 @@ impl<E: Encoder> AsRef<[u8]> for EString<E> {
     }
 }
 
-impl<E: Encoder> Borrow<EStr> for EString<E> {
+impl<E: Encoder> Borrow<EStr<E>> for EString<E> {
     #[inline]
-    fn borrow(&self) -> &EStr {
-        self.as_estr()
+    fn borrow(&self) -> &EStr<E> {
+        self
+    }
+}
+
+impl<E: Encoder> From<&EStr<E>> for EString<E> {
+    #[inline]
+    fn from(value: &EStr<E>) -> Self {
+        value.to_owned()
     }
 }
 
@@ -232,28 +255,28 @@ impl<E: Encoder, F: Encoder> PartialEq<EString<F>> for EString<E> {
     }
 }
 
-impl<E: Encoder> PartialEq<EStr> for EString<E> {
+impl<E: Encoder, F: Encoder> PartialEq<EStr<F>> for EString<E> {
     #[inline]
-    fn eq(&self, other: &EStr) -> bool {
+    fn eq(&self, other: &EStr<F>) -> bool {
         self.as_str() == other.as_str()
     }
 }
 
-impl<E: Encoder> PartialEq<EString<E>> for EStr {
+impl<E: Encoder, F: Encoder> PartialEq<EString<E>> for EStr<F> {
     #[inline]
     fn eq(&self, other: &EString<E>) -> bool {
         self.as_str() == other.as_str()
     }
 }
 
-impl<E: Encoder> PartialEq<&EStr> for EString<E> {
+impl<E: Encoder, F: Encoder> PartialEq<&EStr<F>> for EString<E> {
     #[inline]
-    fn eq(&self, other: &&EStr) -> bool {
+    fn eq(&self, other: &&EStr<F>) -> bool {
         self.as_str() == other.as_str()
     }
 }
 
-impl<E: Encoder> PartialEq<EString<E>> for &EStr {
+impl<E: Encoder, F: Encoder> PartialEq<EString<E>> for &EStr<F> {
     #[inline]
     fn eq(&self, other: &EString<E>) -> bool {
         self.as_str() == other.as_str()
@@ -297,10 +320,6 @@ impl<E: Encoder> hash::Hash for EString<E> {
     }
 }
 
-/// Implements comparison operations on `EString`s.
-///
-/// `EString`s are compared [lexicographically](Ord#lexicographical-comparison) by their byte values.
-/// Normalization is **not** performed prior to comparison.
 impl<E: Encoder> PartialOrd for EString<E> {
     #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {

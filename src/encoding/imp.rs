@@ -1,26 +1,4 @@
-use super::EncodingError;
 use alloc::vec::Vec;
-
-pub(crate) const fn validate_estr(s: &[u8]) -> Result<(), EncodingError> {
-    let mut i = 0;
-    while i < s.len() {
-        let x = s[i];
-        if x == b'%' {
-            if i + 2 >= s.len() {
-                return Err(EncodingError { index: i });
-            }
-            let (hi, lo) = (s[i + 1], s[i + 2]);
-
-            if !hi.is_ascii_hexdigit() || !lo.is_ascii_hexdigit() {
-                return Err(EncodingError { index: i });
-            }
-            i += 3;
-        } else {
-            i += 1;
-        }
-    }
-    Ok(())
-}
 
 const fn gen_octet_table(hi: bool) -> [u8; 256] {
     let mut out = [0xff; 256];

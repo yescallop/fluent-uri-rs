@@ -1,3 +1,4 @@
+#![allow(clippy::let_unit_value)]
 #![warn(missing_debug_implementations, missing_docs, rust_2018_idioms)]
 #![forbid(unsafe_code)]
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -11,41 +12,38 @@
 //!
 //! # Feature flags
 //!
-//! - `std`: Enables `std` support (by default).
-//!
-//!   This includes [`Error`] implementations, `Ip{v4, v6}Addr` support in [`ParsedHost`],
-//!   and [`Authority::to_socket_addrs`].
+//! - `std` (default): Enables [`std`] support.
+//!   This includes [`Error`] implementations and [`std::net`] support.
 //!
 //! [`Error`]: std::error::Error
+//! [`Host`]: component::Host
 
-pub mod builder;
+mod builder;
+pub mod component;
 pub mod encoding;
 mod error;
 mod fmt;
 mod internal;
 mod parser;
 
+pub use builder::Builder;
 pub use error::ParseError;
 
 extern crate alloc;
 
 use alloc::{borrow::ToOwned, string::String};
-use builder::UriBuilder;
+use component::{Authority, Scheme};
 use core::{
     borrow::Borrow,
     cmp::Ordering,
-    hash, iter,
+    hash,
     str::{self, FromStr},
 };
-use encoding::{EStr, Split};
-use internal::{AuthMeta, HostMeta, Meta, Storage, StorageHelper, ToUri};
-use ref_cast::{ref_cast_custom, RefCastCustom};
-
-#[cfg(feature = "std")]
-use std::{
-    io,
-    net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV6, ToSocketAddrs},
+use encoding::{
+    encoder::{Encoder, Fragment, Path, Query},
+    EStr,
 };
+use internal::{Meta, Storage, StorageHelper, ToUri};
 
 /// A [URI reference] defined in RFC 3986.
 ///
@@ -53,32 +51,32 @@ use std::{
 ///
 /// # Variants
 ///
-/// Two variants of `Uri` are available: `Uri<&str>` and `Uri<String>`.
+/// Two variants of `Uri` are available: `Uri<String>` (owned) and `Uri<&str>` (borrowed).
 ///
 /// `Uri<&'a str>` outputs references with lifetime `'a` where possible:
 ///
 /// ```
 /// use fluent_uri::Uri;
 ///
-/// // Drop a temporary `Uri` while keeping the reference to path.
+/// // Drop a temporary `Uri` while keeping the reference to the path.
 /// let path = Uri::parse("foo:bar")?.path();
-/// assert_eq!(path.as_str(), "bar");
+/// assert_eq!(path, "bar");
 /// # Ok::<_, fluent_uri::ParseError>(())
 /// ```
 ///
 /// # Examples
 ///
-/// Create and convert between `Uri<&str>` and `Uri<String>`:
+/// Parse into and convert between `Uri<&str>` and `Uri<String>`:
 ///
 /// ```
 /// use fluent_uri::Uri;
 ///
-/// let s = "http://example.com/";
+/// let s = "foo://user@example.com:8042/over/there?name=ferret#nose";
 ///
-/// // Create a `Uri<&str>` from a string slice.
+/// // Parse into a `Uri<&str>` from a string slice.
 /// let uri: Uri<&str> = Uri::parse(s)?;
 ///
-/// // Create a `Uri<String>` from an owned string.
+/// // Parse into a `Uri<String>` from an owned string.
 /// let uri_owned: Uri<String> = Uri::parse(s.to_owned()).map_err(|e| e.plain())?;
 ///
 /// // When referencing a `Uri`, use `Uri<&str>`.
@@ -92,6 +90,8 @@ use std::{
 /// foo(uri_owned.borrow());
 /// # Ok::<_, fluent_uri::ParseError>(())
 /// ```
+///
+/// See the documentation of [`Builder`] for examples of building a `Uri` from its components.
 #[derive(Clone, Copy, Default)]
 pub struct Uri<T: Storage> {
     /// Stores the URI reference. Guaranteed to contain only ASCII bytes.
@@ -106,23 +106,23 @@ impl<T: Storage> Uri<T> {
     ///
     /// The return type is
     ///
-    /// - `Result<Uri<&str>, ParseError>` for `I = &S` where `S: AsRef<str> + ?Sized`.
     /// - `Result<Uri<String>, ParseError<String>>` for `I = String`.
+    /// - `Result<Uri<&str>, ParseError>` for `I = &S` where `S: AsRef<str> + ?Sized`.
     ///
     /// You may recover an input [`String`] by calling [`ParseError::into_input`].
     ///
     /// # Behavior
     ///
     /// This function validates the input strictly as per [RFC 3986],
-    /// with the only exception that a case-sensitive IPv6 zone identifier containing
-    /// only [unreserved] characters is accepted, as in `http://[fe80::1%eth0]`.
+    /// with the only exception that a non-empty case-sensitive IPv6 zone identifier
+    /// containing only [unreserved] characters is accepted, as in `http://[fe80::1%eth0]`.
     ///
     /// [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
     /// [unreserved]: https://datatracker.ietf.org/doc/html/rfc3986/#section-2.3
     ///
     /// # Panics
     ///
-    /// Panics if the input length is greater than [`i32::MAX`].
+    /// Panics if the input length is greater than [`u32::MAX`].
     #[inline]
     pub fn parse<I>(input: I) -> Result<Uri<I::Storage>, I::Err>
     where
@@ -132,22 +132,11 @@ impl<T: Storage> Uri<T> {
     }
 }
 
-impl Uri<&str> {
-    /// Creates a new `Uri<String>` by cloning the contents of this `Uri<&str>`.
-    #[inline]
-    pub fn to_owned(&self) -> Uri<String> {
-        Uri {
-            storage: self.storage.to_owned(),
-            meta: self.meta,
-        }
-    }
-}
-
 impl Uri<String> {
     /// Creates a new builder for URI reference.
     #[inline]
-    pub fn builder() -> UriBuilder {
-        UriBuilder::new()
+    pub fn builder() -> Builder {
+        Builder::new()
     }
 
     /// Borrows this `Uri<String>` as `Uri<&str>`.
@@ -174,6 +163,17 @@ impl<T: Storage> Uri<T> {
     }
 }
 
+impl Uri<&str> {
+    /// Creates a new `Uri<String>` by cloning the contents of this `Uri<&str>`.
+    #[inline]
+    pub fn to_owned(&self) -> Uri<String> {
+        Uri {
+            storage: self.storage.to_owned(),
+            meta: self.meta,
+        }
+    }
+}
+
 impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
     /// Returns the URI reference as a string slice.
     #[inline]
@@ -189,8 +189,8 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
 
     /// Returns an `EStr` slice of the `Uri` between the given indexes.
     #[inline]
-    fn eslice(&'i self, start: u32, end: u32) -> &'o EStr {
-        EStr::new(self.slice(start, end))
+    fn eslice<E: Encoder>(&'i self, start: u32, end: u32) -> &'o EStr<E> {
+        EStr::new_validated(self.slice(start, end))
     }
 
     /// Returns the [scheme] component.
@@ -198,7 +198,8 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
     /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
     #[inline]
     pub fn scheme(&'i self) -> Option<&'o Scheme> {
-        self.scheme_end.map(|i| Scheme::new(self.slice(0, i.get())))
+        self.scheme_end
+            .map(|i| Scheme::new_validated(self.slice(0, i.get())))
     }
 
     /// Returns the [authority] component.
@@ -215,17 +216,20 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
 
     /// Returns the [path] component.
     ///
+    /// The returned [`EStr`] slice has [extension methods] for the path component.
+    ///
     /// [path]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
+    /// [extension methods]: EStr#impl-EStr<Path>
     #[inline]
-    pub fn path(&'i self) -> &'o Path {
-        Path::new(self.eslice(self.path_bounds.0, self.path_bounds.1))
+    pub fn path(&'i self) -> &'o EStr<Path> {
+        self.eslice(self.path_bounds.0, self.path_bounds.1)
     }
 
     /// Returns the [query] component.
     ///
     /// [query]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.4
     #[inline]
-    pub fn query(&'i self) -> Option<&'o EStr> {
+    pub fn query(&'i self) -> Option<&'o EStr<Query>> {
         self.query_end
             .map(|i| self.eslice(self.path_bounds.1 + 1, i.get()))
     }
@@ -243,7 +247,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
     ///
     /// [fragment]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.5
     #[inline]
-    pub fn fragment(&'i self) -> Option<&'o EStr> {
+    pub fn fragment(&'i self) -> Option<&'o EStr<Fragment>> {
         self.fragment_start().map(|i| self.eslice(i, self.len()))
     }
 
@@ -312,10 +316,6 @@ impl<T: Storage> hash::Hash for Uri<T> {
     }
 }
 
-/// Implements comparison operations on `Uri`s.
-///
-/// `Uri`s are compared [lexicographically](Ord#lexicographical-comparison) by their byte values.
-/// Normalization is **not** performed prior to comparison.
 impl<T: Storage> PartialOrd for Uri<T> {
     #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -361,414 +361,5 @@ impl FromStr for Uri<String> {
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Uri::parse(s).map(|uri| uri.to_owned())
-    }
-}
-
-/// The [scheme] component of URI reference.
-///
-/// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
-#[derive(RefCastCustom)]
-#[repr(transparent)]
-pub struct Scheme {
-    inner: str,
-}
-
-impl Scheme {
-    #[ref_cast_custom]
-    #[inline]
-    fn new(scheme: &str) -> &Scheme;
-
-    /// Returns the scheme as a string slice.
-    ///
-    /// Note that the scheme is case-insensitive. You should typically use
-    /// [`eq_lowercase`] for testing if the scheme is a desired one.
-    ///
-    /// [`eq_lowercase`]: Self::eq_lowercase
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use fluent_uri::Uri;
-    ///
-    /// let uri = Uri::parse("HTTP://example.com/")?;
-    /// let scheme = uri.scheme().unwrap();
-    /// assert_eq!(scheme.as_str(), "HTTP");
-    /// # Ok::<_, fluent_uri::ParseError>(())
-    /// ```
-    #[inline]
-    pub fn as_str(&self) -> &str {
-        &self.inner
-    }
-
-    /// Checks if the scheme equals case-insensitively with a lowercase string.
-    ///
-    /// This method is slightly faster than [`str::eq_ignore_ascii_case`] but will
-    /// always return `false` if there is any uppercase letter in the given string.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use fluent_uri::Uri;
-    ///
-    /// let uri = Uri::parse("HTTP://example.com/")?;
-    /// let scheme = uri.scheme().unwrap();
-    /// assert!(scheme.eq_lowercase("http"));
-    /// // Always return `false` if there's any uppercase letter in the given string.
-    /// assert!(!scheme.eq_lowercase("hTTp"));
-    /// # Ok::<_, fluent_uri::ParseError>(())
-    /// ```
-    #[inline]
-    pub fn eq_lowercase(&self, other: &str) -> bool {
-        const ASCII_CASE_MASK: u8 = 0b0010_0000;
-
-        let (a, b) = (self.inner.as_bytes(), other.as_bytes());
-        // The only characters allowed in a scheme are alphabets, digits, "+", "-" and ".",
-        // the ASCII codes of which allow us to simply set the sixth bit and compare.
-        a.len() == b.len() && iter::zip(a, b).all(|(a, b)| a | ASCII_CASE_MASK == *b)
-    }
-}
-
-/// The [authority] component of URI reference.
-///
-/// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
-#[derive(RefCastCustom)]
-#[repr(transparent)]
-pub struct Authority<T: Storage> {
-    uri: Uri<T>,
-}
-
-impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
-    /// Converts from `&Uri<T>` to `&Authority<T>`,
-    /// assuming that authority is present.
-    #[ref_cast_custom]
-    #[inline]
-    fn new(uri: &Uri<T>) -> &Authority<T>;
-
-    #[inline]
-    fn meta(&self) -> &AuthMeta {
-        self.uri.auth_meta.as_ref().unwrap()
-    }
-
-    #[inline]
-    fn start(&self) -> u32 {
-        self.meta().start
-    }
-
-    #[inline]
-    fn end(&self) -> u32 {
-        self.uri.path_bounds.0
-    }
-
-    #[inline]
-    fn host_bounds(&self) -> (u32, u32) {
-        self.meta().host_bounds
-    }
-
-    /// Returns the authority as a string slice.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use fluent_uri::Uri;
-    ///
-    /// let uri = Uri::parse("ftp://user@[fe80::abcd]:6780/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.as_str(), "user@[fe80::abcd]:6780");
-    /// # Ok::<_, fluent_uri::ParseError>(())
-    /// ```
-    #[inline]
-    pub fn as_str(&'i self) -> &'o str {
-        self.uri.slice(self.start(), self.end())
-    }
-
-    /// Returns the [userinfo] subcomponent.
-    ///
-    /// [userinfo]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.1
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use fluent_uri::Uri;
-    ///
-    /// let uri = Uri::parse("ftp://user@192.168.1.24/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.userinfo().unwrap(), "user");
-    /// # Ok::<_, fluent_uri::ParseError>(())
-    /// ```
-    #[inline]
-    pub fn userinfo(&'i self) -> Option<&'o EStr> {
-        let (start, host_start) = (self.start(), self.host_bounds().0);
-        (start != host_start).then(|| self.uri.eslice(start, host_start - 1))
-    }
-
-    /// Returns the [host] subcomponent.
-    ///
-    /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
-    #[inline]
-    pub fn host(&self) -> &Host<T> {
-        Host::new(self)
-    }
-
-    /// Returns the [port] subcomponent.
-    ///
-    /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
-    ///
-    /// Note that in the generic URI syntax, the port may be empty, with leading zeros, or very large.
-    /// It is up to you to decide whether to deny such a port, fallback to the scheme's default if it
-    /// is empty, ignore the leading zeros, or use a different addressing mechanism that allows a large port.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use fluent_uri::Uri;
-    ///
-    /// let uri = Uri::parse("ssh://device.local:4673/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.port(), Some("4673"));
-    ///
-    /// let uri = Uri::parse("ssh://device.local:/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.port(), Some(""));
-    ///
-    /// let uri = Uri::parse("ssh://device.local/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.port(), None);
-    /// # Ok::<_, fluent_uri::ParseError>(())
-    /// ```
-    #[inline]
-    pub fn port(&'i self) -> Option<&'o str> {
-        let (host_end, end) = (self.host_bounds().1, self.end());
-        (host_end != end).then(|| self.uri.slice(host_end + 1, end))
-    }
-
-    /// Converts this authority to an iterator of resolved [`SocketAddr`]s.
-    ///
-    /// The default port is used if the port component is not present or is empty.
-    ///
-    /// A registered name is **not** normalized prior to resolution and is resolved
-    /// with [`ToSocketAddrs`] as is.
-    ///
-    /// An IPv6 zone identifier is parsed as a 32-bit unsigned integer
-    /// with or without leading zeros, or a network interface name on Unix-like systems.
-    #[cfg(feature = "std")]
-    pub fn to_socket_addrs(
-        &'i self,
-        default_port: u16,
-    ) -> io::Result<impl Iterator<Item = SocketAddr>> {
-        let port = self
-            .port()
-            .filter(|port| !port.is_empty())
-            .map(|port| {
-                port.parse::<u16>()
-                    .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid port value"))
-            })
-            .transpose()?
-            .unwrap_or(default_port);
-
-        match self.host().parsed() {
-            ParsedHost::Ipv4(addr) => Ok(vec![(addr, port).into()].into_iter()),
-            ParsedHost::Ipv6 { addr, zone_id } => {
-                let scope_id = if let Some(zone_id) = zone_id {
-                    if let Ok(scope_id) = zone_id.parse::<u32>() {
-                        scope_id
-                    } else {
-                        #[cfg(not(unix))]
-                        return Err(io::Error::new(
-                            io::ErrorKind::InvalidInput,
-                            "invalid zone identifier value",
-                        ));
-                        #[cfg(unix)]
-                        nix::net::if_::if_nametoindex(zone_id)?
-                    }
-                } else {
-                    0
-                };
-                Ok(vec![SocketAddrV6::new(addr, port, 0, scope_id).into()].into_iter())
-            }
-            ParsedHost::IpvFuture => Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "address mechanism not supported",
-            )),
-            ParsedHost::RegName(name) => (name.as_str(), port).to_socket_addrs(),
-        }
-    }
-}
-
-/// The [host] subcomponent of authority.
-///
-/// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
-#[derive(RefCastCustom)]
-#[repr(transparent)]
-pub struct Host<T: Storage> {
-    auth: Authority<T>,
-}
-
-impl<'i, 'o, T: StorageHelper<'i, 'o>> Host<T> {
-    #[ref_cast_custom]
-    #[inline]
-    fn new(auth: &Authority<T>) -> &Host<T>;
-
-    #[inline]
-    fn bounds(&self) -> (u32, u32) {
-        self.auth.host_bounds()
-    }
-
-    #[inline]
-    fn meta(&self) -> &HostMeta {
-        &self.auth.meta().host_meta
-    }
-
-    /// Returns the host as a string slice.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use fluent_uri::Uri;
-    ///
-    /// let uri = Uri::parse("ftp://user@[::1]/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.host().as_str(), "[::1]");
-    /// # Ok::<_, fluent_uri::ParseError>(())
-    /// ```
-    #[inline]
-    pub fn as_str(&'i self) -> &'o str {
-        self.auth.uri.slice(self.bounds().0, self.bounds().1)
-    }
-
-    fn zone_id(&'i self) -> &'o str {
-        let (start, end) = self.bounds();
-        let addr = self.auth.uri.slice(start + 1, end - 1);
-        addr.rsplit_once('%').unwrap().1
-    }
-
-    /// Returns the parsed host component.
-    pub fn parsed(&'i self) -> ParsedHost<'o> {
-        #[cfg(feature = "std")]
-        match *self.meta() {
-            HostMeta::Ipv4(addr) => ParsedHost::Ipv4(addr),
-            HostMeta::Ipv6(addr) => ParsedHost::Ipv6 {
-                addr,
-                zone_id: None,
-            },
-            HostMeta::Ipv6Zoned(addr) => ParsedHost::Ipv6 {
-                addr,
-                zone_id: Some(self.zone_id()),
-            },
-            HostMeta::IpvFuture => ParsedHost::IpvFuture,
-            HostMeta::RegName => ParsedHost::RegName(EStr::new(self.as_str())),
-        }
-        #[cfg(not(feature = "std"))]
-        match self.meta() {
-            HostMeta::Ipv4() => ParsedHost::Ipv4(),
-            HostMeta::Ipv6() => ParsedHost::Ipv6 { zone_id: None },
-            HostMeta::Ipv6Zoned() => ParsedHost::Ipv6 {
-                zone_id: Some(self.zone_id()),
-            },
-            HostMeta::IpvFuture => ParsedHost::IpvFuture,
-            HostMeta::RegName => ParsedHost::RegName(EStr::new_validated(self.as_str())),
-        }
-    }
-}
-
-/// A parsed host component.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ParsedHost<'a> {
-    /// An IPv4 address.
-    #[cfg_attr(not(feature = "std"), non_exhaustive)]
-    Ipv4(
-        /// The address.
-        #[cfg(feature = "std")]
-        Ipv4Addr,
-    ),
-    /// An IPv6 address.
-    #[cfg_attr(not(feature = "std"), non_exhaustive)]
-    Ipv6 {
-        /// The address.
-        #[cfg(feature = "std")]
-        addr: Ipv6Addr,
-        /// An optional zone identifier.
-        zone_id: Option<&'a str>,
-    },
-    /// An IP address of future version.
-    #[non_exhaustive]
-    IpvFuture,
-    /// A registered name.
-    RegName(&'a EStr),
-}
-
-/// The [path] component of URI reference.
-///
-/// [path]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
-#[derive(RefCastCustom)]
-#[repr(transparent)]
-pub struct Path {
-    inner: EStr,
-}
-
-impl Path {
-    #[ref_cast_custom]
-    #[inline]
-    fn new(path: &EStr) -> &Path;
-
-    /// Yields the underlying [`EStr`].
-    #[inline]
-    pub fn as_estr(&self) -> &EStr {
-        &self.inner
-    }
-
-    /// Returns the path as a string slice.
-    #[inline]
-    pub fn as_str(&self) -> &str {
-        self.inner.as_str()
-    }
-
-    /// Returns `true` if the path is absolute, i.e., beginning with "/".
-    #[inline]
-    pub fn is_absolute(&self) -> bool {
-        self.as_str().starts_with('/')
-    }
-
-    /// Returns `true` if the path is rootless, i.e., not beginning with "/".
-    #[inline]
-    pub fn is_rootless(&self) -> bool {
-        !self.is_absolute()
-    }
-
-    /// Returns an iterator over the path [segments].
-    ///
-    /// [segments]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use fluent_uri::Uri;
-    ///
-    /// // An empty path has no segments.
-    /// let uri = Uri::parse("")?;
-    /// assert_eq!(uri.path().segments().next(), None);
-    ///
-    /// // Segments are separated by "/".
-    /// let uri = Uri::parse("a/b/c")?;
-    /// assert!(uri.path().segments().eq(["a", "b", "c"]));
-    ///
-    /// // The empty string before a preceding "/" is not a segment.
-    /// // However, segments can be empty in the other cases.
-    /// let uri = Uri::parse("/path/to//dir/")?;
-    /// assert!(uri.path().segments().eq(["path", "to", "", "dir", ""]));
-    /// # Ok::<_, fluent_uri::ParseError>(())
-    /// ```
-    #[inline]
-    pub fn segments(&self) -> Split<'_> {
-        let mut path = self.as_str();
-        if let Some(rest) = path.strip_prefix('/') {
-            path = rest;
-        }
-        let path = EStr::new(path);
-
-        let mut split = path.split('/');
-        if self.as_str().is_empty() {
-            split.next();
-        }
-        split
     }
 }

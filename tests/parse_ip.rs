@@ -1,19 +1,19 @@
 use std::net::{Ipv4Addr, Ipv6Addr};
 
-use fluent_uri::{ParsedHost, Uri};
+use fluent_uri::{component::Host, Uri};
 
 fn parse_v4(s: &str) -> Option<Ipv4Addr> {
     let s = format!("//{s}");
-    match Uri::parse(&s).ok()?.authority()?.host().parsed() {
-        ParsedHost::Ipv4(addr) => Some(addr),
+    match Uri::parse(&s).ok()?.authority()?.host() {
+        Host::Ipv4(addr) => Some(addr),
         _ => None,
     }
 }
 
 fn parse_v6(s: &str) -> Option<Ipv6Addr> {
     let s = format!("//[{s}]");
-    match Uri::parse(&s).ok()?.authority()?.host().parsed() {
-        ParsedHost::Ipv6 { addr, .. } => Some(addr),
+    match Uri::parse(&s).ok()?.authority()?.host() {
+        Host::Ipv6 { addr, .. } => Some(addr),
         _ => None,
     }
 }

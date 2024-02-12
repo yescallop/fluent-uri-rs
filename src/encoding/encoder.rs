@@ -4,45 +4,53 @@
 
 use super::table::*;
 
-/// A trait used by [`EString`] to specify the table used for encoding.
+/// A trait used by [`EStr`] and [`EString`] to specify the table used for encoding.
 ///
+/// [`EStr`]: super::EStr
 /// [`EString`]: super::EString
-pub trait Encoder {
+pub trait Encoder: 'static {
     /// The table used for encoding.
     const TABLE: &'static Table;
 }
 
 /// An encoder for userinfo.
-pub struct UserinfoEncoder(());
+pub struct Userinfo(());
 
-impl Encoder for UserinfoEncoder {
+impl Encoder for Userinfo {
     const TABLE: &'static Table = USERINFO;
 }
 
 /// An encoder for registered name.
-pub struct RegNameEncoder(());
+pub struct RegName(());
 
-impl Encoder for RegNameEncoder {
+impl Encoder for RegName {
     const TABLE: &'static Table = REG_NAME;
 }
 
 /// An encoder for path.
-pub struct PathEncoder(());
+pub struct Path(());
 
-impl Encoder for PathEncoder {
+impl Encoder for Path {
     const TABLE: &'static Table = PATH;
 }
 
-/// An encoder for query.
-pub struct QueryEncoder(());
+/// An encoder for path segment.
+pub struct PathSegment(());
 
-impl Encoder for QueryEncoder {
-    const TABLE: &'static Table = QUERY_FRAGMENT;
+impl Encoder for PathSegment {
+    const TABLE: &'static Table = PCHAR;
+}
+
+/// An encoder for query.
+pub struct Query(());
+
+impl Encoder for Query {
+    const TABLE: &'static Table = QUERY;
 }
 
 /// An encoder for fragment.
-pub struct FragmentEncoder(());
+pub struct Fragment(());
 
-impl Encoder for FragmentEncoder {
-    const TABLE: &'static Table = QUERY_FRAGMENT;
+impl Encoder for Fragment {
+    const TABLE: &'static Table = FRAGMENT;
 }

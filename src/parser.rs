@@ -38,7 +38,7 @@ macro_rules! err {
 ///
 /// # Preconditions and guarantees
 ///
-/// Before parsing, ensure that `len` is no larger than `i32::MAX`
+/// Before parsing, ensure that `len` is no larger than `u32::MAX`
 /// and that `pos`, `mark` and `out` are default initialized.
 ///
 /// Start and finish parsing by calling `parse_from_scheme`.
@@ -131,6 +131,7 @@ impl<'a> Parser<'a> {
         while i < self.len() {
             let x = self.get(i);
             if x == b'%' {
+                // This cannot overflow as the maximum length of `bytes` is `isize::MAX`.
                 if i + 2 >= self.len() {
                     err!(i, InvalidOctet);
                 }
@@ -562,12 +563,12 @@ impl<'a> Parser<'a> {
         };
 
         if self.read_str("?") {
-            self.read(QUERY_FRAGMENT)?;
+            self.read(QUERY)?;
             self.out.query_end = NonZeroU32::new(self.pos as _);
         }
 
         if self.read_str("#") {
-            self.read(QUERY_FRAGMENT)?;
+            self.read(FRAGMENT)?;
         }
 
         if self.has_remaining() {

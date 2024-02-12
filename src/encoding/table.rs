@@ -34,11 +34,11 @@ impl Table {
     ///
     /// # Panics
     ///
-    /// Panics if any of the bytes is not ASCII or is `%`.
+    /// Panics if any of the bytes equals `b'%'`.
     pub const fn gen(mut bytes: &[u8]) -> Table {
         let mut arr = [0; 256];
         while let [cur, rem @ ..] = bytes {
-            assert!(cur.is_ascii() && *cur != b'%', "non-ASCII or %");
+            assert!(*cur != b'%', "cannot allow unencoded %");
             arr[*cur as usize] = 1;
             bytes = rem;
         }
@@ -60,7 +60,7 @@ impl Table {
     /// either by `self` or by `other`.
     pub const fn or(mut self, other: &Table) -> Table {
         let mut i = 0;
-        while i < 128 {
+        while i < 256 {
             self.arr[i] |= other.arr[i];
             i += 1;
         }
@@ -74,7 +74,7 @@ impl Table {
     /// by `self` but not allowed by `other`.
     pub const fn sub(mut self, other: &Table) -> Table {
         let mut i = 0;
-        while i < 128 {
+        while i < 256 {
             if other.arr[i] != 0 {
                 self.arr[i] = 0;
             }
@@ -90,7 +90,7 @@ impl Table {
     /// allows at least all the byte patterns allowed by `self`.
     pub const fn is_subset(&self, other: &Table) -> bool {
         let mut i = 0;
-        while i < 128 {
+        while i < 256 {
             if self.arr[i] != 0 && other.arr[i] == 0 {
                 return false;
             }
@@ -102,7 +102,7 @@ impl Table {
     /// Shifts the table values left.
     pub(crate) const fn shl(mut self, n: u8) -> Table {
         let mut i = 0;
-        while i < 128 {
+        while i < 256 {
             self.arr[i] <<= n;
             i += 1;
         }
@@ -115,7 +115,7 @@ impl Table {
         self.arr[x as usize]
     }
 
-    /// Returns `true` if an unencoded byte is allowed by the table.
+    /// Returns `true` if the given unencoded byte is allowed by the table.
     #[inline]
     pub const fn allows(&self, x: u8) -> bool {
         self.get(x) != 0
@@ -157,7 +157,7 @@ impl Table {
                     }
                     let (hi, lo) = (s[i + 1], s[i + 2]);
 
-                    if !hi.is_ascii_hexdigit() || !lo.is_ascii_hexdigit() {
+                    if HEXDIG.get(hi) & HEXDIG.get(lo) == 0 {
                         return false;
                     }
                     i += 3;
@@ -221,8 +221,11 @@ pub const REG_NAME: &Table = &UNRESERVED.or(SUB_DELIMS).enc();
 /// path = *( pchar / "/" )
 pub const PATH: &Table = &PCHAR.or(&gen(b"/"));
 
-/// query = fragment = *( pchar / "/" / "?" )
-pub const QUERY_FRAGMENT: &Table = &PCHAR.or(&gen(b"/?"));
+/// query = *( pchar / "/" / "?" )
+pub const QUERY: &Table = &PCHAR.or(&gen(b"/?"));
+
+/// fragment = *( pchar / "/" / "?" )
+pub const FRAGMENT: &Table = QUERY;
 
 /// ZoneID = 1*( unreserved )
 pub(crate) const ZONE_ID: &Table = UNRESERVED;
