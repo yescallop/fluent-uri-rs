@@ -1,4 +1,4 @@
-use super::{encoder::Encoder, EStr};
+use super::{encoder::Encoder, Assert, EStr};
 use alloc::{borrow::ToOwned, string::String};
 use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref};
 
@@ -25,11 +25,11 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 /// let mut buf = EString::<Query>::new();
 /// for (k, v) in pairs {
 ///     if !buf.is_empty() {
-///         buf.encode_byte(b'&');
+///         buf.push_byte(b'&');
 ///     }
-///     buf.encode_with::<Data>(k);
-///     buf.encode_byte(b'=');
-///     buf.encode_with::<Data>(v);
+///     buf.encode::<Data>(k);
+///     buf.push_byte(b'=');
+///     buf.encode::<Data>(v);
 /// }
 ///
 /// assert_eq!(buf, "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
@@ -50,11 +50,6 @@ impl<E: Encoder> Deref for EString<E> {
 }
 
 impl<E: Encoder> EString<E> {
-    const ASSERT_ALLOWS_ENC: () = assert!(
-        E::TABLE.allows_enc(),
-        "table does not allow percent-encoding"
-    );
-
     #[inline]
     pub(crate) const fn new_validated(buf: String) -> Self {
         EString {
@@ -87,66 +82,41 @@ impl<E: Encoder> EString<E> {
         self
     }
 
-    /// Encodes a byte sequence and appends the result onto the end of this `EString`.
-    ///
-    /// # Panics
-    ///
-    /// Panics at compile time if the table specified
-    /// by `E` does not allow percent-encoding.
-    #[inline]
-    pub fn encode<S: AsRef<[u8]> + ?Sized>(&mut self, s: &S) {
-        let _ = Self::ASSERT_ALLOWS_ENC;
-
-        for &x in s.as_ref() {
-            E::TABLE.encode(x, &mut self.buf)
-        }
-    }
-
     /// Encodes a byte sequence with a sub-encoder and appends the result onto the end of this `EString`.
     ///
-    /// A sub-encoder `SubE` of `E` is an encoder such that `SubE::TABLE` is a [subset] of `E::TABLE`.
-    ///
-    /// [subset]: super::table::Table::is_subset
-    ///
     /// # Panics
     ///
-    /// Panics at compile time if `SubE` is not a sub-encoder of `E`, or
-    /// if the table specified by `SubE` does not allow percent-encoding.
+    /// Panics at compile time if `SubE` is not a [sub-encoder](Encoder#sub-encoder) of `E`,
+    /// or if `SubE::TABLE` does not allow percent-encoding.
     #[inline]
-    pub fn encode_with<SubE: Encoder>(&mut self, s: &(impl AsRef<[u8]> + ?Sized)) {
-        struct Assert<SubE: Encoder, E: Encoder> {
-            _marker: PhantomData<(SubE, E)>,
-        }
-        impl<SubE: Encoder, E: Encoder> Assert<SubE, E> {
-            const IS_SUB_ENCODER: () = assert!(
-                SubE::TABLE.is_subset(E::TABLE),
-                "pushing with non-sub-encoder"
-            );
-        }
-        let _ = Assert::<SubE, E>::IS_SUB_ENCODER;
-        let _ = EString::<SubE>::ASSERT_ALLOWS_ENC;
+    pub fn encode<SubE: Encoder>(&mut self, s: &(impl AsRef<[u8]> + ?Sized)) {
+        let _ = Assert::<SubE, E>::LEFT_IS_SUB_ENCODER_OF_RIGHT;
+        let _ = EStr::<SubE>::ASSERT_ALLOWS_ENC;
 
         for &x in s.as_ref() {
             SubE::TABLE.encode(x, &mut self.buf)
         }
     }
 
-    /// Encodes a byte and appends the result onto the end of this `EString`.
+    /// Appends an unencoded byte onto the end of this `EString`.
     ///
     /// # Panics
     ///
-    /// Panics at compile time if the table specified
-    /// by `E` does not allow percent-encoding.
+    /// Panics if `E::TABLE` does not allow the byte.
     #[inline]
-    pub fn encode_byte(&mut self, x: u8) {
-        let _ = Self::ASSERT_ALLOWS_ENC;
-
-        E::TABLE.encode(x, &mut self.buf)
+    pub fn push_byte(&mut self, x: u8) {
+        assert!(E::TABLE.allows(x), "table does not allow the byte");
+        self.buf.push(x as char);
     }
 
     /// Appends an `EStr` slice onto the end of this `EString`.
+    ///
+    /// # Panics
+    ///
+    /// Panics at compile time if `SubE` is not a [sub-encoder](Encoder#sub-encoder) of `E`.
     #[inline]
-    pub fn push_estr(&mut self, s: &EStr<E>) {
+    pub fn push_estr<SubE: Encoder>(&mut self, s: &EStr<SubE>) {
+        let _ = Assert::<SubE, E>::LEFT_IS_SUB_ENCODER_OF_RIGHT;
         self.buf.push_str(s.as_str())
     }
 
@@ -174,44 +144,14 @@ impl<E: Encoder> EString<E> {
         self.buf.reserve_exact(additional);
     }
 
-    /// Invokes [`shrink_to_fit`] on the underlying `String`.
-    ///
-    /// [`shrink_to_fit`]: String::shrink_to_fit
+    /// Truncates this `EString` to zero length and casts to another type, preserving the capacity.
     #[inline]
-    pub fn shrink_to_fit(&mut self) {
-        self.buf.shrink_to_fit()
-    }
-
-    /// Invokes [`shrink_to`] on the underlying `String`.
-    ///
-    /// [`shrink_to`]: String::shrink_to
-    #[inline]
-    pub fn shrink_to(&mut self, min_capacity: usize) {
-        self.buf.shrink_to(min_capacity)
-    }
-
-    /// Invokes [`len`] on the underlying `String`.
-    ///
-    /// [`len`]: String::len
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.buf.len()
-    }
-
-    /// Invokes [`is_empty`] on the underlying `String`.
-    ///
-    /// [`is_empty`]: String::is_empty
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.buf.is_empty()
-    }
-
-    /// Invokes [`clear`] on the underlying `String`.
-    ///
-    /// [`clear`]: String::clear
-    #[inline]
-    pub fn clear(&mut self) {
-        self.buf.clear()
+    pub fn clear<F: Encoder>(mut self) -> EString<F> {
+        self.buf.clear();
+        EString {
+            buf: self.buf,
+            encoder: PhantomData,
+        }
     }
 }
 
@@ -226,13 +166,6 @@ impl<E: Encoder> AsRef<str> for EString<E> {
     #[inline]
     fn as_ref(&self) -> &str {
         &self.buf
-    }
-}
-
-impl<E: Encoder> AsRef<[u8]> for EString<E> {
-    #[inline]
-    fn as_ref(&self) -> &[u8] {
-        self.buf.as_bytes()
     }
 }
 

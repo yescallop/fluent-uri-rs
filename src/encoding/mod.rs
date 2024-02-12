@@ -26,6 +26,15 @@ pub struct EStr<E: Encoder> {
     inner: str,
 }
 
+struct Assert<L: Encoder, R: Encoder> {
+    _marker: PhantomData<(L, R)>,
+}
+
+impl<L: Encoder, R: Encoder> Assert<L, R> {
+    const LEFT_IS_SUB_ENCODER_OF_RIGHT: () =
+        assert!(L::TABLE.is_subset(R::TABLE), "not a sub-encoder");
+}
+
 impl<E: Encoder> EStr<E> {
     const ASSERT_ALLOWS_ENC: () = assert!(
         E::TABLE.allows_enc(),
@@ -41,14 +50,14 @@ impl<E: Encoder> EStr<E> {
     ///
     /// Only use this function when you have a percent-encoded string at hand.
     /// You may otherwise encode and concatenate strings to an [`EString`]
-    /// which derefs to [`EStr`].
+    /// which derefs to `EStr`.
     ///
     /// # Panics
     ///
     /// Panics if the string is not properly encoded with `E`.
     pub const fn new(s: &str) -> &Self {
         assert!(E::TABLE.validate(s.as_bytes()), "improperly encoded string");
-        return Self::new_validated(s);
+        Self::new_validated(s)
     }
 
     /// Yields the underlying string slice.
@@ -57,14 +66,36 @@ impl<E: Encoder> EStr<E> {
         &self.inner
     }
 
+    /// Returns `true` if the `EStr` slice is empty.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
+    /// Returns the length of the `EStr` slice in bytes.
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    /// Upcasts the `EStr` slice to associate with the given super-encoder.
+    ///
+    /// # Panics
+    ///
+    /// Panics at compile time if `E` is not a [sub-encoder](Encoder#sub-encoder) of `SuperE`.
+    #[inline]
+    pub fn upcast<SuperE: Encoder>(&self) -> &EStr<SuperE> {
+        let _ = Assert::<E, SuperE>::LEFT_IS_SUB_ENCODER_OF_RIGHT;
+        EStr::new_validated(self.as_str())
+    }
+
     /// Decodes the `EStr` slice.
     ///
     /// This method allocates only when there is any percent-encoded octet in the slice.
     ///
     /// # Panics
     ///
-    /// Panics at compile time if the table specified
-    /// by `E` does not allow percent-encoding.
+    /// Panics at compile time if `E::TABLE` does not allow percent-encoding.
     ///
     /// # Examples
     ///
@@ -160,13 +191,6 @@ impl<E: Encoder> AsRef<str> for EStr<E> {
     #[inline]
     fn as_ref(&self) -> &str {
         &self.inner
-    }
-}
-
-impl<E: Encoder> AsRef<[u8]> for EStr<E> {
-    #[inline]
-    fn as_ref(&self) -> &[u8] {
-        self.inner.as_bytes()
     }
 }
 

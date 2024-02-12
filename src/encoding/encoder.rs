@@ -8,6 +8,12 @@ use super::table::*;
 ///
 /// [`EStr`]: super::EStr
 /// [`EString`]: super::EString
+///
+/// # Sub-encoder
+///
+/// A sub-encoder `SubE` of `E` is an encoder such that `SubE::TABLE` is a [subset] of `E::TABLE`.
+///
+/// [subset]: Table::is_subset
 pub trait Encoder: 'static {
     /// The table used for encoding.
     const TABLE: &'static Table;

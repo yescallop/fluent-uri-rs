@@ -34,11 +34,14 @@ impl Table {
     ///
     /// # Panics
     ///
-    /// Panics if any of the bytes equals `b'%'`.
+    /// Panics if any of the bytes is not ASCII or equals `b'%'`.
     pub const fn gen(mut bytes: &[u8]) -> Table {
         let mut arr = [0; 256];
         while let [cur, rem @ ..] = bytes {
-            assert!(*cur != b'%', "cannot allow unencoded %");
+            assert!(
+                cur.is_ascii() && *cur != b'%',
+                "cannot allow non-ASCII byte or %"
+            );
             arr[*cur as usize] = 1;
             bytes = rem;
         }
