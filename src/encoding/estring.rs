@@ -15,24 +15,24 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 ///     EString,
 /// };
 ///
-/// struct QueryData;
+/// struct Data;
 ///
-/// impl Encoder for QueryData {
-///     const TABLE: &'static Table = &table::QUERY.sub(&Table::gen(b"&=+"));
+/// impl Encoder for Data {
+///     const TABLE: &'static Table = &table::UNRESERVED.enc();
 /// }
 ///
 /// let pairs = [("name", "张三"), ("speech", "¡Olé!")];
 /// let mut buf = EString::<Query>::new();
 /// for (k, v) in pairs {
 ///     if !buf.is_empty() {
-///         buf.push_byte(b'&');
+///         buf.encode_byte(b'&');
 ///     }
-///     buf.push_with::<QueryData>(k);
-///     buf.push_byte(b'=');
-///     buf.push_with::<QueryData>(v);
+///     buf.encode_with::<Data>(k);
+///     buf.encode_byte(b'=');
+///     buf.encode_with::<Data>(v);
 /// }
 ///
-/// assert_eq!(buf, "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9!");
+/// assert_eq!(buf, "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
 /// ```
 #[derive(Clone, Default)]
 pub struct EString<E: Encoder> {
@@ -94,7 +94,7 @@ impl<E: Encoder> EString<E> {
     /// Panics at compile time if the table specified
     /// by `E` does not allow percent-encoding.
     #[inline]
-    pub fn push<S: AsRef<[u8]> + ?Sized>(&mut self, s: &S) {
+    pub fn encode<S: AsRef<[u8]> + ?Sized>(&mut self, s: &S) {
         let _ = Self::ASSERT_ALLOWS_ENC;
 
         for &x in s.as_ref() {
@@ -113,7 +113,7 @@ impl<E: Encoder> EString<E> {
     /// Panics at compile time if `SubE` is not a sub-encoder of `E`, or
     /// if the table specified by `SubE` does not allow percent-encoding.
     #[inline]
-    pub fn push_with<SubE: Encoder>(&mut self, s: &(impl AsRef<[u8]> + ?Sized)) {
+    pub fn encode_with<SubE: Encoder>(&mut self, s: &(impl AsRef<[u8]> + ?Sized)) {
         struct Assert<SubE: Encoder, E: Encoder> {
             _marker: PhantomData<(SubE, E)>,
         }
@@ -138,13 +138,15 @@ impl<E: Encoder> EString<E> {
     /// Panics at compile time if the table specified
     /// by `E` does not allow percent-encoding.
     #[inline]
-    pub fn push_byte(&mut self, x: u8) {
+    pub fn encode_byte(&mut self, x: u8) {
+        let _ = Self::ASSERT_ALLOWS_ENC;
+
         E::TABLE.encode(x, &mut self.buf)
     }
 
     /// Appends an `EStr` slice onto the end of this `EString`.
     #[inline]
-    pub fn push_encoded(&mut self, s: &EStr<E>) {
+    pub fn push_estr(&mut self, s: &EStr<E>) {
         self.buf.push_str(s.as_str())
     }
 
