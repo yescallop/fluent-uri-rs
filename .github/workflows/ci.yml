@@ -17,7 +17,7 @@ jobs:
       - name: Build with no features
         run: cargo build --no-default-features
       - name: Build docs
-        run: cargo rustdoc --no-deps -- --cfg docsrs
+        run: cargo rustdoc -- --cfg docsrs
       - name: Deploy docs
         uses: peaceiris/actions-gh-pages@v3
         with:
