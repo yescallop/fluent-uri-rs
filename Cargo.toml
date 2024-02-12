@@ -7,7 +7,7 @@ description = "An RFC 3986 compliant generic URI parser and builder"
 documentation = "https://docs.rs/fluent-uri"
 repository = "https://github.com/yescallop/fluent-uri-rs"
 license = "MIT"
-keywords = ["parser", "uri", "rfc3986"]
+keywords = ["builder", "parser", "uri", "rfc3986"]
 categories = ["encoding", "parser-implementations"]
 
 [features]
