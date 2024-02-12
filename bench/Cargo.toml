@@ -1,6 +1,7 @@
 [package]
 name = "fluent-uri-bench"
 version = "0.0.0"
+publish = false
 edition = "2021"
 
 [dependencies.fluent-uri]
@@ -12,8 +13,7 @@ harness = false
 
 [dev-dependencies]
 criterion = "0.5"
-url = "2.5.0"
-uriparse = "0.6.4"
 iref = "3.1.3"
 iri-string = "0.7.0"
 oxiri = "0.2.2"
+url = "2.5.0"
