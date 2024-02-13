@@ -92,7 +92,8 @@ impl<T: Storage> Debug for Authority<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_struct("Authority")
             .field("userinfo", &self.userinfo())
-            .field("host", &self.host_as_str())
+            .field("host", &self.host())
+            .field("host_parsed", &self.host_parsed())
             .field("port", &self.port())
             .finish()
     }

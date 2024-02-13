@@ -179,11 +179,11 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
     ///
     /// let uri = Uri::parse("ftp://user@[::1]/")?;
     /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.host_as_str(), "[::1]");
+    /// assert_eq!(authority.host(), "[::1]");
     /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     #[inline]
-    pub fn host_as_str(&'i self) -> &'o str {
+    pub fn host(&'i self) -> &'o str {
         let (start, end) = self.host_bounds();
         self.uri.slice(start, end)
     }
@@ -197,7 +197,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
     /// Returns the parsed [host] subcomponent.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
-    pub fn host(&'i self) -> Host<'o> {
+    pub fn host_parsed(&'i self) -> Host<'o> {
         #[cfg(feature = "std")]
         match self.meta().host_meta {
             HostMeta::Ipv4(addr) => Host::Ipv4(addr),
@@ -210,7 +210,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
                 zone_id: Some(self.zone_id()),
             },
             HostMeta::IpvFuture => Host::IpvFuture {},
-            HostMeta::RegName => Host::RegName(EStr::new_validated(self.host_as_str())),
+            HostMeta::RegName => Host::RegName(EStr::new_validated(self.host())),
         }
         #[cfg(not(feature = "std"))]
         match self.meta().host_meta {
@@ -220,7 +220,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
                 zone_id: Some(self.zone_id()),
             },
             HostMeta::IpvFuture => Host::IpvFuture {},
-            HostMeta::RegName => Host::RegName(EStr::new_validated(self.host_as_str())),
+            HostMeta::RegName => Host::RegName(EStr::new_validated(self.host())),
         }
     }
 
@@ -280,7 +280,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
             .transpose()?
             .unwrap_or(default_port);
 
-        match self.host() {
+        match self.host_parsed() {
             Host::Ipv4(addr) => Ok(vec![(addr, port).into()].into_iter()),
             Host::Ipv6 { addr, zone_id } => {
                 let scope_id = if let Some(zone_id) = zone_id {
@@ -309,7 +309,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
     }
 }
 
-/// The [host] component of URI reference.
+/// The parsed [host] component of URI reference.
 ///
 /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
