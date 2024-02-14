@@ -334,7 +334,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
         !matches!(
             self.auth_meta,
             Some(AuthMeta {
-                host_meta: HostMeta::Ipv6Zoned(_),
+                host_meta: HostMeta::Ipv6Zoned(..),
                 ..
             })
         )
