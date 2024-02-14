@@ -4,7 +4,7 @@ use crate::{parser, ParseError, Uri};
 use alloc::string::String;
 use core::{num::NonZeroU32, ops, str};
 
-#[cfg(feature = "std")]
+#[cfg(feature = "net")]
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 pub trait Str {
@@ -171,9 +171,9 @@ pub struct AuthMeta {
 
 #[derive(Clone, Copy, Default)]
 pub enum HostMeta {
-    Ipv4(#[cfg(feature = "std")] Ipv4Addr),
-    Ipv6(#[cfg(feature = "std")] Ipv6Addr),
-    Ipv6Zoned(#[cfg(feature = "std")] Ipv6Addr),
+    Ipv4(#[cfg(feature = "net")] Ipv4Addr),
+    Ipv6(#[cfg(feature = "net")] Ipv6Addr),
+    Ipv6Zoned(#[cfg(feature = "net")] Ipv6Addr),
     IpvFuture,
     #[default]
     RegName,

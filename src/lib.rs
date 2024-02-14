@@ -8,12 +8,24 @@
 //!
 //! [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
 //!
-//! See the documentation of [`Uri`] for more details.
+//! See the documentation of [`Uri`] for usage.
 //!
-//! # Feature flags
+//! # Crate-specific syntax extension
 //!
-//! - `std` (default): Enables [`std`] support.
-//!   This includes [`Error`] implementations and [`std::net`] support.
+//! This crate incorporates the IPv6 scoped address format of [RFC 4007]
+//! to allow parsing and building URIs such as `http://[fe80::1%eth0]`.
+//! The syntax extension and a way to opt out are documented at [`Uri::parse`].
+//!
+//! [RFC 4007]: https://datatracker.ietf.org/doc/html/rfc4007/
+//!
+//! # Crate features
+//!
+//! - `net` (default, requires `std`): Enables [`std::net`] support.
+//!   Includes [`Authority::to_socket_addrs`], [`Builder::host_port_from_socket_addr`],
+//!   and several fields in [`Host`].
+//!   Disabling this will not affect the behavior of [`Uri::parse`].
+//!
+//! - `std` (default): Enables [`std`] support. Includes [`Error`] implementations.
 //!
 //! [`Error`]: std::error::Error
 //! [`Host`]: component::Host
@@ -43,7 +55,7 @@ use encoding::{
     encoder::{Encoder, Fragment, Path, Query},
     EStr,
 };
-use internal::{Meta, Storage, StorageHelper, ToUri};
+use internal::{AuthMeta, HostMeta, Meta, Storage, StorageHelper, ToUri};
 
 /// A [URI reference] defined in RFC 3986.
 ///
@@ -71,7 +83,7 @@ use internal::{Meta, Storage, StorageHelper, ToUri};
 /// ```
 /// use fluent_uri::Uri;
 ///
-/// let s = "foo://user@example.com:8042/over/there?name=ferret#nose";
+/// let s = "foo:bar";
 ///
 /// // Parse into a `Uri<&str>` from a string slice.
 /// let uri: Uri<&str> = Uri::parse(s)?;
@@ -113,12 +125,16 @@ impl<T: Storage> Uri<T> {
     ///
     /// # Behavior
     ///
-    /// This function validates the input strictly as per [RFC 3986],
+    /// This function validates the input according to [RFC 3986],
     /// with the only exception that a non-empty case-sensitive IPv6 zone identifier
-    /// containing only [unreserved] characters is accepted, as in `http://[fe80::1%eth0]`.
+    /// containing only [unreserved] characters is accepted,
+    /// such as `eth0` in `http://[fe80::1%eth0]`.
+    /// If this is not desirable, consider rejecting an output `Uri`
+    /// with [`is_strictly_rfc3986_compliant`] returning `false`.
     ///
     /// [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
     /// [unreserved]: https://datatracker.ietf.org/doc/html/rfc3986/#section-2.3
+    /// [`is_strictly_rfc3986_compliant`]: Self::is_strictly_rfc3986_compliant
     ///
     /// # Panics
     ///
@@ -297,6 +313,31 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
     #[inline]
     pub fn is_absolute(&self) -> bool {
         self.scheme_end.is_some() && self.fragment_start().is_none()
+    }
+
+    /// Returns `true` if the URI reference is strictly RFC 3986 compliant,
+    /// i.e., it does not contain an IPv6 zone identifier.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::Uri;
+    ///
+    /// let uri = Uri::parse("http://[fe80::1]/")?;
+    /// assert!(uri.is_strictly_rfc3986_compliant());
+    ///
+    /// let uri = Uri::parse("http://[fe80::1%eth0]/")?;
+    /// assert!(!uri.is_strictly_rfc3986_compliant());
+    /// # Ok::<_, fluent_uri::ParseError>(())
+    /// ```
+    pub fn is_strictly_rfc3986_compliant(&self) -> bool {
+        !matches!(
+            self.auth_meta,
+            Some(AuthMeta {
+                host_meta: HostMeta::Ipv6Zoned(_),
+                ..
+            })
+        )
     }
 }
 

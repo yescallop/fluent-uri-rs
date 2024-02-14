@@ -13,10 +13,8 @@ use alloc::{
     vec::Vec,
 };
 use core::{cmp::Ordering, hash, iter::FusedIterator, marker::PhantomData, str};
-use encoder::{Encoder, Path};
+use encoder::{Encoder, Path, PathSegment};
 use ref_cast::{ref_cast_custom, RefCastCustom};
-
-use self::encoder::PathSegment;
 
 /// Percent-encoded string slices.
 #[derive(RefCastCustom)]
@@ -49,7 +47,7 @@ impl<E: Encoder> EStr<E> {
     /// Converts a string slice to an `EStr` slice.
     ///
     /// Only use this function when you have a percent-encoded string at hand.
-    /// You may otherwise encode and concatenate strings to an [`EString`]
+    /// You may otherwise encode and append data to an [`EString`]
     /// which derefs to `EStr`.
     ///
     /// # Panics
@@ -83,6 +81,7 @@ impl<E: Encoder> EStr<E> {
     /// # Panics
     ///
     /// Panics at compile time if `E` is not a [sub-encoder](Encoder#sub-encoder) of `SuperE`.
+    #[cfg(fluent_uri_unstable)]
     #[inline]
     pub fn upcast<SuperE: Encoder>(&self) -> &EStr<SuperE> {
         let _ = Assert::<E, SuperE>::LEFT_IS_SUB_ENCODER_OF_RIGHT;
@@ -95,12 +94,14 @@ impl<E: Encoder> EStr<E> {
     ///
     /// # Panics
     ///
-    /// Panics at compile time if `E::TABLE` does not allow percent-encoding.
+    /// Panics at compile time if `E::TABLE` does not [allow percent-encoding].
+    ///
+    /// [allow percent-encoding]: table::Table::allows_enc
     ///
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::encoding::{EStr, encoder::Path};
+    /// use fluent_uri::encoding::{encoder::Path, EStr};
     ///
     /// let dec = EStr::<Path>::new("%C2%A1Hola%21").decode();
     /// assert_eq!(dec.as_bytes(), &[0xc2, 0xa1, 0x48, 0x6f, 0x6c, 0x61, 0x21]);
@@ -128,10 +129,11 @@ impl<E: Encoder> EStr<E> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::encoding::{EStr, encoder::Path};
+    /// use fluent_uri::encoding::{encoder::Path, EStr};
     ///
     /// assert!(EStr::<Path>::new("a,b,c").split(',').eq(["a", "b", "c"]));
     /// assert!(EStr::<Path>::new(",").split(',').eq(["", ""]));
+    /// assert!(EStr::<Path>::new("").split(',').eq([""]));
     /// ```
     #[inline]
     pub fn split(&self, delim: char) -> Split<'_, E> {
@@ -159,7 +161,7 @@ impl<E: Encoder> EStr<E> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::encoding::{EStr, encoder::Path};
+    /// use fluent_uri::encoding::{encoder::Path, EStr};
     ///
     /// assert_eq!(
     ///     EStr::<Path>::new("foo;bar").split_once(';'),
@@ -374,7 +376,7 @@ impl<'a> Decode<'a> {
     }
 }
 
-/// An iterator over subslices of an [`EStr`] separated by a delimiter.
+/// An iterator over subslices of an [`EStr`] slice separated by a delimiter.
 ///
 /// This struct is created by [`EStr::split`].
 ///

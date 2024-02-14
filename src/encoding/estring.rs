@@ -87,7 +87,9 @@ impl<E: Encoder> EString<E> {
     /// # Panics
     ///
     /// Panics at compile time if `SubE` is not a [sub-encoder](Encoder#sub-encoder) of `E`,
-    /// or if `SubE::TABLE` does not allow percent-encoding.
+    /// or if `SubE::TABLE` does not [allow percent-encoding].
+    ///
+    /// [allow percent-encoding]: super::table::Table::allows_enc
     #[inline]
     pub fn encode<SubE: Encoder>(&mut self, s: &(impl AsRef<[u8]> + ?Sized)) {
         let _ = Assert::<SubE, E>::LEFT_IS_SUB_ENCODER_OF_RIGHT;
@@ -102,7 +104,9 @@ impl<E: Encoder> EString<E> {
     ///
     /// # Panics
     ///
-    /// Panics if `E::TABLE` does not allow the byte.
+    /// Panics if `E::TABLE` does not [allow] the byte.
+    ///
+    /// [allow]: super::table::Table::allows
     #[inline]
     pub fn push_byte(&mut self, x: u8) {
         assert!(E::TABLE.allows(x), "table does not allow the byte");

@@ -15,7 +15,7 @@ use alloc::string::String;
 use core::{fmt::Write, marker::PhantomData, num::NonZeroU32};
 use state::*;
 
-#[cfg(feature = "std")]
+#[cfg(feature = "net")]
 use std::net::SocketAddr;
 
 /// A builder for URI reference.
@@ -29,14 +29,11 @@ use std::net::SocketAddr;
 /// ```
 /// use fluent_uri::{component::{Host, Scheme}, encoding::EStr, Uri};
 ///
-/// const SCHEME: &Scheme = Scheme::new("foo");
-/// const HOST: Host<'_> = Host::RegName(EStr::new("example.com"));
-///
 /// let uri = Uri::builder()
-///     .scheme(SCHEME)
+///     .scheme(Scheme::new("foo"))
 ///     .authority(|b| {
 ///         b.userinfo(EStr::new("user"))
-///             .host(HOST)
+///             .host(Host::RegName(EStr::new("example.com")))
 ///             .port(8042)
 ///     })
 ///     .path(EStr::new("/over/there"))
@@ -51,7 +48,7 @@ use std::net::SocketAddr;
 /// ```
 ///
 /// Only use [`EStr::new`] when you have a percent-encoded string at hand.
-/// You may otherwise encode and concatenate strings to an [`EString`]
+/// You may otherwise encode and append data to an [`EString`]
 /// which derefs to [`EStr`].
 ///
 /// [`EString`]: crate::encoding::EString
@@ -228,16 +225,16 @@ impl<S: To<HostEnd>> Builder<S> {
         let auth_meta = self.meta.auth_meta.as_mut().unwrap();
         auth_meta.host_bounds.0 = self.buf.len() as _;
 
-        #[cfg(feature = "std")]
+        #[cfg(feature = "net")]
         use crate::internal::HostMeta;
 
         match host {
-            #[cfg(feature = "std")]
+            #[cfg(feature = "net")]
             Host::Ipv4(addr) => {
                 write!(self.buf, "{addr}").unwrap();
                 auth_meta.host_meta = HostMeta::Ipv4(addr);
             }
-            #[cfg(feature = "std")]
+            #[cfg(feature = "net")]
             Host::Ipv6 { addr, zone_id } => {
                 use crate::encoding::table;
 
@@ -262,10 +259,54 @@ impl<S: To<HostEnd>> Builder<S> {
         self.cast()
     }
 
-    /// Sets the host and the port subcomponent of authority to the given socket address.
+    /// Sets the [host] and the [port] subcomponent of authority to the given socket address.
     ///
-    /// The port component is omitted when it equals the default port.
-    #[cfg(feature = "std")]
+    /// This will write the [scope ID] of a [`SocketAddrV6`] as an IPv6 zone identifier
+    /// if it does not equal `0`. If this is not desirable, consider setting the scope ID
+    /// to `0` in advance.
+    ///
+    /// The port component is omitted when it equals the default value.
+    ///
+    /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
+    /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
+    /// [scope ID]: std::net::SocketAddrV6::scope_id
+    /// [`SocketAddrV6`]: std::net::SocketAddrV6
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::{encoding::EStr, Uri};
+    /// use std::net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6};
+    ///
+    /// let mut addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80);
+    /// let uri = Uri::builder()
+    ///     .authority(|b| b.host_port_from_socket_addr(addr, 80))
+    ///     .path(EStr::new(""))
+    ///     .build();
+    /// assert_eq!(uri.as_str(), "//127.0.0.1");
+    ///
+    /// addr.set_port(81);
+    /// let uri = Uri::builder()
+    ///     .authority(|b| b.host_port_from_socket_addr(addr, 80))
+    ///     .path(EStr::new(""))
+    ///     .build();
+    /// assert_eq!(uri.as_str(), "//127.0.0.1:81");
+    ///
+    /// let mut addr = SocketAddrV6::new(Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 1), 80, 0, 0);
+    /// let uri = Uri::builder()
+    ///     .authority(|b| b.host_port_from_socket_addr(addr, 80))
+    ///     .path(EStr::new(""))
+    ///     .build();
+    /// assert_eq!(uri.as_str(), "//[fe80::1]");
+    ///
+    /// addr.set_scope_id(5);
+    /// let uri = Uri::builder()
+    ///     .authority(|b| b.host_port_from_socket_addr(addr, 80))
+    ///     .path(EStr::new(""))
+    ///     .build();
+    /// assert_eq!(uri.as_str(), "//[fe80::1%5]");
+    /// ```
+    #[cfg(feature = "net")]
     pub fn host_port_from_socket_addr<A: Into<SocketAddr>>(
         mut self,
         addr: A,
@@ -296,10 +337,7 @@ impl<S: To<HostEnd>> Builder<S> {
         }
 
         auth_meta.host_bounds.1 = self.buf.len() as _;
-        self.cast().optional(
-            Builder::port,
-            Some(addr.port()).filter(|&port| port != default_port),
-        )
+        self.cast().port_with_default(addr.port(), default_port)
     }
 }
 
@@ -328,13 +366,21 @@ impl<S: To<PortEnd>> Builder<S> {
     ///
     /// # Panics
     ///
-    /// Panics if an input string is not a valid port as per [Section 3.2.3 of RFC 3986][port].
+    /// Panics if an input string is not a valid port according to
+    /// [Section 3.2.3 of RFC 3986][port].
     ///
     /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
     pub fn port<T: PortLike>(mut self, port: T) -> Builder<PortEnd> {
         self.buf.push(':');
         port.write(&mut self.buf);
         self.cast()
+    }
+
+    /// Sets the [port] subcomponent of authority, omitting it when it equals the default value.
+    ///
+    /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
+    pub fn port_with_default(self, port: u16, default: u16) -> Builder<PortEnd> {
+        self.optional(Builder::port, Some(port).filter(|&port| port != default))
     }
 }
 
@@ -350,7 +396,8 @@ impl<S: To<PathEnd>> Builder<S> {
     ///
     /// # Panics
     ///
-    /// Panics if any of the following conditions is not met, as per [Section 3.3 of RFC 3986][path].
+    /// Panics if any of the following conditions is not met, as required in
+    /// [Section 3.3 of RFC 3986][path].
     ///
     /// - When authority is present, the path must either be empty or start with `'/'`.
     /// - When authority is absent, the path cannot start with `"//"`.

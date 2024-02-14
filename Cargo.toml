@@ -11,8 +11,11 @@ keywords = ["builder", "parser", "uri", "rfc3986"]
 categories = ["encoding", "parser-implementations"]
 
 [features]
-default = ["std"]
-std = ["dep:nix"]
+default = ["net", "std"]
+# TODO: Remove std from net when ip_in_core is stablized in 1.77.0.
+# Remember to add feature("std") to Authority::to_socket_addrs.
+net = ["std", "dep:nix"]
+std = []
 
 [dependencies]
 ref-cast = "1.0"

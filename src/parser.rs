@@ -119,7 +119,7 @@ impl<'a> Parser<'a> {
                 // INVARIANT: Since `i < len`, it holds that `i + 1 <= len`.
                 i += 1;
             }
-            // INVARIANT: `i` is non-decreasing and all bytes scanned are ASCII.
+            // INVARIANT: `i` is non-decreasing and all bytes read are ASCII.
             self.pos = i;
         }
         Ok(self.pos > start)
@@ -154,7 +154,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        // INVARIANT: `i` is non-decreasing and all bytes scanned are ASCII.
+        // INVARIANT: `i` is non-decreasing and all bytes read are ASCII.
         self.pos = i;
         Ok(())
     }
@@ -190,7 +190,7 @@ impl<'a> Parser<'a> {
                 self.parse_from_path(PathKind::General)
             };
         } else if self.marked_len() == 0 {
-            // Nothing scanned.
+            // Nothing read.
             if self.read_str("//") {
                 return self.parse_from_authority();
             }
@@ -206,7 +206,7 @@ impl<'a> Parser<'a> {
         // This table contains userinfo, reg-name, ":", and port.
         const TABLE: &Table = &USERINFO.shl(1).or(&Table::gen(b":"));
 
-        // The number of colons scanned.
+        // The number of colons read.
         let mut colon_cnt = 0;
 
         self.mark();
@@ -225,7 +225,7 @@ impl<'a> Parser<'a> {
             host = (self.mark, self.pos, meta);
             self.read_port();
         } else if self.marked_len() == 0 {
-            // Nothing scanned. We're now at the start of an IP literal or the path.
+            // Nothing read. We're now at the start of an IP literal or the path.
             if let Some(meta) = self.read_ip_literal()? {
                 host = (self.mark, self.pos, meta);
                 self.read_port();
@@ -234,7 +234,7 @@ impl<'a> Parser<'a> {
                 host = (self.pos, self.pos, HostMeta::RegName);
             }
         } else {
-            // The whole authority scanned. Try to parse the host and port.
+            // The whole authority read. Try to parse the host and port.
             let host_end = match colon_cnt {
                 // All host.
                 0 => self.pos,
@@ -272,7 +272,7 @@ impl<'a> Parser<'a> {
             // Save the state.
             let state = (self.bytes, self.pos);
 
-            // The entire host is already scanned so the index is within bounds.
+            // The entire host is already read so the index is within bounds.
             self.bytes = &self.bytes[..host_end];
             // INVARIANT: It holds that `mark <= pos <= len`.
             // Here `pos` may decrease but will be restored later.
@@ -281,7 +281,7 @@ impl<'a> Parser<'a> {
             let v4 = self.read_v4();
             let meta = match v4 {
                 Some(_addr) if !self.has_remaining() => HostMeta::Ipv4(
-                    #[cfg(feature = "std")]
+                    #[cfg(feature = "net")]
                     _addr.into(),
                 ),
                 _ => HostMeta::RegName,
@@ -319,12 +319,12 @@ impl<'a> Parser<'a> {
         let meta = if let Some(_addr) = self.read_v6() {
             if self.read_zone_id()? {
                 HostMeta::Ipv6Zoned(
-                    #[cfg(feature = "std")]
+                    #[cfg(feature = "net")]
                     _addr.into(),
                 )
             } else {
                 HostMeta::Ipv6(
-                    #[cfg(feature = "std")]
+                    #[cfg(feature = "net")]
                     _addr.into(),
                 )
             }
@@ -465,7 +465,7 @@ impl<'a> Parser<'a> {
 
         Ok(match v4 {
             Some(_addr) if self.pos == v4_end => HostMeta::Ipv4(
-                #[cfg(feature = "std")]
+                #[cfg(feature = "net")]
                 _addr.into(),
             ),
             _ => HostMeta::RegName,
