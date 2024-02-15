@@ -62,7 +62,6 @@ impl Scheme {
     ///
     /// let uri = Uri::parse("http://example.com/")?;
     /// assert_eq!(uri.scheme().unwrap().as_str(), "http");
-    ///
     /// let uri = Uri::parse("HTTP://EXAMPLE.COM/")?;
     /// assert_eq!(uri.scheme().unwrap().as_str(), "HTTP");
     /// # Ok::<_, fluent_uri::ParseError>(())
@@ -228,7 +227,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
                 addr,
                 zone_id: None,
             },
-            HostMeta::Ipv6Zoned(addr) => Host::Ipv6 {
+            HostMeta::Ipv6Scoped(addr) => Host::Ipv6 {
                 addr,
                 zone_id: Some(self.zone_id()),
             },
@@ -238,7 +237,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
         #[cfg(not(feature = "net"))]
         match self.meta().host_meta {
             HostMeta::Ipv4() => Host::Ipv4(),
-            HostMeta::Ipv6() | HostMeta::Ipv6Zoned() => Host::Ipv6 {},
+            HostMeta::Ipv6() | HostMeta::Ipv6Scoped() => Host::Ipv6 {},
             HostMeta::IpvFuture => Host::IpvFuture {},
             HostMeta::RegName => Host::RegName(EStr::new_validated(self.host())),
         }
@@ -394,7 +393,7 @@ pub enum Host<'a> {
         /// An optional non-empty zone identifier containing only [unreserved] characters.
         ///
         /// This is a [crate-specific syntax extension][ext].
-        /// If this is not desirable, set this field to `None`.
+        /// If this is not desirable, always set this field to `None`.
         ///
         /// [unreserved]: https://datatracker.ietf.org/doc/html/rfc3986/#section-2.3
         /// [ext]: crate#crate-specific-syntax-extension

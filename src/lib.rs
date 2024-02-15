@@ -14,9 +14,25 @@
 //!
 //! This crate incorporates the IPv6 scoped address format of [RFC 4007]
 //! to allow parsing and building URIs such as `http://[fe80::1%eth0]`.
-//! The syntax extension and a way to opt out are documented at [`Uri::parse`].
+//! The syntax extension is defined by replacing the `IP-literal` ABNF rule
+//! from RFC 3986 with the following two rules:
+//!
+//! ```abnf
+//! IP-literal = "[" ( IPv6address [ "%" zone-id ] / IPvFuture ) "]"
+//! zone-id    = 1*unreserved
+//! ```
+//!
+//! This extension is *explicitly* enabled by either calling
+//! [`Uri::parse_with_syntax_extension`], passing a [`Host::Ipv6`]
+//! with a zone identifier to [`Builder::host`], or passing a
+//! [`SocketAddrV6`] with a non-zero [scope ID] to
+//! [`Builder::host_port_from_socket_addr`].
 //!
 //! [RFC 4007]: https://datatracker.ietf.org/doc/html/rfc4007/
+//!
+//! [`Host::Ipv6`]: component::Host::Ipv6
+//! [`SocketAddrV6`]: std::net::SocketAddrV6
+//! [scope ID]: std::net::SocketAddrV6::scope_id
 //!
 //! # Crate features
 //!
@@ -55,9 +71,10 @@ use encoding::{
     encoder::{Encoder, Fragment, Path, Query},
     EStr,
 };
-use internal::{AuthMeta, HostMeta, Meta, Storage, StorageHelper, ToUri};
+use internal::{AuthMeta, HostMeta, Meta, Storage, StorageHelper, Syntax, ToUri};
 
-/// A [URI reference] defined in RFC 3986 with [crate-specific syntax extension][ext].
+/// A [URI reference] defined in RFC 3986,
+/// possibly with [crate-specific syntax extension][ext].
 ///
 /// [URI reference]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.1
 /// [ext]: crate#crate-specific-syntax-extension
@@ -117,6 +134,9 @@ pub struct Uri<T: Storage> {
 impl<T: Storage> Uri<T> {
     /// Parses a URI reference from a string into a `Uri`.
     ///
+    /// Returns `Ok` if and only if the string matches the [`URI-reference`]
+    /// ABNF rule from RFC 3986.
+    ///
     /// The return type is
     ///
     /// - `Result<Uri<String>, ParseError<String>>` for `I = String`.
@@ -124,18 +144,7 @@ impl<T: Storage> Uri<T> {
     ///
     /// You may recover an input [`String`] by calling [`ParseError::into_input`].
     ///
-    /// # Behavior
-    ///
-    /// This function validates the input according to [RFC 3986],
-    /// with the only exception that a non-empty case-sensitive IPv6 zone identifier
-    /// containing only [unreserved] characters is accepted,
-    /// such as `eth0` in `http://[fe80::1%eth0]`.
-    /// If this is not desirable, consider rejecting an output `Uri`
-    /// with [`is_strictly_rfc3986_compliant`] returning `false`.
-    ///
-    /// [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
-    /// [unreserved]: https://datatracker.ietf.org/doc/html/rfc3986/#section-2.3
-    /// [`is_strictly_rfc3986_compliant`]: Self::is_strictly_rfc3986_compliant
+    /// [`URI-reference`]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.1
     ///
     /// # Panics
     ///
@@ -145,7 +154,21 @@ impl<T: Storage> Uri<T> {
     where
         I: ToUri<Storage = T>,
     {
-        input.to_uri()
+        input.to_uri(Syntax::Rfc3986)
+    }
+
+    /// Parses a URI reference from a string into a `Uri`,
+    /// with [crate-specific syntax extension][ext].
+    ///
+    /// The behavior of this function is otherwise identical to [`parse`].
+    ///
+    /// [ext]: crate#crate-specific-syntax-extension
+    /// [`parse`]: Self::parse
+    pub fn parse_with_syntax_extension<I>(input: I) -> Result<Uri<I::Storage>, I::Err>
+    where
+        I: ToUri<Storage = T>,
+    {
+        input.to_uri(Syntax::Extended)
     }
 }
 
@@ -268,7 +291,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
         self.fragment_start().map(|i| self.eslice(i, self.len()))
     }
 
-    /// Returns `true` if the URI reference is [relative], i.e., without a scheme.
+    /// Checks whether the URI reference is [relative], i.e., without a scheme.
     ///
     /// Note that this method is not the opposite of [`is_absolute`].
     ///
@@ -291,7 +314,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
         self.scheme_end.is_none()
     }
 
-    /// Returns `true` if the URI reference is [absolute], i.e., with a scheme and without a fragment.
+    /// Checks whether the URI reference is [absolute], i.e., with a scheme and without a fragment.
     ///
     /// Note that this method is not the opposite of [`is_relative`].
     ///
@@ -316,8 +339,9 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
         self.scheme_end.is_some() && self.fragment_start().is_none()
     }
 
-    /// Returns `true` if the URI reference is strictly RFC 3986 compliant,
-    /// i.e., it does not contain an IPv6 zone identifier.
+    /// Checks whether `self.as_str()` matches the [`URI-reference`] ABNF rule from RFC 3986.
+    ///
+    /// [`URI-reference`]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.1
     ///
     /// # Examples
     ///
@@ -325,16 +349,16 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
     /// use fluent_uri::Uri;
     ///
     /// let uri = Uri::parse("http://[fe80::1]/")?;
-    /// assert!(uri.is_strictly_rfc3986_compliant());
+    /// assert!(uri.is_rfc3986_compliant());
     /// let uri = Uri::parse("http://[fe80::1%eth0]/")?;
-    /// assert!(!uri.is_strictly_rfc3986_compliant());
+    /// assert!(!uri.is_rfc3986_compliant());
     /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
-    pub fn is_strictly_rfc3986_compliant(&self) -> bool {
+    pub fn is_rfc3986_compliant(&self) -> bool {
         !matches!(
             self.auth_meta,
             Some(AuthMeta {
-                host_meta: HostMeta::Ipv6Zoned(..),
+                host_meta: HostMeta::Ipv6Scoped(..),
                 ..
             })
         )

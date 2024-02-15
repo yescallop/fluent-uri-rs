@@ -64,7 +64,7 @@ impl<E: Encoder> EStr<E> {
         &self.inner
     }
 
-    /// Returns `true` if the `EStr` slice is empty.
+    /// Checks whether the `EStr` slice is empty.
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
@@ -270,13 +270,13 @@ impl<E: Encoder> ToOwned for EStr<E> {
 ///
 /// [path]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
 impl EStr<Path> {
-    /// Returns `true` if the path is absolute, i.e., starting with `'/'`.
+    /// Checks whether the path is absolute, i.e., starting with `'/'`.
     #[inline]
     pub fn is_absolute(&self) -> bool {
         self.inner.starts_with('/')
     }
 
-    /// Returns `true` if the path is rootless, i.e., not starting with `'/'`.
+    /// Checks whether the path is rootless, i.e., not starting with `'/'`.
     #[inline]
     pub fn is_rootless(&self) -> bool {
         !self.inner.starts_with('/')

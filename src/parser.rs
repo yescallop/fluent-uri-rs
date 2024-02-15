@@ -1,15 +1,16 @@
 use crate::{
     encoding::{imp::OCTET_TABLE_LO, table::*},
-    internal::{AuthMeta, HostMeta, Meta},
+    internal::{AuthMeta, HostMeta, Meta, Syntax},
     ParseError,
 };
 use core::{num::NonZeroU32, str};
 
 type Result<T> = core::result::Result<T, ParseError>;
 
-pub(crate) fn parse(bytes: &[u8]) -> Result<Meta> {
+pub(crate) fn parse(bytes: &[u8], syntax: Syntax) -> Result<Meta> {
     let mut parser = Parser {
         bytes,
+        syntax,
         pos: 0,
         mark: 0,
         out: Meta::default(),
@@ -49,6 +50,7 @@ macro_rules! err {
 /// - All URI components defined by output indexes are validated.
 struct Parser<'a> {
     bytes: &'a [u8],
+    syntax: Syntax,
     pos: usize,
     mark: usize,
     out: Meta,
@@ -105,7 +107,7 @@ impl<'a> Parser<'a> {
         self.pos - self.mark
     }
 
-    // Returns `true` if any byte is read.
+    // Returns `true` iff any byte is read.
     fn read(&mut self, table: &Table) -> Result<bool> {
         let start = self.pos;
         if table.allows_enc() {
@@ -317,8 +319,8 @@ impl<'a> Parser<'a> {
         }
 
         let meta = if let Some(_addr) = self.read_v6() {
-            if self.read_zone_id()? {
-                HostMeta::Ipv6Zoned(
+            if self.syntax == Syntax::Extended && self.read_zone_id()? {
+                HostMeta::Ipv6Scoped(
                     #[cfg(feature = "net")]
                     _addr.into(),
                 )
@@ -549,7 +551,7 @@ impl<'a> Parser<'a> {
                 (start as _, self.pos as _)
             }
             PathKind::ContinuedNoScheme => {
-                self.read(SEGMENT_NC)?;
+                self.read(SEGMENT_NZ_NC)?;
 
                 if self.peek(0) == Some(b':') {
                     // In a relative reference, the first path

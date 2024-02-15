@@ -1,9 +1,9 @@
 //! Byte pattern tables from RFC 3986.
 //!
 //! The predefined table constants in this module are documented with
-//! the ABNF notation of [RFC 2234].
+//! the ABNF notation of [RFC 5234].
 //!
-//! [RFC 2234]: https://datatracker.ietf.org/doc/html/rfc2234/
+//! [RFC 5234]: https://datatracker.ietf.org/doc/html/rfc5234/
 
 use alloc::string::String;
 
@@ -89,7 +89,7 @@ impl Table {
         self
     }
 
-    /// Returns `true` if the table is a subset of another, i.e., `other`
+    /// Checks whether the table is a subset of another, i.e., `other`
     /// allows at least all the byte patterns allowed by `self`.
     pub const fn is_subset(&self, other: &Table) -> bool {
         let mut i = 0;
@@ -118,13 +118,13 @@ impl Table {
         self.arr[x as usize]
     }
 
-    /// Returns `true` if the given unencoded byte is allowed by the table.
+    /// Checks whether the given unencoded byte is allowed by the table.
     #[inline]
     pub const fn allows(&self, x: u8) -> bool {
         self.get(x) != 0
     }
 
-    /// Returns `true` if percent-encoded octets are allowed by the table.
+    /// Checks whether percent-encoded octets are allowed by the table.
     #[inline]
     pub const fn allows_enc(&self) -> bool {
         self.allows_enc
@@ -180,55 +180,54 @@ const fn gen(bytes: &[u8]) -> Table {
     Table::gen(bytes)
 }
 
-/// ALPHA = A-Z / a-z
+/// `ALPHA = %x41-5A / %x61-7A`
 pub const ALPHA: &Table = &gen(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
 
-/// DIGIT = 0-9
+/// `DIGIT = %x30-39`
 pub const DIGIT: &Table = &gen(b"0123456789");
 
-/// HEXDIG = DIGIT / "A" / "B" / "C" / "D" / "E" / "F"
-///                / "a" / "b" / "c" / "d" / "e" / "f"
+/// `HEXDIG = DIGIT / "A" / "B" / "C" / "D" / "E" / "F"`
 pub const HEXDIG: &Table = &DIGIT.or(&gen(b"ABCDEFabcdef"));
 
-/// reserved = gen-delims / sub-delims
-pub const RESERVED: &Table = &GEN_DELIMS.or(SUB_DELIMS);
-
-/// gen-delims = ":" / "/" / "?" / "#" / "[" / "]" / "@"
-pub const GEN_DELIMS: &Table = &gen(b":/?#[]@");
-
-/// sub-delims = "!" / "$" / "&" / "'" / "(" / ")"
-///            / "*" / "+" / "," / ";" / "="
-pub const SUB_DELIMS: &Table = &gen(b"!$&'()*+,;=");
-
-/// unreserved = ALPHA / DIGIT / "-" / "." / "_" / "~"
-pub const UNRESERVED: &Table = &ALPHA.or(DIGIT).or(&gen(b"-._~"));
-
-/// pchar = unreserved / pct-encoded / sub-delims / ":" / "@"
-pub const PCHAR: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b":@")).enc();
-
-/// segment-nz-nc = 1*( unreserved / pct-encoded / sub-delims / "@" )
-pub const SEGMENT_NC: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b"@")).enc();
-
-/// scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
+/// `scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )`
 pub const SCHEME: &Table = &ALPHA.or(DIGIT).or(&gen(b"+-."));
 
-/// userinfo = *( unreserved / pct-encoded / sub-delims / ":" )
+/// `userinfo = *( unreserved / pct-encoded / sub-delims / ":" )`
 pub const USERINFO: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b":")).enc();
 
-/// IPvFuture = "v" 1\*HEXDIG "." 1\*( unreserved / sub-delims / ":" )
+/// `IPvFuture = "v" 1*HEXDIG "." 1*( unreserved / sub-delims / ":" )`
 pub const IPV_FUTURE: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b":"));
 
-/// reg-name = *( unreserved / pct-encoded / sub-delims )
+/// `reg-name = *( unreserved / pct-encoded / sub-delims )`
 pub const REG_NAME: &Table = &UNRESERVED.or(SUB_DELIMS).enc();
 
-/// path = *( pchar / "/" )
+/// `path = *( pchar / "/" )`
 pub const PATH: &Table = &PCHAR.or(&gen(b"/"));
 
-/// query = *( pchar / "/" / "?" )
+/// `segment-nz-nc = 1*( unreserved / pct-encoded / sub-delims / "@" )`
+pub const SEGMENT_NZ_NC: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b"@")).enc();
+
+/// `pchar = unreserved / pct-encoded / sub-delims / ":" / "@"`
+pub const PCHAR: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b":@")).enc();
+
+/// `query = *( pchar / "/" / "?" )`
 pub const QUERY: &Table = &PCHAR.or(&gen(b"/?"));
 
-/// fragment = *( pchar / "/" / "?" )
+/// `fragment = *( pchar / "/" / "?" )`
 pub const FRAGMENT: &Table = QUERY;
 
-/// ZoneID = 1*( unreserved )
+/// `unreserved = ALPHA / DIGIT / "-" / "." / "_" / "~"`
+pub const UNRESERVED: &Table = &ALPHA.or(DIGIT).or(&gen(b"-._~"));
+
+/// `reserved = gen-delims / sub-delims`
+pub const RESERVED: &Table = &GEN_DELIMS.or(SUB_DELIMS);
+
+/// `gen-delims = ":" / "/" / "?" / "#" / "[" / "]" / "@"`
+pub const GEN_DELIMS: &Table = &gen(b":/?#[]@");
+
+/// `sub-delims = "!" / "$" / "&" / "'" / "(" / ")"
+///             / "*" / "+" / "," / ";" / "="`
+pub const SUB_DELIMS: &Table = &gen(b"!$&'()*+,;=");
+
+/// `zone-id = 1*unreserved`
 pub(crate) const ZONE_ID: &Table = UNRESERVED;

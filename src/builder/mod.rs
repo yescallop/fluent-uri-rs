@@ -246,7 +246,7 @@ impl<S: To<HostEnd>> Builder<S> {
                     );
                     self.buf.push('%');
                     self.buf.push_str(zone_id);
-                    auth_meta.host_meta = HostMeta::Ipv6Zoned(addr);
+                    auth_meta.host_meta = HostMeta::Ipv6Scoped(addr);
                 } else {
                     auth_meta.host_meta = HostMeta::Ipv6(addr);
                 }
@@ -261,14 +261,15 @@ impl<S: To<HostEnd>> Builder<S> {
 
     /// Sets the [host] and the [port] subcomponent of authority to the given socket address.
     ///
-    /// This will write the [scope ID] of a [`SocketAddrV6`] as an IPv6 zone identifier
-    /// if it does not equal `0`. If this is not desirable, consider setting the scope ID
-    /// to `0` in advance.
+    /// This method enables the [crate-specific syntax extension][ext]
+    /// if the [scope ID] of an input [`SocketAddrV6`] does not equal `0`.
+    /// If this is not desirable, always set the scope ID to `0` in advance.
     ///
     /// The port component is omitted when it equals the default value.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
     /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
+    /// [ext]: crate#crate-specific-syntax-extension
     /// [scope ID]: std::net::SocketAddrV6::scope_id
     /// [`SocketAddrV6`]: std::net::SocketAddrV6
     ///
@@ -328,7 +329,7 @@ impl<S: To<HostEnd>> Builder<S> {
                 let scope_id = addr.scope_id();
                 if scope_id != 0 {
                     write!(self.buf, "[{ip}%{scope_id}]").unwrap();
-                    auth_meta.host_meta = HostMeta::Ipv6Zoned(ip);
+                    auth_meta.host_meta = HostMeta::Ipv6Scoped(ip);
                 } else {
                     write!(self.buf, "[{ip}]").unwrap();
                     auth_meta.host_meta = HostMeta::Ipv6(ip);
