@@ -80,7 +80,7 @@ impl<E: Encoder> EStr<E> {
     ///
     /// # Panics
     ///
-    /// Panics at compile time if `E` is not a [sub-encoder](Encoder#sub-encoder) of `SuperE`.
+    /// Panics at compile time if `E` is not a [sub-encoder](Encoder#sub-encoders) of `SuperE`.
     #[cfg(fluent_uri_unstable)]
     #[inline]
     pub fn upcast<SuperE: Encoder>(&self) -> &EStr<SuperE> {
@@ -270,13 +270,13 @@ impl<E: Encoder> ToOwned for EStr<E> {
 ///
 /// [path]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
 impl EStr<Path> {
-    /// Returns `true` if the path is absolute, i.e., beginning with "/".
+    /// Returns `true` if the path is absolute, i.e., starting with `'/'`.
     #[inline]
     pub fn is_absolute(&self) -> bool {
         self.inner.starts_with('/')
     }
 
-    /// Returns `true` if the path is rootless, i.e., not beginning with "/".
+    /// Returns `true` if the path is rootless, i.e., not starting with `'/'`.
     #[inline]
     pub fn is_rootless(&self) -> bool {
         !self.inner.starts_with('/')
@@ -295,11 +295,11 @@ impl EStr<Path> {
     /// let uri = Uri::parse("")?;
     /// assert_eq!(uri.path().segments().next(), None);
     ///
-    /// // Segments are separated by "/".
+    /// // Segments are separated by '/'.
     /// let uri = Uri::parse("a/b/c")?;
     /// assert!(uri.path().segments().eq(["a", "b", "c"]));
     ///
-    /// // The empty string before a preceding "/" is not a segment.
+    /// // The empty string before a preceding '/' is not a segment.
     /// // However, segments can be empty in the other cases.
     /// let uri = Uri::parse("/path/to//dir/")?;
     /// assert!(uri.path().segments().eq(["path", "to", "", "dir", ""]));
@@ -324,8 +324,6 @@ impl EStr<Path> {
 /// A wrapper of percent-decoded bytes.
 ///
 /// This enum is created by [`EStr::decode`].
-///
-/// [`decode`]: EStr::decode
 #[derive(Clone, Debug)]
 pub enum Decode<'a> {
     /// No percent-encoded octets are decoded.
@@ -355,7 +353,7 @@ impl<'a> Decode<'a> {
 
     /// Converts the decoded bytes to a string.
     ///
-    /// Returns `Err` if the decoded bytes are not valid UTF-8.
+    /// Returns `Err` if the bytes are not valid UTF-8.
     #[inline]
     pub fn into_string(self) -> Result<Cow<'a, str>, FromUtf8Error> {
         match self {
@@ -365,13 +363,12 @@ impl<'a> Decode<'a> {
     }
 
     /// Converts the decoded bytes to a string, including invalid characters.
+    ///
+    /// This calls [`String::from_utf8_lossy`] if the bytes are not valid UTF-8.
     pub fn into_string_lossy(self) -> Cow<'a, str> {
-        match self {
-            Self::Borrowed(s) => Cow::Borrowed(s),
-            Self::Owned(vec) => Cow::Owned(match String::from_utf8(vec) {
-                Ok(string) => string,
-                Err(e) => String::from_utf8_lossy(e.as_bytes()).into_owned(),
-            }),
+        match self.into_string() {
+            Ok(string) => string,
+            Err(e) => Cow::Owned(String::from_utf8_lossy(e.as_bytes()).into_owned()),
         }
     }
 }
@@ -379,8 +376,6 @@ impl<'a> Decode<'a> {
 /// An iterator over subslices of an [`EStr`] slice separated by a delimiter.
 ///
 /// This struct is created by [`EStr::split`].
-///
-/// [`split`]: EStr::split
 #[derive(Clone, Debug)]
 #[must_use = "iterators are lazy and do nothing unless consumed"]
 pub struct Split<'a, E: Encoder> {

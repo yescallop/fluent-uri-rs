@@ -25,7 +25,7 @@ unsafe fn check(data: &str, cstr: &CStr) {
 
         assert_text_eq(uri2.scheme().map(|s| s.as_str()), uri1.scheme);
         assert_text_eq(
-            uri2.authority().map(|a| a.host_as_str()).map(|s| {
+            uri2.authority().map(|a| a.host()).map(|s| {
                 if s.starts_with('[') {
                     &s[1..s.len() - 1]
                 } else {
@@ -37,7 +37,7 @@ unsafe fn check(data: &str, cstr: &CStr) {
         if let Some(a) = uri2.authority() {
             assert_text_eq(a.userinfo().map(|u| u.as_str()), uri1.userInfo);
             assert_text_eq(a.port(), uri1.portText);
-            match a.host() {
+            match a.host_parsed() {
                 Host::Ipv4(addr) => {
                     let ptr = uri1.hostData.ip4;
                     assert!(!ptr.is_null());

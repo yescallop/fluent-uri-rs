@@ -542,7 +542,7 @@ impl<'a> Parser<'a> {
             }
             PathKind::AbEmpty => {
                 let start = self.pos;
-                // Either empty or starting with "/".
+                // Either empty or starting with '/'.
                 if self.read(PATH)? && self.get(start) != b'/' {
                     err!(start, UnexpectedChar);
                 }

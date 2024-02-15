@@ -148,6 +148,8 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
 
     /// Returns the [host] subcomponent as a string slice.
     ///
+    /// The square brackets enclosing an IP literal are included.
+    ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
     ///
     /// # Examples
@@ -176,6 +178,48 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
     /// Returns the parsed [host] subcomponent.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::{component::Host, encoding::EStr, Uri};
+    /// use std::net::{Ipv4Addr, Ipv6Addr};
+    ///
+    /// let uri = Uri::parse("//127.0.0.1")?;
+    /// let authority = uri.authority().unwrap();
+    /// assert_eq!(authority.host_parsed(), Host::Ipv4(Ipv4Addr::LOCALHOST));
+    ///
+    /// let uri = Uri::parse("//[::1]")?;
+    /// let authority = uri.authority().unwrap();
+    /// assert_eq!(
+    ///     authority.host_parsed(),
+    ///     Host::Ipv6 {
+    ///         addr: Ipv6Addr::LOCALHOST,
+    ///         zone_id: None,
+    ///     }
+    /// );
+    ///
+    /// let uri = Uri::parse("//[fe80::1%eth0]")?;
+    /// let authority = uri.authority().unwrap();
+    /// assert_eq!(
+    ///     authority.host_parsed(),
+    ///     Host::Ipv6 {
+    ///         addr: Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 1),
+    ///         zone_id: Some("eth0"),
+    ///     }
+    /// );
+    ///
+    /// let uri = Uri::parse("//[v1.addr]")?;
+    /// let authority = uri.authority().unwrap();
+    /// // The API design for IPvFuture addresses is to be determined.
+    /// assert!(matches!(authority.host_parsed(), Host::IpvFuture { .. }));
+    ///
+    /// let uri = Uri::parse("//localhost")?;
+    /// let authority = uri.authority().unwrap();
+    /// assert_eq!(authority.host_parsed(), Host::RegName(EStr::new("localhost")));
+    ///
+    /// # Ok::<_, fluent_uri::ParseError>(())
+    /// ```
     pub fn host_parsed(&'i self) -> Host<'o> {
         #[cfg(feature = "net")]
         match self.meta().host_meta {
@@ -213,17 +257,21 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
     /// ```
     /// use fluent_uri::Uri;
     ///
-    /// let uri = Uri::parse("ssh://device.local:4673/")?;
+    /// let uri = Uri::parse("//localhost:4673/")?;
     /// let authority = uri.authority().unwrap();
     /// assert_eq!(authority.port(), Some("4673"));
     ///
-    /// let uri = Uri::parse("ssh://device.local:/")?;
+    /// let uri = Uri::parse("//localhost:/")?;
     /// let authority = uri.authority().unwrap();
     /// assert_eq!(authority.port(), Some(""));
     ///
-    /// let uri = Uri::parse("ssh://device.local/")?;
+    /// let uri = Uri::parse("//localhost/")?;
     /// let authority = uri.authority().unwrap();
     /// assert_eq!(authority.port(), None);
+    ///
+    /// let uri = Uri::parse("//localhost:66666/")?;
+    /// let authority = uri.authority().unwrap();
+    /// assert_eq!(authority.port(), Some("66666"));
     /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     #[inline]
@@ -234,11 +282,34 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
 
     /// Converts the [port] subcomponent to `u16`.
     ///
-    /// This allows leading zeros.
+    /// Leading zeros are ignored.
     /// Returns `Ok(None)` if the port component is not present or is empty.
     /// Returns `Err` if the port component cannot be parsed into `u16`.
     ///
     /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::Uri;
+    ///
+    /// let uri = Uri::parse("//localhost:4673/")?;
+    /// let authority = uri.authority().unwrap();
+    /// assert_eq!(authority.port_to_u16(), Ok(Some(4673)));
+    ///
+    /// let uri = Uri::parse("//localhost:/")?;
+    /// let authority = uri.authority().unwrap();
+    /// assert_eq!(authority.port_to_u16(), Ok(None));
+    ///
+    /// let uri = Uri::parse("//localhost/")?;
+    /// let authority = uri.authority().unwrap();
+    /// assert_eq!(authority.port_to_u16(), Ok(None));
+    ///
+    /// let uri = Uri::parse("//localhost:66666/")?;
+    /// let authority = uri.authority().unwrap();
+    /// assert!(authority.port_to_u16().is_err());
+    /// # Ok::<_, fluent_uri::ParseError>(())
+    /// ```
     pub fn port_to_u16(&'i self) -> Result<Option<u16>, ParseIntError> {
         self.port()
             .filter(|port| !port.is_empty())
@@ -254,7 +325,7 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
     /// with [`ToSocketAddrs`] as is.
     ///
     /// An IPv6 zone identifier is resolved first as a 32-bit unsigned integer
-    /// with or without leading zeros, and then as a network interface name
+    /// ignoring leading zeros, and then as a network interface name
     /// on Unix platforms with `if_nametoindex`.
     ///
     /// # Errors
@@ -322,17 +393,18 @@ pub enum Host<'a> {
         addr: Ipv6Addr,
         /// An optional non-empty zone identifier containing only [unreserved] characters.
         ///
-        /// This is a crate-specific [extension] to the URI syntax.
+        /// This is a [crate-specific syntax extension][ext].
         /// If this is not desirable, set this field to `None`.
         ///
         /// [unreserved]: https://datatracker.ietf.org/doc/html/rfc3986/#section-2.3
-        /// [extension]: crate#crate-specific-syntax-extension
+        /// [ext]: crate#crate-specific-syntax-extension
         #[cfg(feature = "net")]
         zone_id: Option<&'a str>,
     },
     /// An IP address of future version.
     ///
-    /// This variant is marked as non-exhaustive because the API design is to be determined.
+    /// This variant is marked as non-exhaustive because the API design
+    /// for IPvFuture addresses is to be determined.
     #[non_exhaustive]
     IpvFuture {},
     /// A registered name.

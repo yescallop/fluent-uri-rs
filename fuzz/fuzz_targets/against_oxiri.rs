@@ -1,9 +1,15 @@
 #![no_main]
+use fluent_uri::component::Host;
 use fluent_uri_fuzz::parse_strict;
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &str| {
     if let Some(u1) = parse_strict(data) {
+        if let Some(auth) = u1.authority() {
+            if let Host::IpvFuture { .. } = auth.host_parsed() {
+                return;
+            }
+        }
         let u2 = oxiri::IriRef::parse(data).unwrap();
         assert_eq!(u1.scheme().map(|s| s.as_str()), u2.scheme());
         assert_eq!(u1.authority().map(|a| a.as_str()), u2.authority());

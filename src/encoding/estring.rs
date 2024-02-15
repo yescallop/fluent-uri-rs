@@ -86,7 +86,7 @@ impl<E: Encoder> EString<E> {
     ///
     /// # Panics
     ///
-    /// Panics at compile time if `SubE` is not a [sub-encoder](Encoder#sub-encoder) of `E`,
+    /// Panics at compile time if `SubE` is not a [sub-encoder](Encoder#sub-encoders) of `E`,
     /// or if `SubE::TABLE` does not [allow percent-encoding].
     ///
     /// [allow percent-encoding]: super::table::Table::allows_enc
@@ -117,7 +117,7 @@ impl<E: Encoder> EString<E> {
     ///
     /// # Panics
     ///
-    /// Panics at compile time if `SubE` is not a [sub-encoder](Encoder#sub-encoder) of `E`.
+    /// Panics at compile time if `SubE` is not a [sub-encoder](Encoder#sub-encoders) of `E`.
     #[inline]
     pub fn push_estr<SubE: Encoder>(&mut self, s: &EStr<SubE>) {
         let _ = Assert::<SubE, E>::LEFT_IS_SUB_ENCODER_OF_RIGHT;

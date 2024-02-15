@@ -15,7 +15,7 @@ fuzz_target!(|data: &str| {
                 buf.push_str(ui.as_str());
                 buf.push('@');
             }
-            buf.push_str(a.host_as_str());
+            buf.push_str(a.host());
             if let Some(p) = a.port() {
                 buf.push(':');
                 buf.push_str(p);

@@ -57,9 +57,10 @@ use encoding::{
 };
 use internal::{AuthMeta, HostMeta, Meta, Storage, StorageHelper, ToUri};
 
-/// A [URI reference] defined in RFC 3986.
+/// A [URI reference] defined in RFC 3986 with [crate-specific syntax extension][ext].
 ///
 /// [URI reference]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.1
+/// [ext]: crate#crate-specific-syntax-extension
 ///
 /// # Variants
 ///
@@ -325,7 +326,6 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
     ///
     /// let uri = Uri::parse("http://[fe80::1]/")?;
     /// assert!(uri.is_strictly_rfc3986_compliant());
-    ///
     /// let uri = Uri::parse("http://[fe80::1%eth0]/")?;
     /// assert!(!uri.is_strictly_rfc3986_compliant());
     /// # Ok::<_, fluent_uri::ParseError>(())

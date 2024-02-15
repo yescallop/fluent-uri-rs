@@ -9,7 +9,7 @@ use super::table::*;
 /// [`EStr`]: super::EStr
 /// [`EString`]: super::EString
 ///
-/// # Sub-encoder
+/// # Sub-encoders
 ///
 /// A sub-encoder `SubE` of `E` is an encoder such that `SubE::TABLE` is a [subset] of `E::TABLE`.
 ///
@@ -34,6 +34,11 @@ impl Encoder for RegName {
 }
 
 /// An encoder for path.
+///
+/// [`EStr`] has [extension methods] for the path component.
+///
+/// [`EStr`]: super::EStr
+/// [extension methods]: super::EStr#impl-EStr<Path>
 pub struct Path(());
 
 impl Encoder for Path {

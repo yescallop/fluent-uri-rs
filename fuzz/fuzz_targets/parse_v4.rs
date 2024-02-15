@@ -5,15 +5,15 @@ use std::net::Ipv4Addr;
 use std::str::FromStr;
 
 fuzz_target!(|data: &str| {
-    if data.contains(['/', '?', '#', '@', ':', '%']) {
+    if data.contains(['/', '?', '#', '@', ':']) {
         return;
     }
     assert_eq!(parse_v4(data), Ipv4Addr::from_str(data).ok());
 });
 
 fn parse_v4(s: &str) -> Option<Ipv4Addr> {
-    let s = format!("//user@{s}:81/");
-    match Uri::parse(s).ok()?.authority()?.host() {
+    let s = format!("//{s}/");
+    match Uri::parse(s).ok()?.authority()?.host_parsed() {
         Host::Ipv4(addr) => Some(addr),
         _ => None,
     }
