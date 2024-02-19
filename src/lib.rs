@@ -71,7 +71,7 @@ use encoding::{
     encoder::{Encoder, Fragment, Path, Query},
     EStr,
 };
-use internal::{AuthMeta, HostMeta, Meta, Storage, StorageHelper, Syntax, ToUri};
+use internal::{AuthMeta, Data, DataHelper, HostMeta, Meta, Syntax, ToUri};
 
 /// A [URI reference] defined in RFC 3986,
 /// possibly with [crate-specific syntax extension][ext].
@@ -123,15 +123,15 @@ use internal::{AuthMeta, HostMeta, Meta, Storage, StorageHelper, Syntax, ToUri};
 ///
 /// See the documentation of [`Builder`] for examples of building a `Uri` from its components.
 #[derive(Clone, Copy, Default)]
-pub struct Uri<T: Storage> {
-    /// Stores the URI reference. Guaranteed to contain only ASCII bytes.
-    storage: T,
+pub struct Uri<T: Data> {
+    /// Stores the value of the URI reference.
+    data: T,
     /// Metadata of the URI reference.
-    /// Guaranteed identical to parser output with `storage` as input.
+    /// Guaranteed identical to parser output with `data` as input.
     meta: Meta,
 }
 
-impl<T: Storage> Uri<T> {
+impl<T: Data> Uri<T> {
     /// Parses a URI reference from a string into a `Uri`.
     ///
     /// Returns `Ok` if and only if the string matches the [`URI-reference`]
@@ -150,9 +150,9 @@ impl<T: Storage> Uri<T> {
     ///
     /// Panics if the input length is greater than [`u32::MAX`].
     #[inline]
-    pub fn parse<I>(input: I) -> Result<Uri<I::Storage>, I::Err>
+    pub fn parse<I>(input: I) -> Result<Uri<I::Data>, I::Err>
     where
-        I: ToUri<Storage = T>,
+        I: ToUri<Data = T>,
     {
         input.to_uri(Syntax::Rfc3986)
     }
@@ -164,9 +164,9 @@ impl<T: Storage> Uri<T> {
     ///
     /// [ext]: crate#crate-specific-syntax-extension
     /// [`parse`]: Self::parse
-    pub fn parse_with_syntax_extension<I>(input: I) -> Result<Uri<I::Storage>, I::Err>
+    pub fn parse_with_syntax_extension<I>(input: I) -> Result<Uri<I::Data>, I::Err>
     where
-        I: ToUri<Storage = T>,
+        I: ToUri<Data = T>,
     {
         input.to_uri(Syntax::Extended)
     }
@@ -184,19 +184,19 @@ impl Uri<String> {
     #[inline]
     pub fn borrow(&self) -> Uri<&str> {
         Uri {
-            storage: &self.storage,
+            data: &self.data,
             meta: self.meta,
         }
     }
 
-    /// Consumes this `Uri<String>` and yields the underlying [`String`] storage.
+    /// Consumes this `Uri<String>` and yields the underlying [`String`].
     #[inline]
     pub fn into_string(self) -> String {
-        self.storage
+        self.data
     }
 }
 
-impl<T: Storage> Uri<T> {
+impl<T: Data> Uri<T> {
     #[inline]
     fn len(&self) -> u32 {
         self.as_str().len() as _
@@ -208,17 +208,17 @@ impl Uri<&str> {
     #[inline]
     pub fn to_owned(&self) -> Uri<String> {
         Uri {
-            storage: self.storage.to_owned(),
+            data: self.data.to_owned(),
             meta: self.meta,
         }
     }
 }
 
-impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
-    /// Returns the URI reference as a string slice.
+impl<'i, 'o, T: DataHelper<'i, 'o>> Uri<T> {
+    /// Returns the value of the URI reference as a string slice.
     #[inline]
     pub fn as_str(&'i self) -> &'o str {
-        self.storage.as_str()
+        self.data.as_str()
     }
 
     /// Returns a string slice of the `Uri` between the given indexes.
@@ -365,23 +365,23 @@ impl<'i, 'o, T: StorageHelper<'i, 'o>> Uri<T> {
     }
 }
 
-impl<T: Storage, U: Storage> PartialEq<Uri<U>> for Uri<T> {
+impl<T: Data, U: Data> PartialEq<Uri<U>> for Uri<T> {
     #[inline]
     fn eq(&self, other: &Uri<U>) -> bool {
         self.as_str() == other.as_str()
     }
 }
 
-impl<T: Storage> Eq for Uri<T> {}
+impl<T: Data> Eq for Uri<T> {}
 
-impl<T: Storage> hash::Hash for Uri<T> {
+impl<T: Data> hash::Hash for Uri<T> {
     #[inline]
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         self.as_str().hash(state)
     }
 }
 
-impl<T: Storage> PartialOrd for Uri<T> {
+impl<T: Data> PartialOrd for Uri<T> {
     #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.as_str().cmp(other.as_str()))
@@ -392,21 +392,21 @@ impl<T: Storage> PartialOrd for Uri<T> {
 ///
 /// `Uri`s are ordered [lexicographically](Ord#lexicographical-comparison) by their byte values.
 /// Normalization is **not** performed prior to ordering.
-impl<T: Storage> Ord for Uri<T> {
+impl<T: Data> Ord for Uri<T> {
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         self.as_str().cmp(other.as_str())
     }
 }
 
-impl<T: Storage> AsRef<str> for Uri<T> {
+impl<T: Data> AsRef<str> for Uri<T> {
     #[inline]
     fn as_ref(&self) -> &str {
         self.as_str()
     }
 }
 
-impl<T: Storage> Borrow<str> for Uri<T> {
+impl<T: Data> Borrow<str> for Uri<T> {
     #[inline]
     fn borrow(&self) -> &str {
         self.as_str()

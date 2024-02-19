@@ -23,7 +23,7 @@ impl Str for &str {
     }
 }
 
-pub trait Storage {
+pub trait Data {
     type Str<'a>: Str
     where
         Self: 'a;
@@ -31,7 +31,7 @@ pub trait Storage {
     fn as_str_opaque(&self) -> Self::Str<'_>;
 }
 
-impl<'o> Storage for &'o str {
+impl<'o> Data for &'o str {
     type Str<'i> = &'o str where Self: 'i;
 
     #[inline]
@@ -40,7 +40,7 @@ impl<'o> Storage for &'o str {
     }
 }
 
-impl Storage for String {
+impl Data for String {
     type Str<'a> = &'a str where Self: 'a;
 
     #[inline]
@@ -71,11 +71,11 @@ impl Storage for String {
 ///     fluent_uri::Uri::parse(&s).unwrap().as_str()
 /// }
 /// ```
-pub trait StorageHelper<'i, 'o>: Storage {
+pub trait DataHelper<'i, 'o>: Data {
     fn as_str(&'i self) -> &'o str;
 }
 
-impl<'i, 'o, T: Storage + 'i> StorageHelper<'i, 'o> for T
+impl<'i, 'o, T: Data + 'i> DataHelper<'i, 'o> for T
 where
     T::Str<'i>: 'o,
 {
@@ -93,10 +93,10 @@ pub enum Syntax {
 }
 
 pub trait ToUri {
-    type Storage: Storage;
+    type Data: Data;
     type Err;
 
-    fn to_uri(self, syntax: Syntax) -> Result<Uri<Self::Storage>, Self::Err>;
+    fn to_uri(self, syntax: Syntax) -> Result<Uri<Self::Data>, Self::Err>;
 }
 
 #[cold]
@@ -105,36 +105,33 @@ fn len_overflow() -> ! {
 }
 
 impl<'a, S: AsRef<str> + ?Sized> ToUri for &'a S {
-    type Storage = &'a str;
+    type Data = &'a str;
     type Err = ParseError;
 
     #[inline]
-    fn to_uri(self, syntax: Syntax) -> Result<Uri<Self::Storage>, Self::Err> {
+    fn to_uri(self, syntax: Syntax) -> Result<Uri<Self::Data>, Self::Err> {
         let s = self.as_ref();
         if s.len() > u32::MAX as usize {
             len_overflow();
         }
 
         let meta = parser::parse(s.as_bytes(), syntax)?;
-        Ok(Uri { storage: s, meta })
+        Ok(Uri { data: s, meta })
     }
 }
 
 impl ToUri for String {
-    type Storage = String;
+    type Data = String;
     type Err = ParseError<String>;
 
     #[inline]
-    fn to_uri(self, syntax: Syntax) -> Result<Uri<Self::Storage>, Self::Err> {
+    fn to_uri(self, syntax: Syntax) -> Result<Uri<Self::Data>, Self::Err> {
         if self.len() > u32::MAX as usize {
             len_overflow();
         }
 
         match parser::parse(self.as_bytes(), syntax) {
-            Ok(meta) => Ok(Uri {
-                storage: self,
-                meta,
-            }),
+            Ok(meta) => Ok(Uri { data: self, meta }),
             Err(e) => Err(e.with_input(self)),
         }
     }
@@ -151,7 +148,7 @@ pub struct Meta {
 }
 
 #[doc(hidden)]
-impl<T: Storage> ops::Deref for Uri<T> {
+impl<T: Data> ops::Deref for Uri<T> {
     type Target = Meta;
 
     #[inline]
@@ -161,7 +158,7 @@ impl<T: Storage> ops::Deref for Uri<T> {
 }
 
 #[doc(hidden)]
-impl<T: Storage> ops::DerefMut for Uri<T> {
+impl<T: Data> ops::DerefMut for Uri<T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Meta {
         &mut self.meta

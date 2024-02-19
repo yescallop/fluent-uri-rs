@@ -70,7 +70,7 @@ impl<E: Encoder> EString<E> {
         Self::new_validated(String::with_capacity(capacity))
     }
 
-    /// Consumes this `EString` and yields the underlying `String` storage.
+    /// Consumes this `EString` and yields the underlying `String`.
     #[inline]
     pub fn into_string(self) -> String {
         self.buf

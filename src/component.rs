@@ -5,7 +5,7 @@ use crate::{
         encoder::{RegName, Userinfo},
         table, EStr,
     },
-    internal::{AuthMeta, HostMeta, Storage, StorageHelper},
+    internal::{AuthMeta, Data, DataHelper, HostMeta},
     Uri,
 };
 use core::num::ParseIntError;
@@ -77,11 +77,11 @@ impl Scheme {
 /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
 #[derive(RefCastCustom)]
 #[repr(transparent)]
-pub struct Authority<T: Storage> {
+pub struct Authority<T: Data> {
     uri: Uri<T>,
 }
 
-impl<'i, 'o, T: StorageHelper<'i, 'o>> Authority<T> {
+impl<'i, 'o, T: DataHelper<'i, 'o>> Authority<T> {
     /// Converts from `&Uri<T>` to `&Authority<T>`,
     /// assuming that authority is present.
     #[ref_cast_custom]

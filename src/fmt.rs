@@ -2,7 +2,7 @@ use crate::{
     component::{Authority, Scheme},
     encoding::{encoder::Encoder, EStr, EString},
     error::{ParseError, ParseErrorKind},
-    internal::Storage,
+    internal::Data,
     Uri,
 };
 use core::fmt::{Debug, Display, Formatter, Result};
@@ -55,7 +55,7 @@ impl<I> Display for ParseError<I> {
     }
 }
 
-impl<T: Storage> Debug for Uri<T> {
+impl<T: Data> Debug for Uri<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_struct("Uri")
             .field("scheme", &self.scheme())
@@ -67,7 +67,7 @@ impl<T: Storage> Debug for Uri<T> {
     }
 }
 
-impl<T: Storage> Display for Uri<T> {
+impl<T: Data> Display for Uri<T> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         Display::fmt(self.as_str(), f)
@@ -88,7 +88,7 @@ impl Display for Scheme {
     }
 }
 
-impl<T: Storage> Debug for Authority<T> {
+impl<T: Data> Debug for Authority<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_struct("Authority")
             .field("userinfo", &self.userinfo())
@@ -99,7 +99,7 @@ impl<T: Storage> Debug for Authority<T> {
     }
 }
 
-impl<T: Storage> Display for Authority<T> {
+impl<T: Data> Display for Authority<T> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         Display::fmt(self.as_str(), f)
