@@ -25,7 +25,7 @@ pub struct ParseError<I = ()> {
     pub(crate) input: I,
 }
 
-impl ParseError<()> {
+impl ParseError {
     pub(crate) fn with_input<I>(self, input: I) -> ParseError<I> {
         ParseError {
             index: self.index,

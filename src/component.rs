@@ -5,7 +5,7 @@ use crate::{
         encoder::{RegName, Userinfo},
         table, EStr,
     },
-    internal::{AuthMeta, Data, DataHelper, HostMeta},
+    internal::{AuthMeta, DataHelper, HostMeta},
     Uri,
 };
 use core::num::ParseIntError;
@@ -14,7 +14,7 @@ use ref_cast::{ref_cast_custom, RefCastCustom};
 #[cfg(feature = "net")]
 use std::{
     io,
-    net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV6, ToSocketAddrs},
+    net::{Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs},
 };
 
 /// The [scheme] component of URI reference.
@@ -77,7 +77,7 @@ impl Scheme {
 /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
 #[derive(RefCastCustom)]
 #[repr(transparent)]
-pub struct Authority<T: Data> {
+pub struct Authority<T> {
     uri: Uri<T>,
 }
 
@@ -167,13 +167,6 @@ impl<'i, 'o, T: DataHelper<'i, 'o>> Authority<T> {
         self.uri.slice(start, end)
     }
 
-    #[cfg(feature = "net")]
-    fn zone_id(&'i self) -> &'o str {
-        let (start, end) = self.host_bounds();
-        let addr = self.uri.slice(start + 1, end - 1);
-        addr.rsplit_once('%').unwrap().1
-    }
-
     /// Returns the parsed [host] subcomponent.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
@@ -190,23 +183,7 @@ impl<'i, 'o, T: DataHelper<'i, 'o>> Authority<T> {
     ///
     /// let uri = Uri::parse("//[::1]")?;
     /// let authority = uri.authority().unwrap();
-    /// assert_eq!(
-    ///     authority.host_parsed(),
-    ///     Host::Ipv6 {
-    ///         addr: Ipv6Addr::LOCALHOST,
-    ///         zone_id: None,
-    ///     }
-    /// );
-    ///
-    /// let uri = Uri::parse("//[fe80::1%eth0]")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(
-    ///     authority.host_parsed(),
-    ///     Host::Ipv6 {
-    ///         addr: Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 1),
-    ///         zone_id: Some("eth0"),
-    ///     }
-    /// );
+    /// assert_eq!(authority.host_parsed(), Host::Ipv6(Ipv6Addr::LOCALHOST));
     ///
     /// let uri = Uri::parse("//[v1.addr]")?;
     /// let authority = uri.authority().unwrap();
@@ -220,24 +197,17 @@ impl<'i, 'o, T: DataHelper<'i, 'o>> Authority<T> {
     /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     pub fn host_parsed(&'i self) -> Host<'o> {
-        #[cfg(feature = "net")]
         match self.meta().host_meta {
+            #[cfg(feature = "net")]
             HostMeta::Ipv4(addr) => Host::Ipv4(addr),
-            HostMeta::Ipv6(addr) => Host::Ipv6 {
-                addr,
-                zone_id: None,
-            },
-            HostMeta::Ipv6Scoped(addr) => Host::Ipv6 {
-                addr,
-                zone_id: Some(self.zone_id()),
-            },
-            HostMeta::IpvFuture => Host::IpvFuture {},
-            HostMeta::RegName => Host::RegName(EStr::new_validated(self.host())),
-        }
-        #[cfg(not(feature = "net"))]
-        match self.meta().host_meta {
+            #[cfg(feature = "net")]
+            HostMeta::Ipv6(addr) => Host::Ipv6(addr),
+
+            #[cfg(not(feature = "net"))]
             HostMeta::Ipv4() => Host::Ipv4(),
-            HostMeta::Ipv6() | HostMeta::Ipv6Scoped() => Host::Ipv6 {},
+            #[cfg(not(feature = "net"))]
+            HostMeta::Ipv6() => Host::Ipv6(),
+
             HostMeta::IpvFuture => Host::IpvFuture {},
             HostMeta::RegName => Host::RegName(EStr::new_validated(self.host())),
         }
@@ -282,8 +252,8 @@ impl<'i, 'o, T: DataHelper<'i, 'o>> Authority<T> {
     /// Converts the [port] subcomponent to `u16`.
     ///
     /// Leading zeros are ignored.
-    /// Returns `Ok(None)` if the port component is not present or is empty.
-    /// Returns `Err` if the port component cannot be parsed into `u16`.
+    /// Returns `Ok(None)` if the port is not present or is empty.
+    /// Returns `Err` if the port cannot be parsed into `u16`.
     ///
     /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
     ///
@@ -323,14 +293,10 @@ impl<'i, 'o, T: DataHelper<'i, 'o>> Authority<T> {
     /// A registered name is **not** normalized prior to resolution and is resolved
     /// with [`ToSocketAddrs`] as is.
     ///
-    /// An IPv6 zone identifier is resolved first as a 32-bit unsigned integer
-    /// ignoring leading zeros, and then as a network interface name
-    /// on Unix platforms with `if_nametoindex`.
-    ///
     /// # Errors
     ///
-    /// Returns `Err` if the resolution of a registered name or
-    /// IPv6 zone identifier fails.
+    /// Returns `Err` if the port cannot be parsed into `u16`
+    /// or if the resolution of a registered name fails.
     #[cfg(feature = "net")]
     pub fn to_socket_addrs(
         &'i self,
@@ -343,26 +309,7 @@ impl<'i, 'o, T: DataHelper<'i, 'o>> Authority<T> {
 
         match self.host_parsed() {
             Host::Ipv4(addr) => Ok(vec![(addr, port).into()].into_iter()),
-            Host::Ipv6 { addr, zone_id } => {
-                let scope_id = if let Some(zone_id) = zone_id {
-                    // It is fine to use `u32::from_str` here although it allows a leading '+',
-                    // because '+' is not an unreserved character.
-                    if let Ok(scope_id) = zone_id.parse::<u32>() {
-                        scope_id
-                    } else {
-                        #[cfg(not(unix))]
-                        return Err(io::Error::new(
-                            io::ErrorKind::InvalidInput,
-                            "invalid zone identifier value",
-                        ));
-                        #[cfg(unix)]
-                        nix::net::if_::if_nametoindex(zone_id)?
-                    }
-                } else {
-                    0
-                };
-                Ok(vec![SocketAddrV6::new(addr, port, 0, scope_id).into()].into_iter())
-            }
+            Host::Ipv6(addr) => Ok(vec![(addr, port).into()].into_iter()),
             Host::IpvFuture {} => Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "address mechanism not supported",
@@ -384,22 +331,13 @@ pub enum Host<'a> {
         #[cfg(feature = "net")]
         Ipv4Addr,
     ),
-    /// An IPv6 host.
+    /// An IPv4 address.
     #[cfg_attr(not(feature = "net"), non_exhaustive)]
-    Ipv6 {
+    Ipv6(
         /// The address.
         #[cfg(feature = "net")]
-        addr: Ipv6Addr,
-        /// An optional non-empty zone identifier containing only [unreserved] characters.
-        ///
-        /// This is a [crate-specific syntax extension][ext].
-        /// If this is not desirable, always set this field to `None`.
-        ///
-        /// [unreserved]: https://datatracker.ietf.org/doc/html/rfc3986/#section-2.3
-        /// [ext]: crate#crate-specific-syntax-extension
-        #[cfg(feature = "net")]
-        zone_id: Option<&'a str>,
-    },
+        Ipv6Addr,
+    ),
     /// An IP address of future version.
     ///
     /// This variant is marked as non-exhaustive because the API design

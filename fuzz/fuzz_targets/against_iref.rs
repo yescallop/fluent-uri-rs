@@ -1,13 +1,13 @@
 #![no_main]
-use fluent_uri_fuzz::parse_strict;
+use fluent_uri::Uri;
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &str| {
-    let u1 = parse_strict(data);
+    let u1 = Uri::parse(data);
     let u2 = iref::UriRef::new(data);
-    assert_eq!(u1.is_some(), u2.is_ok());
+    assert_eq!(u1.is_ok(), u2.is_ok());
 
-    if let Some(u1) = u1 {
+    if let Ok(u1) = u1 {
         let u2 = u2.unwrap();
         assert_eq!(
             u1.scheme().map(|s| s.as_str()),

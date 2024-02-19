@@ -214,13 +214,6 @@ impl<S: To<HostEnd>> Builder<S> {
     /// Sets the [host] subcomponent of authority.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
-    ///
-    /// # Panics
-    ///
-    /// Panics if an input IPv6 zone identifier is empty or does not
-    /// contain only [unreserved] characters.
-    ///
-    /// [unreserved]: https://datatracker.ietf.org/doc/html/rfc3986/#section-2.3
     pub fn host(mut self, host: Host<'_>) -> Builder<HostEnd> {
         let auth_meta = self.meta.auth_meta.as_mut().unwrap();
         auth_meta.host_bounds.0 = self.buf.len() as _;
@@ -235,21 +228,9 @@ impl<S: To<HostEnd>> Builder<S> {
                 auth_meta.host_meta = HostMeta::Ipv4(addr);
             }
             #[cfg(feature = "net")]
-            Host::Ipv6 { addr, zone_id } => {
-                use crate::encoding::table;
-
+            Host::Ipv6(addr) => {
                 write!(self.buf, "[{addr}]").unwrap();
-                if let Some(zone_id) = zone_id {
-                    assert!(
-                        !zone_id.is_empty() && table::ZONE_ID.validate(zone_id.as_bytes()),
-                        "invalid zone identifier"
-                    );
-                    self.buf.push('%');
-                    self.buf.push_str(zone_id);
-                    auth_meta.host_meta = HostMeta::Ipv6Scoped(addr);
-                } else {
-                    auth_meta.host_meta = HostMeta::Ipv6(addr);
-                }
+                auth_meta.host_meta = HostMeta::Ipv6(addr);
             }
             Host::RegName(name) => self.buf.push_str(name.as_str()),
             _ => unreachable!(),
@@ -261,17 +242,10 @@ impl<S: To<HostEnd>> Builder<S> {
 
     /// Sets the [host] and the [port] subcomponent of authority to the given socket address.
     ///
-    /// This method enables the [crate-specific syntax extension][ext]
-    /// if the [scope ID] of an input [`SocketAddrV6`] does not equal `0`.
-    /// If this is not desirable, always set the scope ID to `0` in advance.
-    ///
     /// The port component is omitted when it equals the default value.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
     /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
-    /// [ext]: crate#crate-specific-syntax-extension
-    /// [scope ID]: std::net::SocketAddrV6::scope_id
-    /// [`SocketAddrV6`]: std::net::SocketAddrV6
     ///
     /// # Examples
     ///
@@ -279,7 +253,7 @@ impl<S: To<HostEnd>> Builder<S> {
     /// use fluent_uri::{encoding::EStr, Uri};
     /// use std::net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6};
     ///
-    /// let mut addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80);
+    /// let mut addr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 80);
     /// let uri = Uri::builder()
     ///     .authority(|b| b.host_port_from_socket_addr(addr, 80))
     ///     .path(EStr::new(""))
@@ -293,19 +267,12 @@ impl<S: To<HostEnd>> Builder<S> {
     ///     .build();
     /// assert_eq!(uri.as_str(), "//127.0.0.1:81");
     ///
-    /// let mut addr = SocketAddrV6::new(Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 1), 80, 0, 0);
+    /// let mut addr = SocketAddrV6::new(Ipv6Addr::LOCALHOST, 80, 0, 0);
     /// let uri = Uri::builder()
     ///     .authority(|b| b.host_port_from_socket_addr(addr, 80))
     ///     .path(EStr::new(""))
     ///     .build();
-    /// assert_eq!(uri.as_str(), "//[fe80::1]");
-    ///
-    /// addr.set_scope_id(5);
-    /// let uri = Uri::builder()
-    ///     .authority(|b| b.host_port_from_socket_addr(addr, 80))
-    ///     .path(EStr::new(""))
-    ///     .build();
-    /// assert_eq!(uri.as_str(), "//[fe80::1%5]");
+    /// assert_eq!(uri.as_str(), "//[::1]");
     /// ```
     #[cfg(feature = "net")]
     pub fn host_port_from_socket_addr<A: Into<SocketAddr>>(
@@ -325,15 +292,8 @@ impl<S: To<HostEnd>> Builder<S> {
                 auth_meta.host_meta = HostMeta::Ipv4(*addr.ip());
             }
             SocketAddr::V6(addr) => {
-                let ip = *addr.ip();
-                let scope_id = addr.scope_id();
-                if scope_id != 0 {
-                    write!(self.buf, "[{ip}%{scope_id}]").unwrap();
-                    auth_meta.host_meta = HostMeta::Ipv6Scoped(ip);
-                } else {
-                    write!(self.buf, "[{ip}]").unwrap();
-                    auth_meta.host_meta = HostMeta::Ipv6(ip);
-                }
+                write!(self.buf, "[{}]", addr.ip()).unwrap();
+                auth_meta.host_meta = HostMeta::Ipv6(*addr.ip());
             }
         }
 

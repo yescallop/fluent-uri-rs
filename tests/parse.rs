@@ -52,10 +52,7 @@ fn parse_absolute() {
     assert_eq!(a.host(), "[2001:db8::7]");
     assert_eq!(
         a.host_parsed(),
-        Host::Ipv6 {
-            addr: Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 0x7),
-            zone_id: None
-        }
+        Host::Ipv6(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 0x7))
     );
     assert_eq!(a.port(), None);
     assert_eq!(u.path().as_str(), "/c=GB");
@@ -153,25 +150,6 @@ fn parse_absolute() {
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "[vFe.foo.bar]");
     assert!(matches!(a.host_parsed(), Host::IpvFuture { .. }));
-    assert_eq!(a.port(), None);
-    assert_eq!(u.path().as_str(), "");
-    assert!(u.path().segments().eq(None::<&str>));
-    assert_eq!(u.query(), None);
-    assert_eq!(u.fragment(), None);
-
-    let u = Uri::parse("http://[fe80::520f:f5ff:fe51:cf0%eth0]").unwrap();
-    assert_eq!(u.scheme().unwrap().as_str(), "http");
-    let a = u.authority().unwrap();
-    assert_eq!(a.as_str(), "[fe80::520f:f5ff:fe51:cf0%eth0]");
-    assert_eq!(a.userinfo(), None);
-    assert_eq!(a.host(), "[fe80::520f:f5ff:fe51:cf0%eth0]");
-    assert_eq!(
-        a.host_parsed(),
-        Host::Ipv6 {
-            addr: Ipv6Addr::new(0xfe80, 0, 0, 0, 0x520f, 0xf5ff, 0xfe51, 0xcf0),
-            zone_id: Some("eth0"),
-        }
-    );
     assert_eq!(a.port(), None);
     assert_eq!(u.path().as_str(), "");
     assert!(u.path().segments().eq(None::<&str>));

@@ -1,6 +1,5 @@
 #![no_main]
-use fluent_uri::component::Host;
-use fluent_uri_fuzz::parse_strict;
+use fluent_uri::{component::Host, Uri};
 use libfuzzer_sys::fuzz_target;
 use std::{ffi::CStr, mem::MaybeUninit, ptr, slice};
 use uriparser_sys::{uriFreeUriMembersA, uriParseSingleUriA, UriTextRangeA, UriUriA, URI_SUCCESS};
@@ -16,8 +15,8 @@ unsafe fn check(data: &str, cstr: &CStr) {
     let ret = uriParseSingleUriA(uri1.as_mut_ptr(), cstr.as_ptr(), ptr::null_mut());
     let success = ret == URI_SUCCESS as _;
 
-    let uri2 = parse_strict(data);
-    assert_eq!(success, uri2.is_some());
+    let uri2 = Uri::parse(data);
+    assert_eq!(success, uri2.is_ok());
 
     if success {
         let uri1 = uri1.assume_init_ref();
@@ -43,7 +42,7 @@ unsafe fn check(data: &str, cstr: &CStr) {
                     assert!(!ptr.is_null());
                     assert_eq!((*ptr).data, addr.octets());
                 }
-                Host::Ipv6 { addr, .. } => {
+                Host::Ipv6(addr) => {
                     let ptr = uri1.hostData.ip6;
                     assert!(!ptr.is_null());
                     assert_eq!((*ptr).data, addr.octets());

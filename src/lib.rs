@@ -10,30 +10,6 @@
 //!
 //! See the documentation of [`Uri`] for usage.
 //!
-//! # Crate-specific syntax extension
-//!
-//! This crate incorporates the IPv6 scoped address format of [RFC 4007]
-//! to allow parsing and building URIs such as `http://[fe80::1%eth0]`.
-//! The syntax extension is defined by replacing the `IP-literal` ABNF rule
-//! from RFC 3986 with the following two rules:
-//!
-//! ```abnf
-//! IP-literal = "[" ( IPv6address [ "%" zone-id ] / IPvFuture ) "]"
-//! zone-id    = 1*unreserved
-//! ```
-//!
-//! This extension is *explicitly* enabled by either calling
-//! [`Uri::parse_with_syntax_extension`], passing a [`Host::Ipv6`]
-//! with a zone identifier to [`Builder::host`], or passing a
-//! [`SocketAddrV6`] with a non-zero [scope ID] to
-//! [`Builder::host_port_from_socket_addr`].
-//!
-//! [RFC 4007]: https://datatracker.ietf.org/doc/html/rfc4007/
-//!
-//! [`Host::Ipv6`]: component::Host::Ipv6
-//! [`SocketAddrV6`]: std::net::SocketAddrV6
-//! [scope ID]: std::net::SocketAddrV6::scope_id
-//!
 //! # Crate features
 //!
 //! - `net` (default, requires `std`): Enables [`std::net`] support.
@@ -71,13 +47,11 @@ use encoding::{
     encoder::{Encoder, Fragment, Path, Query},
     EStr,
 };
-use internal::{AuthMeta, Data, DataHelper, HostMeta, Meta, Syntax, ToUri};
+use internal::{Data, DataHelper, Meta, ToUri};
 
-/// A [URI reference] defined in RFC 3986,
-/// possibly with [crate-specific syntax extension][ext].
+/// A [URI reference] defined in RFC 3986.
 ///
 /// [URI reference]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.1
-/// [ext]: crate#crate-specific-syntax-extension
 ///
 /// # Variants
 ///
@@ -122,8 +96,8 @@ use internal::{AuthMeta, Data, DataHelper, HostMeta, Meta, Syntax, ToUri};
 /// ```
 ///
 /// See the documentation of [`Builder`] for examples of building a `Uri` from its components.
-#[derive(Clone, Copy, Default)]
-pub struct Uri<T: Data> {
+#[derive(Clone, Copy)]
+pub struct Uri<T> {
     /// Stores the value of the URI reference.
     data: T,
     /// Metadata of the URI reference.
@@ -131,16 +105,16 @@ pub struct Uri<T: Data> {
     meta: Meta,
 }
 
-impl<T: Data> Uri<T> {
+impl<T> Uri<T> {
     /// Parses a URI reference from a string into a `Uri`.
-    ///
-    /// Returns `Ok` if and only if the string matches the [`URI-reference`]
-    /// ABNF rule from RFC 3986.
     ///
     /// The return type is
     ///
     /// - `Result<Uri<String>, ParseError<String>>` for `I = String`.
     /// - `Result<Uri<&str>, ParseError>` for `I = &S` where `S: AsRef<str> + ?Sized`.
+    ///
+    /// Returns `Ok` if and only if the string matches the [`URI-reference`]
+    /// ABNF rule from RFC 3986.
     ///
     /// You may recover an input [`String`] by calling [`ParseError::into_input`].
     ///
@@ -154,21 +128,7 @@ impl<T: Data> Uri<T> {
     where
         I: ToUri<Data = T>,
     {
-        input.to_uri(Syntax::Rfc3986)
-    }
-
-    /// Parses a URI reference from a string into a `Uri`,
-    /// with [crate-specific syntax extension][ext].
-    ///
-    /// The behavior of this function is otherwise identical to [`parse`].
-    ///
-    /// [ext]: crate#crate-specific-syntax-extension
-    /// [`parse`]: Self::parse
-    pub fn parse_with_syntax_extension<I>(input: I) -> Result<Uri<I::Data>, I::Err>
-    where
-        I: ToUri<Data = T>,
-    {
-        input.to_uri(Syntax::Extended)
+        input.to_uri()
     }
 }
 
@@ -196,13 +156,6 @@ impl Uri<String> {
     }
 }
 
-impl<T: Data> Uri<T> {
-    #[inline]
-    fn len(&self) -> u32 {
-        self.as_str().len() as _
-    }
-}
-
 impl Uri<&str> {
     /// Creates a new `Uri<String>` by cloning the contents of this `Uri<&str>`.
     #[inline]
@@ -211,6 +164,13 @@ impl Uri<&str> {
             data: self.data.to_owned(),
             meta: self.meta,
         }
+    }
+}
+
+impl<T: Data> Uri<T> {
+    #[inline]
+    fn len(&self) -> u32 {
+        self.as_str().len() as _
     }
 }
 
@@ -338,30 +298,14 @@ impl<'i, 'o, T: DataHelper<'i, 'o>> Uri<T> {
     pub fn is_absolute(&self) -> bool {
         self.scheme_end.is_some() && self.fragment_start().is_none()
     }
+}
 
-    /// Checks whether `self.as_str()` matches the [`URI-reference`] ABNF rule from RFC 3986.
-    ///
-    /// [`URI-reference`]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.1
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use fluent_uri::Uri;
-    ///
-    /// let uri = Uri::parse("http://[fe80::1]/")?;
-    /// assert!(uri.is_rfc3986_compliant());
-    /// let uri = Uri::parse("http://[fe80::1%eth0]/")?;
-    /// assert!(!uri.is_rfc3986_compliant());
-    /// # Ok::<_, fluent_uri::ParseError>(())
-    /// ```
-    pub fn is_rfc3986_compliant(&self) -> bool {
-        !matches!(
-            self.auth_meta,
-            Some(AuthMeta {
-                host_meta: HostMeta::Ipv6Scoped(..),
-                ..
-            })
-        )
+impl<T: Data + Default> Default for Uri<T> {
+    fn default() -> Self {
+        Uri {
+            data: T::default(),
+            meta: Meta::default(),
+        }
     }
 }
 

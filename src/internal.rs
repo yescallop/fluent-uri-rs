@@ -86,17 +86,11 @@ where
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Syntax {
-    Rfc3986,
-    Extended,
-}
-
 pub trait ToUri {
-    type Data: Data;
+    type Data;
     type Err;
 
-    fn to_uri(self, syntax: Syntax) -> Result<Uri<Self::Data>, Self::Err>;
+    fn to_uri(self) -> Result<Uri<Self::Data>, Self::Err>;
 }
 
 #[cold]
@@ -109,13 +103,13 @@ impl<'a, S: AsRef<str> + ?Sized> ToUri for &'a S {
     type Err = ParseError;
 
     #[inline]
-    fn to_uri(self, syntax: Syntax) -> Result<Uri<Self::Data>, Self::Err> {
+    fn to_uri(self) -> Result<Uri<Self::Data>, Self::Err> {
         let s = self.as_ref();
         if s.len() > u32::MAX as usize {
             len_overflow();
         }
 
-        let meta = parser::parse(s.as_bytes(), syntax)?;
+        let meta = parser::parse(s.as_bytes())?;
         Ok(Uri { data: s, meta })
     }
 }
@@ -125,12 +119,12 @@ impl ToUri for String {
     type Err = ParseError<String>;
 
     #[inline]
-    fn to_uri(self, syntax: Syntax) -> Result<Uri<Self::Data>, Self::Err> {
+    fn to_uri(self) -> Result<Uri<Self::Data>, Self::Err> {
         if self.len() > u32::MAX as usize {
             len_overflow();
         }
 
-        match parser::parse(self.as_bytes(), syntax) {
+        match parser::parse(self.as_bytes()) {
             Ok(meta) => Ok(Uri { data: self, meta }),
             Err(e) => Err(e.with_input(self)),
         }
@@ -176,7 +170,6 @@ pub struct AuthMeta {
 pub enum HostMeta {
     Ipv4(#[cfg(feature = "net")] Ipv4Addr),
     Ipv6(#[cfg(feature = "net")] Ipv6Addr),
-    Ipv6Scoped(#[cfg(feature = "net")] Ipv6Addr),
     IpvFuture,
     #[default]
     RegName,

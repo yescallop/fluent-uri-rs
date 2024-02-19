@@ -1,16 +1,15 @@
 use crate::{
     encoding::{imp::OCTET_TABLE_LO, table::*},
-    internal::{AuthMeta, HostMeta, Meta, Syntax},
+    internal::{AuthMeta, HostMeta, Meta},
     ParseError,
 };
 use core::{num::NonZeroU32, str};
 
 type Result<T> = core::result::Result<T, ParseError>;
 
-pub(crate) fn parse(bytes: &[u8], syntax: Syntax) -> Result<Meta> {
+pub(crate) fn parse(bytes: &[u8]) -> Result<Meta> {
     let mut parser = Parser {
         bytes,
-        syntax,
         pos: 0,
         mark: 0,
         out: Meta::default(),
@@ -50,7 +49,6 @@ macro_rules! err {
 /// - All URI components defined by output indexes are validated.
 struct Parser<'a> {
     bytes: &'a [u8],
-    syntax: Syntax,
     pos: usize,
     mark: usize,
     out: Meta,
@@ -319,17 +317,10 @@ impl<'a> Parser<'a> {
         }
 
         let meta = if let Some(_addr) = self.read_v6() {
-            if self.syntax == Syntax::Extended && self.read_zone_id()? {
-                HostMeta::Ipv6Scoped(
-                    #[cfg(feature = "net")]
-                    _addr.into(),
-                )
-            } else {
-                HostMeta::Ipv6(
-                    #[cfg(feature = "net")]
-                    _addr.into(),
-                )
-            }
+            HostMeta::Ipv6(
+                #[cfg(feature = "net")]
+                _addr.into(),
+            )
         } else if self.marked_len() == 1 {
             self.read_ipv_future()?;
             HostMeta::IpvFuture
@@ -446,17 +437,6 @@ impl<'a> Parser<'a> {
         // INVARIANT: Skipping `i` hexadecimal digits is fine.
         self.skip(i);
         Some(Seg::Normal(x, colon))
-    }
-
-    fn read_zone_id(&mut self) -> Result<bool> {
-        if self.read_str("%") {
-            if !self.read(ZONE_ID)? {
-                err!(self.mark, InvalidIpLiteral);
-            }
-            Ok(true)
-        } else {
-            Ok(false)
-        }
     }
 
     // The marked length must be zero when this method is called.

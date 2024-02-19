@@ -14,14 +14,11 @@ categories = ["encoding", "parser-implementations"]
 default = ["net", "std"]
 # TODO: Remove std from net when ip_in_core is stablized in 1.77.0.
 # Remember to add feature("std") to Authority::to_socket_addrs.
-net = ["std", "dep:nix"]
+net = ["std"]
 std = []
 
 [dependencies]
 ref-cast = "1.0"
-
-[target.'cfg(unix)'.dependencies]
-nix = { version = "0.27", optional = true, features = ["net"] }
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]

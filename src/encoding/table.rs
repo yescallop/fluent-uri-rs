@@ -228,6 +228,3 @@ pub const GEN_DELIMS: &Table = &gen(b":/?#[]@");
 /// `sub-delims = "!" / "$" / "&" / "'" / "(" / ")"
 ///             / "*" / "+" / "," / ";" / "="`
 pub const SUB_DELIMS: &Table = &gen(b"!$&'()*+,;=");
-
-/// `zone-id = 1*unreserved`
-pub(crate) const ZONE_ID: &Table = UNRESERVED;

@@ -28,13 +28,13 @@ fn test_to_socket_addrs() {
         .unwrap()
         .eq([SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80).into()]));
 
-    let u = Uri::parse("//[fe80::1%17]").unwrap();
+    let u = Uri::parse("//[::1]").unwrap();
     assert!(u
         .authority()
         .unwrap()
         .to_socket_addrs(80)
         .unwrap()
-        .eq([SocketAddrV6::new(Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 1), 80, 0, 17).into()]));
+        .eq([SocketAddrV6::new(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1), 80, 0, 0).into()]));
 
     let u = Uri::parse("//127.0.0.1:65537").unwrap();
     assert_eq!(
