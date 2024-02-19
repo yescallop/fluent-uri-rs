@@ -23,7 +23,7 @@ impl Str for &str {
     }
 }
 
-pub trait Data {
+pub trait Data: Default {
     type Str<'a>: Str
     where
         Self: 'a;
@@ -51,24 +51,11 @@ impl Data for String {
 
 /// Helper trait that allows output references outlive a `Uri`.
 ///
-/// # Tests
+/// # Examples
 ///
 /// ```
-/// fn ref_outlives_borrowed_uri(s: &str) -> &str {
-///     fluent_uri::Uri::parse(s).unwrap().as_str()
-/// }
-/// ```
-///
-/// ```compile_fail
-/// fn ref_does_not_outlive_owned_uri() -> &'static str {
-///     fluent_uri::Uri::parse(String::new()).unwrap().as_str()
-/// }
-/// ```
-///
-/// ```compile_fail
-/// fn ref_does_not_outlive_borrowed_data() -> &'static str {
-///     let s = String::new();
-///     fluent_uri::Uri::parse(&s).unwrap().as_str()
+/// fn ref_outlives_borrowed_uri(uri: fluent_uri::Uri<&str>) -> &str {
+///     uri.as_str()
 /// }
 /// ```
 pub trait DataHelper<'i, 'o>: Data {

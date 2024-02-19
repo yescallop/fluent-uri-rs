@@ -287,7 +287,7 @@ impl<'i, 'o, T: DataHelper<'i, 'o>> Uri<T> {
     }
 }
 
-impl<T: Data + Default> Default for Uri<T> {
+impl<T: Data> Default for Uri<T> {
     /// Creates an empty URI reference.
     fn default() -> Self {
         Uri {
