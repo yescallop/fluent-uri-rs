@@ -8,28 +8,24 @@ use crate::{
 use core::fmt::{Debug, Display, Formatter, Result};
 
 impl<E: Encoder> Debug for EStr<E> {
-    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         Debug::fmt(self.as_str(), f)
     }
 }
 
 impl<E: Encoder> Display for EStr<E> {
-    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         Display::fmt(self.as_str(), f)
     }
 }
 
 impl<E: Encoder> Debug for EString<E> {
-    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         Debug::fmt(self.as_str(), f)
     }
 }
 
 impl<E: Encoder> Display for EString<E> {
-    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         Display::fmt(self.as_str(), f)
     }
@@ -68,7 +64,6 @@ impl<T: Data> Debug for Uri<T> {
 }
 
 impl<T: Data> Display for Uri<T> {
-    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         Display::fmt(self.as_str(), f)
     }
@@ -100,7 +95,6 @@ impl<T: Data> Debug for Authority<T> {
 }
 
 impl<T: Data> Display for Authority<T> {
-    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         Display::fmt(self.as_str(), f)
     }

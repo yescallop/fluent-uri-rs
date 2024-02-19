@@ -79,7 +79,6 @@ impl<'i, 'o, T: Data + 'i> DataHelper<'i, 'o> for T
 where
     T::Str<'i>: 'o,
 {
-    #[inline]
     fn as_str(&'i self) -> &'o str {
         let s: T::Str<'i> = self.as_str_opaque();
         s.concretize()
@@ -102,7 +101,6 @@ impl<'a, S: AsRef<str> + ?Sized> ToUri for &'a S {
     type Data = &'a str;
     type Err = ParseError;
 
-    #[inline]
     fn to_uri(self) -> Result<Uri<Self::Data>, Self::Err> {
         let s = self.as_ref();
         if s.len() > u32::MAX as usize {
@@ -145,7 +143,6 @@ pub struct Meta {
 impl<T: Data> ops::Deref for Uri<T> {
     type Target = Meta;
 
-    #[inline]
     fn deref(&self) -> &Meta {
         &self.meta
     }
@@ -153,7 +150,6 @@ impl<T: Data> ops::Deref for Uri<T> {
 
 #[doc(hidden)]
 impl<T: Data> ops::DerefMut for Uri<T> {
-    #[inline]
     fn deref_mut(&mut self) -> &mut Meta {
         &mut self.meta
     }

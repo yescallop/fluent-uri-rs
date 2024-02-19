@@ -123,8 +123,7 @@ impl<T> Uri<T> {
     /// # Panics
     ///
     /// Panics if the input length is greater than [`u32::MAX`].
-    #[inline]
-    pub fn parse<I>(input: I) -> Result<Uri<I::Data>, I::Err>
+    pub fn parse<I>(input: I) -> Result<Self, I::Err>
     where
         I: ToUri<Data = T>,
     {
@@ -168,7 +167,6 @@ impl Uri<&str> {
 }
 
 impl<T: Data> Uri<T> {
-    #[inline]
     fn len(&self) -> u32 {
         self.as_str().len() as _
     }
@@ -176,19 +174,16 @@ impl<T: Data> Uri<T> {
 
 impl<'i, 'o, T: DataHelper<'i, 'o>> Uri<T> {
     /// Returns the value of the URI reference as a string slice.
-    #[inline]
     pub fn as_str(&'i self) -> &'o str {
         self.data.as_str()
     }
 
     /// Returns a string slice of the `Uri` between the given indexes.
-    #[inline]
     fn slice(&'i self, start: u32, end: u32) -> &'o str {
         &self.as_str()[start as usize..end as usize]
     }
 
     /// Returns an `EStr` slice of the `Uri` between the given indexes.
-    #[inline]
     fn eslice<E: Encoder>(&'i self, start: u32, end: u32) -> &'o EStr<E> {
         EStr::new_validated(self.slice(start, end))
     }
@@ -196,7 +191,6 @@ impl<'i, 'o, T: DataHelper<'i, 'o>> Uri<T> {
     /// Returns the [scheme] component.
     ///
     /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
-    #[inline]
     pub fn scheme(&'i self) -> Option<&'o Scheme> {
         self.scheme_end
             .map(|i| Scheme::new_validated(self.slice(0, i.get())))
@@ -205,7 +199,6 @@ impl<'i, 'o, T: DataHelper<'i, 'o>> Uri<T> {
     /// Returns the [authority] component.
     ///
     /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
-    #[inline]
     pub fn authority(&self) -> Option<&Authority<T>> {
         if self.auth_meta.is_some() {
             Some(Authority::new(self))
@@ -220,7 +213,6 @@ impl<'i, 'o, T: DataHelper<'i, 'o>> Uri<T> {
     ///
     /// [path]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
     /// [extension methods]: EStr#impl-EStr<Path>
-    #[inline]
     pub fn path(&'i self) -> &'o EStr<Path> {
         self.eslice(self.path_bounds.0, self.path_bounds.1)
     }
@@ -228,13 +220,11 @@ impl<'i, 'o, T: DataHelper<'i, 'o>> Uri<T> {
     /// Returns the [query] component.
     ///
     /// [query]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.4
-    #[inline]
     pub fn query(&'i self) -> Option<&'o EStr<Query>> {
         self.query_end
             .map(|i| self.eslice(self.path_bounds.1 + 1, i.get()))
     }
 
-    #[inline]
     fn fragment_start(&self) -> Option<u32> {
         let query_or_path_end = self
             .query_end
@@ -246,7 +236,6 @@ impl<'i, 'o, T: DataHelper<'i, 'o>> Uri<T> {
     /// Returns the [fragment] component.
     ///
     /// [fragment]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.5
-    #[inline]
     pub fn fragment(&'i self) -> Option<&'o EStr<Fragment>> {
         self.fragment_start().map(|i| self.eslice(i, self.len()))
     }
@@ -269,7 +258,6 @@ impl<'i, 'o, T: DataHelper<'i, 'o>> Uri<T> {
     /// assert!(!uri.is_relative());
     /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
-    #[inline]
     pub fn is_relative(&self) -> bool {
         self.scheme_end.is_none()
     }
@@ -294,13 +282,13 @@ impl<'i, 'o, T: DataHelper<'i, 'o>> Uri<T> {
     /// assert!(!uri.is_absolute());
     /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
-    #[inline]
     pub fn is_absolute(&self) -> bool {
         self.scheme_end.is_some() && self.fragment_start().is_none()
     }
 }
 
 impl<T: Data + Default> Default for Uri<T> {
+    /// Creates an empty URI reference.
     fn default() -> Self {
         Uri {
             data: T::default(),
@@ -310,7 +298,6 @@ impl<T: Data + Default> Default for Uri<T> {
 }
 
 impl<T: Data, U: Data> PartialEq<Uri<U>> for Uri<T> {
-    #[inline]
     fn eq(&self, other: &Uri<U>) -> bool {
         self.as_str() == other.as_str()
     }
@@ -319,14 +306,12 @@ impl<T: Data, U: Data> PartialEq<Uri<U>> for Uri<T> {
 impl<T: Data> Eq for Uri<T> {}
 
 impl<T: Data> hash::Hash for Uri<T> {
-    #[inline]
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         self.as_str().hash(state)
     }
 }
 
 impl<T: Data> PartialOrd for Uri<T> {
-    #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.as_str().cmp(other.as_str()))
     }
@@ -337,21 +322,18 @@ impl<T: Data> PartialOrd for Uri<T> {
 /// `Uri`s are ordered [lexicographically](Ord#lexicographical-comparison) by their byte values.
 /// Normalization is **not** performed prior to ordering.
 impl<T: Data> Ord for Uri<T> {
-    #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         self.as_str().cmp(other.as_str())
     }
 }
 
 impl<T: Data> AsRef<str> for Uri<T> {
-    #[inline]
     fn as_ref(&self) -> &str {
         self.as_str()
     }
 }
 
 impl<T: Data> Borrow<str> for Uri<T> {
-    #[inline]
     fn borrow(&self) -> &str {
         self.as_str()
     }
