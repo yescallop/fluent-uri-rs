@@ -9,6 +9,8 @@ fn main() {
         .define("URIPARSER_BUILD_DOCS", "OFF")
         .define("URIPARSER_BUILD_TESTS", "OFF")
         .define("URIPARSER_BUILD_TOOLS", "OFF")
+        .define("CMAKE_C_COMPILER", "/usr/bin/clang")
+        .cflag("-fsanitize=fuzzer-no-link,address")
         .build();
 
     println!("cargo:rustc-link-search=native={}/lib", dst.display());
