@@ -111,9 +111,7 @@ impl<S> Builder<S> {
             state: PhantomData,
         }
     }
-}
 
-impl<S> Builder<S> {
     /// Advances the builder state, skipping optional components in between.
     ///
     /// Variable rebinding may be necessary as this changes the type of the builder.
