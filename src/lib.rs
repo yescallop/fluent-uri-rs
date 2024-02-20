@@ -55,7 +55,7 @@ use internal::{Data, DataHelper, Meta, ToUri};
 ///
 /// # Variants
 ///
-/// Two variants of `Uri` are available: `Uri<String>` (owned) and `Uri<&str>` (borrowed).
+/// Two variants of `Uri` are available: `Uri<&str>` (borrowed) and `Uri<String>` (owned).
 ///
 /// `Uri<&'a str>` outputs references with lifetime `'a` where possible:
 ///

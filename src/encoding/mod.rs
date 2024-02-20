@@ -62,14 +62,14 @@ impl<E: Encoder> EStr<E> {
         &self.inner
     }
 
-    /// Checks whether the `EStr` slice is empty.
-    pub fn is_empty(&self) -> bool {
-        self.inner.is_empty()
-    }
-
     /// Returns the length of the `EStr` slice in bytes.
     pub fn len(&self) -> usize {
         self.inner.len()
+    }
+
+    /// Checks whether the `EStr` slice is empty.
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
     }
 
     /// Upcasts the `EStr` slice to associate with the given super-encoder.

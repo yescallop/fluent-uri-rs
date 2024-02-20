@@ -136,7 +136,8 @@ impl<E: Encoder> EString<E> {
         self.buf.reserve_exact(additional);
     }
 
-    /// Truncates this `EString` to zero length and casts to another type, preserving the capacity.
+    /// Truncates this `EString` to zero length and casts it to
+    /// associate with another encoder, preserving the capacity.
     pub fn clear<F: Encoder>(mut self) -> EString<F> {
         self.buf.clear();
         EString {

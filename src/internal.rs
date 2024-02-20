@@ -54,7 +54,11 @@ impl Data for String {
 /// # Examples
 ///
 /// ```
-/// fn ref_outlives_borrowed_uri(uri: fluent_uri::Uri<&str>) -> &str {
+/// fn borrowed_as_str<'a>(uri: &fluent_uri::Uri<&'a str>) -> &'a str {
+///     uri.as_str()
+/// }
+///
+/// fn owned_as_str(uri: &fluent_uri::Uri<String>) -> &str {
 ///     uri.as_str()
 /// }
 /// ```

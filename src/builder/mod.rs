@@ -253,21 +253,20 @@ impl<S: To<HostEnd>> Builder<S> {
     /// use fluent_uri::{encoding::EStr, Uri};
     /// use std::net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6};
     ///
-    /// let mut addr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 80);
+    /// let addr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 80);
     /// let uri = Uri::builder()
     ///     .authority(|b| b.host_port_from_socket_addr(addr, 80))
     ///     .path(EStr::new(""))
     ///     .build();
     /// assert_eq!(uri.as_str(), "//127.0.0.1");
     ///
-    /// addr.set_port(81);
     /// let uri = Uri::builder()
-    ///     .authority(|b| b.host_port_from_socket_addr(addr, 80))
+    ///     .authority(|b| b.host_port_from_socket_addr(addr, 21))
     ///     .path(EStr::new(""))
     ///     .build();
-    /// assert_eq!(uri.as_str(), "//127.0.0.1:81");
+    /// assert_eq!(uri.as_str(), "//127.0.0.1:80");
     ///
-    /// let mut addr = SocketAddrV6::new(Ipv6Addr::LOCALHOST, 80, 0, 0);
+    /// let addr = SocketAddrV6::new(Ipv6Addr::LOCALHOST, 80, 0, 0);
     /// let uri = Uri::builder()
     ///     .authority(|b| b.host_port_from_socket_addr(addr, 80))
     ///     .path(EStr::new(""))

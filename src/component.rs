@@ -200,7 +200,7 @@ impl<'i, 'o, T: DataHelper<'i, 'o>> Authority<T> {
             #[cfg(not(feature = "net"))]
             HostMeta::Ipv6() => Host::Ipv6(),
 
-            HostMeta::IpvFuture => Host::IpvFuture {},
+            HostMeta::IpvFuture => Host::IpvFuture,
             HostMeta::RegName => Host::RegName(EStr::new_validated(self.host())),
         }
     }
@@ -243,8 +243,8 @@ impl<'i, 'o, T: DataHelper<'i, 'o>> Authority<T> {
     /// Converts the [port] subcomponent to `u16`.
     ///
     /// Leading zeros are ignored.
-    /// Returns `Ok(None)` if the port is not present or is empty.
-    /// Returns `Err` if the port cannot be parsed into `u16`.
+    /// Returns `Ok(None)` if the port is not present or is empty,
+    /// or `Err` if the port cannot be parsed into `u16`.
     ///
     /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
     ///
@@ -301,7 +301,7 @@ impl<'i, 'o, T: DataHelper<'i, 'o>> Authority<T> {
         match self.host_parsed() {
             Host::Ipv4(addr) => Ok(vec![(addr, port).into()].into_iter()),
             Host::Ipv6(addr) => Ok(vec![(addr, port).into()].into_iter()),
-            Host::IpvFuture {} => Err(io::Error::new(
+            Host::IpvFuture => Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "address mechanism not supported",
             )),
@@ -322,7 +322,7 @@ pub enum Host<'a> {
         #[cfg(feature = "net")]
         Ipv4Addr,
     ),
-    /// An IPv4 address.
+    /// An IPv6 address.
     #[cfg_attr(not(feature = "net"), non_exhaustive)]
     Ipv6(
         /// The address.
@@ -334,7 +334,7 @@ pub enum Host<'a> {
     /// This variant is marked as non-exhaustive because the API design
     /// for IPvFuture addresses is to be determined.
     #[non_exhaustive]
-    IpvFuture {},
+    IpvFuture,
     /// A registered name.
     RegName(&'a EStr<RegName>),
 }
