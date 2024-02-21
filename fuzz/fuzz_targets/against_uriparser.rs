@@ -38,14 +38,22 @@ unsafe fn check(data: &str, cstr: &CStr) {
                     let ptr = uri1.hostData.ip4;
                     assert!(!ptr.is_null());
                     assert_eq!((*ptr).data, addr.octets());
+
+                    assert!(uri1.hostData.ip6.is_null());
+                    assert_text_eq(None, uri1.hostData.ipFuture);
                 }
                 Host::Ipv6(addr) => {
                     let ptr = uri1.hostData.ip6;
                     assert!(!ptr.is_null());
                     assert_eq!((*ptr).data, addr.octets());
+
+                    assert!(uri1.hostData.ip4.is_null());
+                    assert_text_eq(None, uri1.hostData.ipFuture);
                 }
                 Host::IpvFuture { .. } => {
                     assert_text_eq(Some(host), uri1.hostData.ipFuture);
+
+                    assert!(uri1.hostData.ip4.is_null() && uri1.hostData.ip6.is_null());
                 }
                 Host::RegName(_) => {
                     assert!(uri1.hostData.ip4.is_null() && uri1.hostData.ip6.is_null());
