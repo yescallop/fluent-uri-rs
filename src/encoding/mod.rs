@@ -17,6 +17,24 @@ use encoder::{Encoder, Path, PathSegment};
 use ref_cast::{ref_cast_custom, RefCastCustom};
 
 /// Percent-encoded string slices.
+///
+/// # Examples
+///
+/// Parse key-value pairs from a query string into a hash map:
+///
+/// ```
+/// use fluent_uri::encoding::{encoder::Query, EStr};
+/// use std::collections::HashMap;
+///
+/// let query = "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21";
+/// let map: HashMap<_, _> = EStr::<Query>::new(query)
+///     .split('&')
+///     .filter_map(|pair| pair.split_once('='))
+///     .map(|(k, v)| (k.decode().into_string_lossy(), v.decode().into_string_lossy()))
+///     .collect();
+/// assert_eq!(map["name"], "张三");
+/// assert_eq!(map["speech"], "¡Olé!");
+/// ```
 #[derive(RefCastCustom)]
 #[repr(transparent)]
 pub struct EStr<E: Encoder> {
@@ -53,8 +71,19 @@ impl<E: Encoder> EStr<E> {
     ///
     /// Panics if the string is not properly encoded with `E`.
     pub const fn new(s: &str) -> &Self {
-        assert!(E::TABLE.validate(s.as_bytes()), "improperly encoded string");
-        Self::new_validated(s)
+        match Self::try_new(s) {
+            Some(s) => s,
+            None => panic!("improperly encoded string"),
+        }
+    }
+
+    /// Converts a string slice to an `EStr` slice, returning `None` if the conversion fails.
+    pub const fn try_new(s: &str) -> Option<&Self> {
+        if E::TABLE.validate(s.as_bytes()) {
+            Some(EStr::new_validated(s))
+        } else {
+            None
+        }
     }
 
     /// Yields the underlying string slice.

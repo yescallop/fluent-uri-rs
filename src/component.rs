@@ -41,12 +41,22 @@ impl Scheme {
     /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
     #[inline]
     pub const fn new(s: &str) -> &Scheme {
-        assert!(
-            matches!(s.as_bytes(), [first, rem @ ..]
-            if first.is_ascii_alphabetic() && table::SCHEME.validate(rem)),
-            "invalid scheme"
-        );
-        Scheme::new_validated(s)
+        match Self::try_new(s) {
+            Some(scheme) => scheme,
+            None => panic!("invalid scheme"),
+        }
+    }
+
+    /// Converts a string slice to `&Scheme`, returning `None` if the conversion fails.
+    #[inline]
+    pub const fn try_new(s: &str) -> Option<&Scheme> {
+        if matches!(s.as_bytes(), [first, rem @ ..]
+        if first.is_ascii_alphabetic() && table::SCHEME.validate(rem))
+        {
+            Some(Scheme::new_validated(s))
+        } else {
+            None
+        }
     }
 
     /// Returns the scheme as a string slice.

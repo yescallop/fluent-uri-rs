@@ -49,7 +49,7 @@ impl<E: Encoder> Deref for EString<E> {
 }
 
 impl<E: Encoder> EString<E> {
-    pub(crate) const fn new_validated(buf: String) -> Self {
+    pub(crate) fn new_validated(buf: String) -> Self {
         EString {
             buf,
             encoder: PhantomData,
@@ -57,7 +57,7 @@ impl<E: Encoder> EString<E> {
     }
 
     /// Creates a new empty `EString`.
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self::new_validated(String::new())
     }
 
@@ -166,8 +166,8 @@ impl<E: Encoder> Borrow<EStr<E>> for EString<E> {
 }
 
 impl<E: Encoder> From<&EStr<E>> for EString<E> {
-    fn from(value: &EStr<E>) -> Self {
-        value.to_owned()
+    fn from(s: &EStr<E>) -> Self {
+        s.to_owned()
     }
 }
 

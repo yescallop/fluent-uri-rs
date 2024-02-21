@@ -341,8 +341,8 @@ impl<T: Data> Borrow<str> for Uri<T> {
 
 impl From<Uri<&str>> for Uri<String> {
     #[inline]
-    fn from(value: Uri<&str>) -> Self {
-        value.to_owned()
+    fn from(uri: Uri<&str>) -> Self {
+        uri.to_owned()
     }
 }
 
