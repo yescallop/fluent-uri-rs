@@ -215,8 +215,8 @@ impl<E: Encoder> AsRef<str> for EStr<E> {
     }
 }
 
-impl<E: Encoder, F: Encoder> PartialEq<EStr<F>> for EStr<E> {
-    fn eq(&self, other: &EStr<F>) -> bool {
+impl<E: Encoder> PartialEq for EStr<E> {
+    fn eq(&self, other: &Self) -> bool {
         self.inner == other.inner
     }
 }

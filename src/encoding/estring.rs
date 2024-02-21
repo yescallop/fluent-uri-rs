@@ -171,31 +171,31 @@ impl<E: Encoder> From<&EStr<E>> for EString<E> {
     }
 }
 
-impl<E: Encoder, F: Encoder> PartialEq<EString<F>> for EString<E> {
-    fn eq(&self, other: &EString<F>) -> bool {
+impl<E: Encoder> PartialEq for EString<E> {
+    fn eq(&self, other: &Self) -> bool {
         self.as_str() == other.as_str()
     }
 }
 
-impl<E: Encoder, F: Encoder> PartialEq<EStr<F>> for EString<E> {
-    fn eq(&self, other: &EStr<F>) -> bool {
+impl<E: Encoder> PartialEq<EStr<E>> for EString<E> {
+    fn eq(&self, other: &EStr<E>) -> bool {
         self.as_str() == other.as_str()
     }
 }
 
-impl<E: Encoder, F: Encoder> PartialEq<EString<E>> for EStr<F> {
+impl<E: Encoder> PartialEq<EString<E>> for EStr<E> {
     fn eq(&self, other: &EString<E>) -> bool {
         self.as_str() == other.as_str()
     }
 }
 
-impl<E: Encoder, F: Encoder> PartialEq<&EStr<F>> for EString<E> {
-    fn eq(&self, other: &&EStr<F>) -> bool {
+impl<E: Encoder> PartialEq<&EStr<E>> for EString<E> {
+    fn eq(&self, other: &&EStr<E>) -> bool {
         self.as_str() == other.as_str()
     }
 }
 
-impl<E: Encoder, F: Encoder> PartialEq<EString<E>> for &EStr<F> {
+impl<E: Encoder> PartialEq<EString<E>> for &EStr<E> {
     fn eq(&self, other: &EString<E>) -> bool {
         self.as_str() == other.as_str()
     }
