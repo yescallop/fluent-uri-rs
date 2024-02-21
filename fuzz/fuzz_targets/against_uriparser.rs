@@ -23,19 +23,16 @@ unsafe fn check(data: &str, cstr: &CStr) {
         let uri2 = uri2.unwrap();
 
         assert_text_eq(uri2.scheme().map(|s| s.as_str()), uri1.scheme);
-        assert_text_eq(
-            uri2.authority().map(|a| a.host()).map(|s| {
-                if s.starts_with('[') {
-                    &s[1..s.len() - 1]
-                } else {
-                    s
-                }
-            }),
-            uri1.hostText,
-        );
+
         if let Some(a) = uri2.authority() {
             assert_text_eq(a.userinfo().map(|u| u.as_str()), uri1.userInfo);
-            assert_text_eq(a.port(), uri1.portText);
+
+            let mut host = a.host();
+            if host.starts_with('[') {
+                host = &host[1..host.len() - 1];
+            }
+            assert_text_eq(Some(host), uri1.hostText);
+
             match a.host_parsed() {
                 Host::Ipv4(addr) => {
                     let ptr = uri1.hostData.ip4;
@@ -47,9 +44,24 @@ unsafe fn check(data: &str, cstr: &CStr) {
                     assert!(!ptr.is_null());
                     assert_eq!((*ptr).data, addr.octets());
                 }
-                _ => (),
+                Host::IpvFuture { .. } => {
+                    assert_text_eq(Some(host), uri1.hostData.ipFuture);
+                }
+                Host::RegName(_) => {
+                    assert!(uri1.hostData.ip4.is_null() && uri1.hostData.ip6.is_null());
+                    assert_text_eq(None, uri1.hostData.ipFuture);
+                }
             }
+
+            assert_text_eq(a.port(), uri1.portText);
+        } else {
+            assert_text_eq(None, uri1.userInfo);
+            assert_text_eq(None, uri1.hostText);
+            assert!(uri1.hostData.ip4.is_null() && uri1.hostData.ip6.is_null());
+            assert_text_eq(None, uri1.hostData.ipFuture);
+            assert_text_eq(None, uri1.portText);
         }
+
         assert_text_eq(uri2.query().map(|q| q.as_str()), uri1.query);
         assert_text_eq(uri2.fragment().map(|f| f.as_str()), uri1.fragment);
     }

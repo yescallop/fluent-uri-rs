@@ -9,7 +9,7 @@ edition = "2021"
 cargo-fuzz = true
 
 [dependencies]
-libfuzzer-sys = "0.4"
+libfuzzer-sys = { version = "0.4", features = ["arbitrary-derive"] }
 iref = { git = "https://github.com/timothee-haudebourg/iref" }
 iri-string = { git = "https://github.com/lo48576/iri-string" }
 oxiri = { git = "https://github.com/oxigraph/oxiri" }
@@ -38,6 +38,12 @@ doc = false
 [[bin]]
 name = "parse_v6"
 path = "fuzz_targets/parse_v6.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "build_parse"
+path = "fuzz_targets/build_parse.rs"
 test = false
 doc = false
 
