@@ -88,18 +88,18 @@ fn len_overflow() -> ! {
     panic!("input length > u32::MAX");
 }
 
-impl<'a, S: AsRef<str> + ?Sized> ToUri for &'a S {
+impl<'a> ToUri for &'a str {
     type Data = &'a str;
     type Err = ParseError;
 
+    #[inline]
     fn to_uri(self) -> Result<Uri<Self::Data>, Self::Err> {
-        let s = self.as_ref();
-        if s.len() > u32::MAX as usize {
+        if self.len() > u32::MAX as usize {
             len_overflow();
         }
 
-        let meta = parser::parse(s.as_bytes())?;
-        Ok(Uri { data: s, meta })
+        let meta = parser::parse(self.as_bytes())?;
+        Ok(Uri { data: self, meta })
     }
 }
 
@@ -148,6 +148,7 @@ impl<T: Data> ops::DerefMut for Uri<T> {
 
 #[derive(Clone, Copy, Default)]
 pub struct AuthMeta {
+    /// One byte past the preceding "//".
     pub start: u32,
     pub host_bounds: (u32, u32),
     pub host_meta: HostMeta,

@@ -1,4 +1,4 @@
-use alloc::string::String;
+use crate::internal::ToUri;
 
 /// Detailed cause of a [`ParseError`].
 #[derive(Clone, Copy, Debug)]
@@ -35,17 +35,15 @@ impl ParseError {
     }
 }
 
-impl ParseError<String> {
-    /// Recovers the input that were attempted to parse into a [`Uri`].
+impl<I: ToUri> ParseError<I> {
+    /// Recovers the input that was attempted to parse into a [`Uri`].
     ///
     /// [`Uri`]: crate::Uri
-    #[inline]
-    pub fn into_input(self) -> String {
+    pub fn into_input(self) -> I {
         self.input
     }
 
     /// Returns the error with input erased.
-    #[inline]
     pub fn plain(&self) -> ParseError {
         ParseError {
             index: self.index,

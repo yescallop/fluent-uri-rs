@@ -150,7 +150,7 @@ fuzz_target!(|c: UriComponents<'_>| {
     assert_eq!(u1.query(), c.query.map(|s| s.0));
     assert_eq!(u1.fragment(), c.fragment.map(|s| s.0));
 
-    let u2 = Uri::parse(&u1).unwrap();
+    let u2 = Uri::parse(u1.as_str()).unwrap();
 
     assert_eq!(
         u1.scheme().map(|s| s.as_str()),

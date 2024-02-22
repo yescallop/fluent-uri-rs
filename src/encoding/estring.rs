@@ -66,11 +66,6 @@ impl<E: Encoder> EString<E> {
         Self::new_validated(String::with_capacity(capacity))
     }
 
-    /// Consumes this `EString` and yields the underlying `String`.
-    pub fn into_string(self) -> String {
-        self.buf
-    }
-
     /// Coerces to an `EStr` slice.
     pub fn as_estr(&self) -> &EStr<E> {
         self
@@ -113,6 +108,11 @@ impl<E: Encoder> EString<E> {
     pub fn push_estr<SubE: Encoder>(&mut self, s: &EStr<SubE>) {
         let _ = Assert::<SubE, E>::LEFT_IS_SUB_ENCODER_OF_RIGHT;
         self.buf.push_str(s.as_str())
+    }
+
+    /// Consumes this `EString` and yields the underlying `String`.
+    pub fn into_string(self) -> String {
+        self.buf
     }
 
     /// Invokes [`capacity`] on the underlying `String`.

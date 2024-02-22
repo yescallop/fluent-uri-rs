@@ -110,8 +110,8 @@ impl<T> Uri<T> {
     ///
     /// The return type is
     ///
+    /// - `Result<Uri<&str>, ParseError>` for `I = &str`;
     /// - `Result<Uri<String>, ParseError<String>>` for `I = String`.
-    /// - `Result<Uri<&str>, ParseError>` for `I = &S` where `S: AsRef<str> + ?Sized`.
     ///
     /// Returns `Ok` if and only if the string matches the [`URI-reference`]
     /// ABNF rule from RFC 3986.
