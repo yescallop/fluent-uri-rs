@@ -292,9 +292,9 @@ impl EStr<Path> {
         !self.inner.starts_with('/')
     }
 
-    /// Returns an iterator over the path [segments].
+    /// Returns an iterator over the [path segments].
     ///
-    /// [segments]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
+    /// [path segments]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
     ///
     /// # Examples
     ///

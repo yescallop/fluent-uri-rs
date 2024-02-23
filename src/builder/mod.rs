@@ -82,7 +82,6 @@ use std::net::SocketAddr;
 /// [`query`]: Self::query
 /// [`fragment`]: Self::fragment
 /// [`build`]: Self::build
-
 pub struct Builder<S = UriStart> {
     buf: String,
     meta: Meta,
