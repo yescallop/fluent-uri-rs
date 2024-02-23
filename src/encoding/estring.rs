@@ -101,12 +101,7 @@ impl<E: Encoder> EString<E> {
     }
 
     /// Appends an `EStr` slice onto the end of this `EString`.
-    ///
-    /// # Panics
-    ///
-    /// Panics at compile time if `SubE` is not a [sub-encoder](Encoder#sub-encoders) of `E`.
-    pub fn push_estr<SubE: Encoder>(&mut self, s: &EStr<SubE>) {
-        let _ = Assert::<SubE, E>::LEFT_IS_SUB_ENCODER_OF_RIGHT;
+    pub fn push_estr(&mut self, s: &EStr<E>) {
         self.buf.push_str(s.as_str())
     }
 

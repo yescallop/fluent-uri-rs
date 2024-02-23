@@ -13,7 +13,7 @@ use alloc::{
     vec::Vec,
 };
 use core::{cmp::Ordering, hash, iter::FusedIterator, marker::PhantomData, str};
-use encoder::{Encoder, Path, PathSegment};
+use encoder::{Encoder, Path};
 use ref_cast::{ref_cast_custom, RefCastCustom};
 
 /// Percent-encoded string slices.
@@ -316,18 +316,14 @@ impl EStr<Path> {
     /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     #[inline]
-    pub fn segments(&self) -> Split<'_, PathSegment> {
+    pub fn segments(&self) -> Split<'_, Path> {
         let path_stripped = self.inner.strip_prefix('/').unwrap_or(&self.inner);
 
-        let mut split = path_stripped.split('/');
+        let mut split = EStr::new_validated(path_stripped).split('/');
         if self.inner.is_empty() {
             split.next();
         }
-
-        Split {
-            inner: split,
-            encoder: PhantomData,
-        }
+        split
     }
 }
 

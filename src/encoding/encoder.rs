@@ -45,13 +45,6 @@ impl Encoder for Path {
     const TABLE: &'static Table = PATH;
 }
 
-/// An encoder for path segment.
-pub struct PathSegment(());
-
-impl Encoder for PathSegment {
-    const TABLE: &'static Table = PCHAR;
-}
-
 /// An encoder for query.
 pub struct Query(());
 
