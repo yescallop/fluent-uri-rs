@@ -1,8 +1,8 @@
 #![allow(clippy::let_unit_value)]
 #![warn(missing_debug_implementations, missing_docs, rust_2018_idioms)]
 #![forbid(unsafe_code)]
-#![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![no_std]
 
 //! An [RFC 3986] compliant generic URI parser and builder.
 //!
@@ -32,6 +32,9 @@ mod parser;
 
 pub use builder::Builder;
 pub use error::ParseError;
+
+#[cfg(feature = "std")]
+extern crate std;
 
 extern crate alloc;
 

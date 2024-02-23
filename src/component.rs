@@ -303,6 +303,8 @@ impl<'i, 'o, T: DataHelper<'i, 'o>> Authority<T> {
         &'i self,
         default_port: u16,
     ) -> io::Result<impl Iterator<Item = SocketAddr>> {
+        use std::vec;
+
         let port = self
             .port_to_u16()
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid port value"))?
