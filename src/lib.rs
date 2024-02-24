@@ -176,7 +176,7 @@ impl<T: Data> Uri<T> {
 }
 
 impl<'i, 'o, T: DataHelper<'i, 'o>> Uri<T> {
-    /// Returns the value of the URI reference as a string slice.
+    /// Returns the URI reference as a string slice.
     pub fn as_str(&'i self) -> &'o str {
         self.data.as_str()
     }
@@ -243,12 +243,13 @@ impl<'i, 'o, T: DataHelper<'i, 'o>> Uri<T> {
         self.fragment_start().map(|i| self.eslice(i, self.len()))
     }
 
-    /// Checks whether the URI reference is [relative], i.e., without a scheme.
+    /// Checks whether the URI reference is a [relative reference],
+    /// i.e., without a scheme.
     ///
-    /// Note that this method is not the opposite of [`is_absolute`].
+    /// Note that this method is not the opposite of [`is_absolute_uri`].
     ///
-    /// [relative]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.2
-    /// [`is_absolute`]: Self::is_absolute
+    /// [relative reference]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.2
+    /// [`is_absolute_uri`]: Self::is_absolute_uri
     ///
     /// # Examples
     ///
@@ -256,21 +257,22 @@ impl<'i, 'o, T: DataHelper<'i, 'o>> Uri<T> {
     /// use fluent_uri::Uri;
     ///
     /// let uri = Uri::parse("/path/to/file")?;
-    /// assert!(uri.is_relative());
+    /// assert!(uri.is_relative_reference());
     /// let uri = Uri::parse("http://example.com/")?;
-    /// assert!(!uri.is_relative());
+    /// assert!(!uri.is_relative_reference());
     /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
-    pub fn is_relative(&self) -> bool {
+    pub fn is_relative_reference(&self) -> bool {
         self.scheme_end.is_none()
     }
 
-    /// Checks whether the URI reference is [absolute], i.e., with a scheme and without a fragment.
+    /// Checks whether the URI reference is an [absolute URI], i.e.,
+    /// with a scheme and without a fragment.
     ///
-    /// Note that this method is not the opposite of [`is_relative`].
+    /// Note that this method is not the opposite of [`is_relative_reference`].
     ///
-    /// [absolute]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.3
-    /// [`is_relative`]: Self::is_relative
+    /// [absolute URI]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.3
+    /// [`is_relative_reference`]: Self::is_relative_reference
     ///
     /// # Examples
     ///
@@ -278,14 +280,14 @@ impl<'i, 'o, T: DataHelper<'i, 'o>> Uri<T> {
     /// use fluent_uri::Uri;
     ///
     /// let uri = Uri::parse("http://example.com/")?;
-    /// assert!(uri.is_absolute());
+    /// assert!(uri.is_absolute_uri());
     /// let uri = Uri::parse("http://example.com/#title1")?;
-    /// assert!(!uri.is_absolute());
+    /// assert!(!uri.is_absolute_uri());
     /// let uri = Uri::parse("/path/to/file")?;
-    /// assert!(!uri.is_absolute());
+    /// assert!(!uri.is_absolute_uri());
     /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
-    pub fn is_absolute(&self) -> bool {
+    pub fn is_absolute_uri(&self) -> bool {
         self.scheme_end.is_some() && self.fragment_start().is_none()
     }
 }
@@ -316,7 +318,7 @@ impl<T: Data> hash::Hash for Uri<T> {
 
 impl<T: Data> PartialOrd for Uri<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.as_str().cmp(other.as_str()))
+        Some(self.cmp(other))
     }
 }
 

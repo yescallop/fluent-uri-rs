@@ -73,6 +73,8 @@ impl<E: Encoder> EString<E> {
 
     /// Encodes a byte sequence with a sub-encoder and appends the result onto the end of this `EString`.
     ///
+    /// Note that this method will **not** encode `0x20` (space) as `U+002B` (+).
+    ///
     /// # Panics
     ///
     /// Panics at compile time if `SubE` is not a [sub-encoder](Encoder#sub-encoders) of `E`,

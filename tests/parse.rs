@@ -13,8 +13,7 @@ fn parse_absolute() {
     assert_eq!(a.host(), "");
     assert_eq!(a.host_parsed(), Host::RegName(EStr::new("")));
     assert_eq!(a.port(), None);
-    assert_eq!(u.path().as_str(), "/etc/hosts");
-    assert!(u.path().segments().eq(["etc", "hosts"]));
+    assert_eq!(u.path(), "/etc/hosts");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);
 
@@ -26,8 +25,7 @@ fn parse_absolute() {
     assert_eq!(a.host(), "ftp.is.co.za");
     assert_eq!(a.host_parsed(), Host::RegName(EStr::new("ftp.is.co.za")));
     assert_eq!(a.port(), None);
-    assert_eq!(u.path().as_str(), "/rfc/rfc1808.txt");
-    assert!(u.path().segments().eq(["rfc", "rfc1808.txt"]));
+    assert_eq!(u.path(), "/rfc/rfc1808.txt");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);
 
@@ -39,8 +37,7 @@ fn parse_absolute() {
     assert_eq!(a.host(), "www.ietf.org");
     assert_eq!(a.host_parsed(), Host::RegName(EStr::new("www.ietf.org")));
     assert_eq!(a.port(), None);
-    assert_eq!(u.path().as_str(), "/rfc/rfc2396.txt");
-    assert!(u.path().segments().eq(["rfc", "rfc2396.txt"]));
+    assert_eq!(u.path(), "/rfc/rfc2396.txt");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);
 
@@ -55,35 +52,28 @@ fn parse_absolute() {
         Host::Ipv6(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 0x7))
     );
     assert_eq!(a.port(), None);
-    assert_eq!(u.path().as_str(), "/c=GB");
-    assert!(u.path().segments().eq(["c=GB"]));
+    assert_eq!(u.path(), "/c=GB");
     assert_eq!(u.query(), Some(EStr::new("objectClass?one")));
     assert_eq!(u.fragment(), None);
 
     let u = Uri::parse("mailto:John.Doe@example.com").unwrap();
     assert_eq!(u.scheme().unwrap().as_str(), "mailto");
     assert!(u.authority().is_none());
-    assert_eq!(u.path().as_str(), "John.Doe@example.com");
-    assert!(u.path().segments().eq(["John.Doe@example.com"]));
+    assert_eq!(u.path(), "John.Doe@example.com");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);
 
     let u = Uri::parse("news:comp.infosystems.www.servers.unix").unwrap();
     assert_eq!(u.scheme().unwrap().as_str(), "news");
     assert!(u.authority().is_none());
-    assert_eq!(u.path().as_str(), "comp.infosystems.www.servers.unix");
-    assert!(u
-        .path()
-        .segments()
-        .eq(["comp.infosystems.www.servers.unix"]));
+    assert_eq!(u.path(), "comp.infosystems.www.servers.unix");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);
 
     let u = Uri::parse("tel:+1-816-555-1212").unwrap();
     assert_eq!(u.scheme().unwrap().as_str(), "tel");
     assert!(u.authority().is_none());
-    assert_eq!(u.path().as_str(), "+1-816-555-1212");
-    assert!(u.path().segments().eq(["+1-816-555-1212"]));
+    assert_eq!(u.path(), "+1-816-555-1212");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);
 
@@ -95,22 +85,14 @@ fn parse_absolute() {
     assert_eq!(a.host(), "192.0.2.16");
     assert_eq!(a.host_parsed(), Host::Ipv4(Ipv4Addr::new(192, 0, 2, 16)));
     assert_eq!(a.port(), Some("80"));
-    assert_eq!(u.path().as_str(), "/");
-    assert!(u.path().segments().eq([""]));
+    assert_eq!(u.path(), "/");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);
 
     let u = Uri::parse("urn:oasis:names:specification:docbook:dtd:xml:4.1.2").unwrap();
     assert_eq!(u.scheme().unwrap().as_str(), "urn");
     assert!(u.authority().is_none());
-    assert_eq!(
-        u.path().as_str(),
-        "oasis:names:specification:docbook:dtd:xml:4.1.2"
-    );
-    assert!(u
-        .path()
-        .segments()
-        .eq(["oasis:names:specification:docbook:dtd:xml:4.1.2"]));
+    assert_eq!(u.path(), "oasis:names:specification:docbook:dtd:xml:4.1.2");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);
 
@@ -122,8 +104,7 @@ fn parse_absolute() {
     assert_eq!(a.host(), "example.com");
     assert_eq!(a.host_parsed(), Host::RegName(EStr::new("example.com")));
     assert_eq!(a.port(), Some("8042"));
-    assert_eq!(u.path().as_str(), "/over/there");
-    assert!(u.path().segments().eq(["over", "there"]));
+    assert_eq!(u.path(), "/over/there");
     assert_eq!(u.query(), Some(EStr::new("name=ferret")));
     assert_eq!(u.fragment(), Some(EStr::new("nose")));
 
@@ -138,8 +119,7 @@ fn parse_absolute() {
     assert_eq!(a.host(), "10.0.0.1");
     assert_eq!(a.host_parsed(), Host::Ipv4(Ipv4Addr::new(10, 0, 0, 1)));
     assert_eq!(a.port(), None);
-    assert_eq!(u.path().as_str(), "/top_story.htm");
-    assert!(u.path().segments().eq(["top_story.htm"]));
+    assert_eq!(u.path(), "/top_story.htm");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);
 
@@ -151,8 +131,7 @@ fn parse_absolute() {
     assert_eq!(a.host(), "[vFe.foo.bar]");
     assert!(matches!(a.host_parsed(), Host::IpvFuture { .. }));
     assert_eq!(a.port(), None);
-    assert_eq!(u.path().as_str(), "");
-    assert!(u.path().segments().eq(None::<&str>));
+    assert_eq!(u.path(), "");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);
 
@@ -164,9 +143,7 @@ fn parse_absolute() {
     assert_eq!(a.host(), "127.0.0.1");
     assert_eq!(a.host_parsed(), Host::Ipv4(Ipv4Addr::new(127, 0, 0, 1)));
     assert_eq!(a.port(), Some(""));
-    // TODO: `u16` port parsing.
-    assert_eq!(u.path().as_str(), "/");
-    assert!(u.path().segments().eq([""]));
+    assert_eq!(u.path(), "/");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);
 
@@ -178,8 +155,7 @@ fn parse_absolute() {
     assert_eq!(a.host(), "127.0.0.1");
     assert_eq!(a.host_parsed(), Host::Ipv4(Ipv4Addr::new(127, 0, 0, 1)));
     assert_eq!(a.port(), Some("8080"));
-    assert_eq!(u.path().as_str(), "/");
-    assert!(u.path().segments().eq([""]));
+    assert_eq!(u.path(), "/");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);
 
@@ -191,9 +167,7 @@ fn parse_absolute() {
     assert_eq!(a.host(), "127.0.0.1");
     assert_eq!(a.host_parsed(), Host::Ipv4(Ipv4Addr::new(127, 0, 0, 1)));
     assert_eq!(a.port(), Some("80808"));
-    // TODO: `u16` port parsing.
-    assert_eq!(u.path().as_str(), "/");
-    assert!(u.path().segments().eq([""]));
+    assert_eq!(u.path(), "/");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);
 }
@@ -203,32 +177,28 @@ fn parse_relative() {
     let u = Uri::parse("").unwrap();
     assert!(u.scheme().is_none());
     assert!(u.authority().is_none());
-    assert_eq!(u.path().as_str(), "");
-    assert!(u.path().segments().eq(None::<&str>));
+    assert_eq!(u.path(), "");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);
 
     let u = Uri::parse("foo.txt").unwrap();
     assert!(u.scheme().is_none());
     assert!(u.authority().is_none());
-    assert_eq!(u.path().as_str(), "foo.txt");
-    assert!(u.path().segments().eq(["foo.txt"]));
+    assert_eq!(u.path(), "foo.txt");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);
 
     let u = Uri::parse(".").unwrap();
     assert!(u.scheme().is_none());
     assert!(u.authority().is_none());
-    assert_eq!(u.path().as_str(), ".");
-    assert!(u.path().segments().eq(["."]));
+    assert_eq!(u.path(), ".");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);
 
     let u = Uri::parse("./this:that").unwrap();
     assert!(u.scheme().is_none());
     assert!(u.authority().is_none());
-    assert_eq!(u.path().as_str(), "./this:that");
-    assert!(u.path().segments().eq([".", "this:that"]));
+    assert_eq!(u.path(), "./this:that");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);
 
@@ -240,24 +210,21 @@ fn parse_relative() {
     assert_eq!(a.host(), "example.com");
     assert_eq!(a.host_parsed(), Host::RegName(EStr::new("example.com")));
     assert_eq!(a.port(), None);
-    assert_eq!(u.path().as_str(), "");
-    assert!(u.path().segments().eq(None::<&str>));
+    assert_eq!(u.path(), "");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);
 
     let u = Uri::parse("?query").unwrap();
     assert!(u.scheme().is_none());
     assert!(u.authority().is_none());
-    assert_eq!(u.path().as_str(), "");
-    assert!(u.path().segments().eq(None::<&str>));
+    assert_eq!(u.path(), "");
     assert_eq!(u.query(), Some(EStr::new("query")));
     assert_eq!(u.fragment(), None);
 
     let u = Uri::parse("#fragment").unwrap();
     assert!(u.scheme().is_none());
     assert!(u.authority().is_none());
-    assert_eq!(u.path().as_str(), "");
-    assert!(u.path().segments().eq(None::<&str>));
+    assert_eq!(u.path(), "");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), Some(EStr::new("fragment")));
 }

@@ -114,6 +114,8 @@ impl<E: Encoder> EStr<E> {
 
     /// Decodes the `EStr` slice.
     ///
+    /// Note that this method will **not** decode `U+002B` (+) as `0x20` (space).
+    ///
     /// This method allocates only when there is any percent-encoded octet in the slice.
     ///
     /// # Panics
@@ -315,6 +317,7 @@ impl EStr<Path> {
     /// assert!(uri.path().segments().eq(["path", "to", "", "dir", ""]));
     /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
+    #[cfg(fluent_uri_unstable)]
     #[inline]
     pub fn segments(&self) -> Split<'_, Path> {
         let path_stripped = self.inner.strip_prefix('/').unwrap_or(&self.inner);

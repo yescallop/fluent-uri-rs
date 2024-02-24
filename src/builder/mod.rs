@@ -308,18 +308,17 @@ impl PortLike for u16 {
     }
 }
 
-impl<S: AsRef<str> + ?Sized> PortLike for &S {
+impl PortLike for &str {
     fn write(&self, buf: &mut String) {
-        let s = self.as_ref();
-        assert!(s.bytes().all(|x| x.is_ascii_digit()), "invalid port");
-        buf.push_str(s)
+        assert!(self.bytes().all(|x| x.is_ascii_digit()), "invalid port");
+        buf.push_str(self)
     }
 }
 
 impl<S: To<PortEnd>> Builder<S> {
     /// Sets the [port] subcomponent of authority.
     ///
-    /// Takes either a `u16` or `&S` where `S: AsRef<str> + ?Sized` as argument.
+    /// This method takes either a `u16` or `&str` as argument.
     ///
     /// # Panics
     ///
