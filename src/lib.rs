@@ -101,10 +101,13 @@ use internal::{Meta, ToUri, Val, ValExt};
 /// See the documentation of [`Builder`] for examples of building a `Uri` from its components.
 #[derive(Clone, Copy)]
 pub struct Uri<T> {
-    /// Stores the value of the URI reference.
+    /// Value of the URI reference.
     val: T,
     /// Metadata of the URI reference.
-    /// Guaranteed identical to parser output with `data` as input.
+    /// Should be identical to parser output with `data` as input.
+    ///
+    /// FIXME: `Builder` may violate the above requirement because
+    /// it accepts a `Host::RegName` with IPv4 address in it.
     meta: Meta,
 }
 
