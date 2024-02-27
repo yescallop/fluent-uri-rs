@@ -5,7 +5,7 @@ use crate::{
         encoder::{RegName, Userinfo},
         table, EStr,
     },
-    internal::{AuthMeta, DataHelper, HostMeta},
+    internal::{AuthMeta, HostMeta, ValExt},
     Uri,
 };
 use core::num::ParseIntError;
@@ -91,7 +91,7 @@ pub struct Authority<T> {
     uri: Uri<T>,
 }
 
-impl<'i, 'o, T: DataHelper<'i, 'o>> Authority<T> {
+impl<'i, 'o, T: ValExt<'i, 'o>> Authority<T> {
     /// Converts from `&Uri<T>` to `&Authority<T>`,
     /// assuming that authority is present.
     #[ref_cast_custom]

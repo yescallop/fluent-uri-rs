@@ -50,7 +50,7 @@ use encoding::{
     encoder::{Encoder, Fragment, Path, Query},
     EStr,
 };
-use internal::{Data, DataHelper, Meta, ToUri};
+use internal::{Meta, ToUri, Val, ValExt};
 
 /// A [URI reference] defined in RFC 3986.
 ///
@@ -102,7 +102,7 @@ use internal::{Data, DataHelper, Meta, ToUri};
 #[derive(Clone, Copy)]
 pub struct Uri<T> {
     /// Stores the value of the URI reference.
-    data: T,
+    val: T,
     /// Metadata of the URI reference.
     /// Guaranteed identical to parser output with `data` as input.
     meta: Meta,
@@ -128,7 +128,7 @@ impl<T> Uri<T> {
     /// Panics if the input length is greater than [`u32::MAX`].
     pub fn parse<I>(input: I) -> Result<Self, I::Err>
     where
-        I: ToUri<Data = T>,
+        I: ToUri<Val = T>,
     {
         input.to_uri()
     }
@@ -146,7 +146,7 @@ impl Uri<String> {
     #[inline]
     pub fn borrow(&self) -> Uri<&str> {
         Uri {
-            data: &self.data,
+            val: &self.val,
             meta: self.meta,
         }
     }
@@ -154,7 +154,7 @@ impl Uri<String> {
     /// Consumes this `Uri<String>` and yields the underlying [`String`].
     #[inline]
     pub fn into_string(self) -> String {
-        self.data
+        self.val
     }
 }
 
@@ -163,22 +163,22 @@ impl Uri<&str> {
     #[inline]
     pub fn to_owned(&self) -> Uri<String> {
         Uri {
-            data: self.data.to_owned(),
+            val: self.val.to_owned(),
             meta: self.meta,
         }
     }
 }
 
-impl<T: Data> Uri<T> {
+impl<T: Val> Uri<T> {
     fn len(&self) -> u32 {
         self.as_str().len() as _
     }
 }
 
-impl<'i, 'o, T: DataHelper<'i, 'o>> Uri<T> {
+impl<'i, 'o, T: ValExt<'i, 'o>> Uri<T> {
     /// Returns the URI reference as a string slice.
     pub fn as_str(&'i self) -> &'o str {
-        self.data.as_str()
+        self.val.as_str()
     }
 
     /// Returns a string slice of the `Uri` between the given indexes.
@@ -292,31 +292,31 @@ impl<'i, 'o, T: DataHelper<'i, 'o>> Uri<T> {
     }
 }
 
-impl<T: Data> Default for Uri<T> {
+impl<T: Val> Default for Uri<T> {
     /// Creates an empty URI reference.
     fn default() -> Self {
         Uri {
-            data: T::default(),
+            val: T::default(),
             meta: Meta::default(),
         }
     }
 }
 
-impl<T: Data, U: Data> PartialEq<Uri<U>> for Uri<T> {
+impl<T: Val, U: Val> PartialEq<Uri<U>> for Uri<T> {
     fn eq(&self, other: &Uri<U>) -> bool {
         self.as_str() == other.as_str()
     }
 }
 
-impl<T: Data> Eq for Uri<T> {}
+impl<T: Val> Eq for Uri<T> {}
 
-impl<T: Data> hash::Hash for Uri<T> {
+impl<T: Val> hash::Hash for Uri<T> {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         self.as_str().hash(state)
     }
 }
 
-impl<T: Data> PartialOrd for Uri<T> {
+impl<T: Val> PartialOrd for Uri<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
@@ -326,19 +326,19 @@ impl<T: Data> PartialOrd for Uri<T> {
 ///
 /// `Uri`s are ordered [lexicographically](Ord#lexicographical-comparison) by their byte values.
 /// Normalization is **not** performed prior to ordering.
-impl<T: Data> Ord for Uri<T> {
+impl<T: Val> Ord for Uri<T> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.as_str().cmp(other.as_str())
     }
 }
 
-impl<T: Data> AsRef<str> for Uri<T> {
+impl<T: Val> AsRef<str> for Uri<T> {
     fn as_ref(&self) -> &str {
         self.as_str()
     }
 }
 
-impl<T: Data> Borrow<str> for Uri<T> {
+impl<T: Val> Borrow<str> for Uri<T> {
     fn borrow(&self) -> &str {
         self.as_str()
     }

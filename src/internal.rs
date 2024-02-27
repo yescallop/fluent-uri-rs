@@ -8,14 +8,14 @@ use core::{num::NonZeroU32, ops, str};
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 pub trait Str {
-    fn concretize<'a>(self) -> &'a str
+    fn cast<'a>(self) -> &'a str
     where
         Self: 'a;
 }
 
 impl Str for &str {
     #[inline]
-    fn concretize<'a>(self) -> &'a str
+    fn cast<'a>(self) -> &'a str
     where
         Self: 'a,
     {
@@ -23,33 +23,33 @@ impl Str for &str {
     }
 }
 
-pub trait Data: Default {
+pub trait Val: Default {
     type Str<'a>: Str
     where
         Self: 'a;
 
-    fn as_str_opaque(&self) -> Self::Str<'_>;
+    fn as_str_assoc(&self) -> Self::Str<'_>;
 }
 
-impl<'o> Data for &'o str {
+impl<'o> Val for &'o str {
     type Str<'i> = &'o str where Self: 'i;
 
     #[inline]
-    fn as_str_opaque(&self) -> Self::Str<'_> {
+    fn as_str_assoc(&self) -> Self::Str<'_> {
         self
     }
 }
 
-impl Data for String {
+impl Val for String {
     type Str<'a> = &'a str where Self: 'a;
 
     #[inline]
-    fn as_str_opaque(&self) -> Self::Str<'_> {
+    fn as_str_assoc(&self) -> Self::Str<'_> {
         self
     }
 }
 
-/// Helper trait that allows output references outlive a `Uri`.
+/// Allows output references outlive a `Uri`.
 ///
 /// # Examples
 ///
@@ -62,25 +62,24 @@ impl Data for String {
 ///     uri.as_str()
 /// }
 /// ```
-pub trait DataHelper<'i, 'o>: Data {
+pub trait ValExt<'i, 'o>: Val {
     fn as_str(&'i self) -> &'o str;
 }
 
-impl<'i, 'o, T: Data + 'i> DataHelper<'i, 'o> for T
+impl<'i, 'o, T: Val + 'i> ValExt<'i, 'o> for T
 where
     T::Str<'i>: 'o,
 {
     fn as_str(&'i self) -> &'o str {
-        let s: T::Str<'i> = self.as_str_opaque();
-        s.concretize()
+        (self.as_str_assoc() as T::Str<'i>).cast()
     }
 }
 
 pub trait ToUri {
-    type Data;
+    type Val;
     type Err;
 
-    fn to_uri(self) -> Result<Uri<Self::Data>, Self::Err>;
+    fn to_uri(self) -> Result<Uri<Self::Val>, Self::Err>;
 }
 
 #[cold]
@@ -89,32 +88,32 @@ fn len_overflow() -> ! {
 }
 
 impl<'a> ToUri for &'a str {
-    type Data = &'a str;
+    type Val = &'a str;
     type Err = ParseError;
 
     #[inline]
-    fn to_uri(self) -> Result<Uri<Self::Data>, Self::Err> {
+    fn to_uri(self) -> Result<Uri<Self::Val>, Self::Err> {
         if self.len() > u32::MAX as usize {
             len_overflow();
         }
 
         let meta = parser::parse(self.as_bytes())?;
-        Ok(Uri { data: self, meta })
+        Ok(Uri { val: self, meta })
     }
 }
 
 impl ToUri for String {
-    type Data = String;
+    type Val = String;
     type Err = ParseError<String>;
 
     #[inline]
-    fn to_uri(self) -> Result<Uri<Self::Data>, Self::Err> {
+    fn to_uri(self) -> Result<Uri<Self::Val>, Self::Err> {
         if self.len() > u32::MAX as usize {
             len_overflow();
         }
 
         match parser::parse(self.as_bytes()) {
-            Ok(meta) => Ok(Uri { data: self, meta }),
+            Ok(meta) => Ok(Uri { val: self, meta }),
             Err(e) => Err(e.with_input(self)),
         }
     }
@@ -131,7 +130,7 @@ pub struct Meta {
 }
 
 #[doc(hidden)]
-impl<T: Data> ops::Deref for Uri<T> {
+impl<T> ops::Deref for Uri<T> {
     type Target = Meta;
 
     fn deref(&self) -> &Meta {
@@ -140,7 +139,7 @@ impl<T: Data> ops::Deref for Uri<T> {
 }
 
 #[doc(hidden)]
-impl<T: Data> ops::DerefMut for Uri<T> {
+impl<T> ops::DerefMut for Uri<T> {
     fn deref_mut(&mut self) -> &mut Meta {
         &mut self.meta
     }

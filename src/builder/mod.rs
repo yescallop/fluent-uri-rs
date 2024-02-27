@@ -424,7 +424,7 @@ impl<S: To<UriEnd>> Builder<S> {
             "output length > u32::MAX"
         );
         Uri {
-            data: self.buf,
+            val: self.buf,
             meta: self.meta,
         }
     }
