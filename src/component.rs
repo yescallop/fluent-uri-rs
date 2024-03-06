@@ -5,9 +5,10 @@ use crate::{
         encoder::{RegName, Userinfo},
         table, EStr,
     },
-    internal::{AuthMeta, HostMeta, ValExt},
+    internal::{AuthMeta, HostMeta},
     Uri,
 };
+use borrow_or_share::BorrowOrShare;
 use core::num::ParseIntError;
 use ref_cast::{ref_cast_custom, RefCastCustom};
 
@@ -91,7 +92,7 @@ pub struct Authority<T> {
     uri: Uri<T>,
 }
 
-impl<'i, 'o, T: ValExt<'i, 'o>> Authority<T> {
+impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// Converts from `&Uri<T>` to `&Authority<T>`,
     /// assuming that authority is present.
     #[ref_cast_custom]

@@ -2,9 +2,9 @@ use crate::{
     component::{Authority, Scheme},
     encoding::{encoder::Encoder, EStr, EString},
     error::{ParseError, ParseErrorKind},
-    internal::Val,
     Uri,
 };
+use borrow_or_share::Bos;
 use core::fmt::{Debug, Display, Formatter, Result};
 
 impl<E: Encoder> Debug for EStr<E> {
@@ -51,7 +51,7 @@ impl<I> Display for ParseError<I> {
     }
 }
 
-impl<T: Val> Debug for Uri<T> {
+impl<T: Bos<str>> Debug for Uri<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_struct("Uri")
             .field("scheme", &self.scheme())
@@ -63,7 +63,7 @@ impl<T: Val> Debug for Uri<T> {
     }
 }
 
-impl<T: Val> Display for Uri<T> {
+impl<T: Bos<str>> Display for Uri<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         Display::fmt(self.as_str(), f)
     }
@@ -83,7 +83,7 @@ impl Display for Scheme {
     }
 }
 
-impl<T: Val> Debug for Authority<T> {
+impl<T: Bos<str>> Debug for Authority<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_struct("Authority")
             .field("userinfo", &self.userinfo())
@@ -94,7 +94,7 @@ impl<T: Val> Debug for Authority<T> {
     }
 }
 
-impl<T: Val> Display for Authority<T> {
+impl<T: Bos<str>> Display for Authority<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         Display::fmt(self.as_str(), f)
     }

@@ -39,6 +39,7 @@ extern crate std;
 extern crate alloc;
 
 use alloc::{borrow::ToOwned, string::String};
+use borrow_or_share::{BorrowOrShare, Bos};
 use component::{Authority, Scheme};
 use core::{
     borrow::Borrow,
@@ -50,7 +51,7 @@ use encoding::{
     encoder::{Encoder, Fragment, Path, Query},
     EStr,
 };
-use internal::{Meta, ToUri, Val, ValExt};
+use internal::{Meta, ToUri};
 
 /// A [URI reference] defined in RFC 3986.
 ///
@@ -172,16 +173,16 @@ impl Uri<&str> {
     }
 }
 
-impl<T: Val> Uri<T> {
+impl<T: Bos<str>> Uri<T> {
     fn len(&self) -> u32 {
         self.as_str().len() as _
     }
 }
 
-impl<'i, 'o, T: ValExt<'i, 'o>> Uri<T> {
+impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// Returns the URI reference as a string slice.
     pub fn as_str(&'i self) -> &'o str {
-        self.val.as_str()
+        self.val.borrow_or_share()
     }
 
     /// Returns a string slice of the `Uri` between the given indexes.
@@ -295,7 +296,7 @@ impl<'i, 'o, T: ValExt<'i, 'o>> Uri<T> {
     }
 }
 
-impl<T: Val> Default for Uri<T> {
+impl<T: Bos<str> + Default> Default for Uri<T> {
     /// Creates an empty URI reference.
     fn default() -> Self {
         Uri {
@@ -305,21 +306,21 @@ impl<T: Val> Default for Uri<T> {
     }
 }
 
-impl<T: Val, U: Val> PartialEq<Uri<U>> for Uri<T> {
+impl<T: Bos<str>, U: Bos<str>> PartialEq<Uri<U>> for Uri<T> {
     fn eq(&self, other: &Uri<U>) -> bool {
         self.as_str() == other.as_str()
     }
 }
 
-impl<T: Val> Eq for Uri<T> {}
+impl<T: Bos<str>> Eq for Uri<T> {}
 
-impl<T: Val> hash::Hash for Uri<T> {
+impl<T: Bos<str>> hash::Hash for Uri<T> {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         self.as_str().hash(state)
     }
 }
 
-impl<T: Val> PartialOrd for Uri<T> {
+impl<T: Bos<str>> PartialOrd for Uri<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
@@ -329,19 +330,19 @@ impl<T: Val> PartialOrd for Uri<T> {
 ///
 /// `Uri`s are ordered [lexicographically](Ord#lexicographical-comparison) by their byte values.
 /// Normalization is **not** performed prior to ordering.
-impl<T: Val> Ord for Uri<T> {
+impl<T: Bos<str>> Ord for Uri<T> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.as_str().cmp(other.as_str())
     }
 }
 
-impl<T: Val> AsRef<str> for Uri<T> {
+impl<T: Bos<str>> AsRef<str> for Uri<T> {
     fn as_ref(&self) -> &str {
         self.as_str()
     }
 }
 
-impl<T: Val> Borrow<str> for Uri<T> {
+impl<T: Bos<str>> Borrow<str> for Uri<T> {
     fn borrow(&self) -> &str {
         self.as_str()
     }
