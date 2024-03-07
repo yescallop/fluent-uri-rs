@@ -22,7 +22,7 @@ A fast, easy generic URI parser and builder compliant with [RFC 3986].
 - `Uri<&str>` and `Uri<String>` (borrowed and owned variants of URI reference):
 
     You can parse into a `Uri<&str>` from a string slice.
-    `Uri<&'a str>` outputs references with lifetime `'a` where possibl
+    `Uri<&'a str>` outputs references with lifetime `'a` where possible
     (thanks to [`borrow-or-share`](https://github.com/yescallop/borrow-or-share)):
 
     ```rust
