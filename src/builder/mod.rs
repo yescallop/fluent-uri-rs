@@ -17,7 +17,7 @@ use core::{fmt::Write, marker::PhantomData, num::NonZeroU32};
 use state::*;
 
 #[cfg(feature = "net")]
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 
 /// A builder for URI reference.
 ///
@@ -84,17 +84,138 @@ use std::net::SocketAddr;
 /// [`fragment`]: Self::fragment
 /// [`build`]: Self::build
 pub struct Builder<S = UriStart> {
+    inner: BuilderInner,
+    state: PhantomData<S>,
+}
+
+struct BuilderInner {
     buf: String,
     meta: Meta,
-    state: PhantomData<S>,
+}
+
+impl BuilderInner {
+    fn push_scheme(&mut self, v: &str) {
+        self.buf.push_str(v);
+        self.meta.scheme_end = NonZeroU32::new(self.buf.len() as _);
+        self.buf.push(':');
+    }
+
+    fn start_authority(&mut self) {
+        self.buf.push_str("//");
+        self.meta.auth_meta = Some(AuthMeta {
+            start: self.buf.len() as _,
+            ..AuthMeta::default()
+        });
+    }
+
+    fn push_userinfo(&mut self, v: &str) {
+        self.buf.push_str(v);
+        self.buf.push('@');
+    }
+
+    fn push_host(&mut self, host: Host<'_>) {
+        let auth_meta = self.meta.auth_meta.as_mut().unwrap();
+        auth_meta.host_bounds.0 = self.buf.len() as _;
+
+        match host {
+            #[cfg(feature = "net")]
+            Host::Ipv4(addr) => {
+                write!(self.buf, "{addr}").unwrap();
+                auth_meta.host_meta = HostMeta::Ipv4(addr);
+            }
+            #[cfg(feature = "net")]
+            Host::Ipv6(addr) => {
+                write!(self.buf, "[{addr}]").unwrap();
+                auth_meta.host_meta = HostMeta::Ipv6(addr);
+            }
+            Host::RegName(name) => {
+                let mut reader = Reader::new(name.as_str().as_bytes());
+                auth_meta.host_meta = match reader.read_v4() {
+                    Some(_addr) if !reader.has_remaining() => HostMeta::Ipv4(
+                        #[cfg(feature = "net")]
+                        _addr.into(),
+                    ),
+                    _ => HostMeta::RegName,
+                };
+                self.buf.push_str(name.as_str());
+            }
+            _ => unreachable!(),
+        }
+
+        auth_meta.host_bounds.1 = self.buf.len() as _;
+    }
+
+    #[cfg(feature = "net")]
+    fn push_host_from_ip_addr(&mut self, addr: IpAddr) {
+        let auth_meta = self.meta.auth_meta.as_mut().unwrap();
+        auth_meta.host_bounds.0 = self.buf.len() as _;
+
+        let addr = addr.into();
+        match addr {
+            IpAddr::V4(addr) => {
+                write!(self.buf, "{}", addr).unwrap();
+                auth_meta.host_meta = HostMeta::Ipv4(addr);
+            }
+            IpAddr::V6(addr) => {
+                write!(self.buf, "[{}]", addr).unwrap();
+                auth_meta.host_meta = HostMeta::Ipv6(addr);
+            }
+        }
+
+        auth_meta.host_bounds.1 = self.buf.len() as _;
+    }
+
+    fn push_path(&mut self, v: &str) {
+        fn first_segment_contains_colon(path: &str) -> bool {
+            path.split_once('/')
+                .map(|x| x.0)
+                .unwrap_or(path)
+                .contains(':')
+        }
+
+        if self.meta.auth_meta.is_some() {
+            assert!(
+                v.is_empty() || v.starts_with('/'),
+                "path must either be empty or start with '/' when authority is present"
+            );
+        } else {
+            assert!(
+                !v.starts_with("//"),
+                "path cannot start with \"//\" when authority is absent"
+            );
+            if self.meta.scheme_end.is_none() {
+                assert!(
+                    !first_segment_contains_colon(v),
+                    "first path segment cannot contain ':' in relative-path reference"
+                );
+            }
+        }
+
+        self.meta.path_bounds.0 = self.buf.len() as _;
+        self.buf.push_str(v);
+        self.meta.path_bounds.1 = self.buf.len() as _;
+    }
+
+    fn push_query(&mut self, v: &str) {
+        self.buf.push('?');
+        self.buf.push_str(v);
+        self.meta.query_end = NonZeroU32::new(self.buf.len() as _);
+    }
+
+    fn push_fragment(&mut self, v: &str) {
+        self.buf.push('#');
+        self.buf.push_str(v);
+    }
 }
 
 impl Builder {
     #[inline]
     pub(crate) fn new() -> Self {
         Self {
-            buf: String::new(),
-            meta: Meta::default(),
+            inner: BuilderInner {
+                buf: String::new(),
+                meta: Meta::default(),
+            },
             state: PhantomData,
         }
     }
@@ -106,8 +227,7 @@ impl<S> Builder<S> {
         S: To<T>,
     {
         Builder {
-            buf: self.buf,
-            meta: self.meta,
+            inner: self.inner,
             state: PhantomData,
         }
     }
@@ -172,9 +292,7 @@ impl<S: To<SchemeEnd>> Builder<S> {
     ///
     /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
     pub fn scheme(mut self, scheme: &Scheme) -> Builder<SchemeEnd> {
-        self.buf.push_str(scheme.as_str());
-        self.meta.scheme_end = NonZeroU32::new(self.buf.len() as _);
-        self.buf.push(':');
+        self.inner.push_scheme(scheme.as_str());
         self.cast()
     }
 }
@@ -188,11 +306,7 @@ impl<S: To<AuthorityStart>> Builder<S> {
         F: FnOnce(Builder<AuthorityStart>) -> Builder<T>,
         T: To<AuthorityEnd>,
     {
-        self.buf.push_str("//");
-        self.meta.auth_meta = Some(AuthMeta {
-            start: self.buf.len() as _,
-            ..AuthMeta::default()
-        });
+        self.inner.start_authority();
         f(self.cast()).cast()
     }
 }
@@ -202,8 +316,7 @@ impl<S: To<UserinfoEnd>> Builder<S> {
     ///
     /// [userinfo]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.1
     pub fn userinfo(mut self, userinfo: &EStr<Userinfo>) -> Builder<UserinfoEnd> {
-        self.buf.push_str(userinfo.as_str());
-        self.buf.push('@');
+        self.inner.push_userinfo(userinfo.as_str());
         self.cast()
     }
 }
@@ -230,35 +343,7 @@ impl<S: To<HostEnd>> Builder<S> {
     /// assert_eq!(uri.authority().unwrap().host_parsed(), Host::Ipv4(Ipv4Addr::LOCALHOST));
     /// ```
     pub fn host(mut self, host: Host<'_>) -> Builder<HostEnd> {
-        let auth_meta = self.meta.auth_meta.as_mut().unwrap();
-        auth_meta.host_bounds.0 = self.buf.len() as _;
-
-        match host {
-            #[cfg(feature = "net")]
-            Host::Ipv4(addr) => {
-                write!(self.buf, "{addr}").unwrap();
-                auth_meta.host_meta = HostMeta::Ipv4(addr);
-            }
-            #[cfg(feature = "net")]
-            Host::Ipv6(addr) => {
-                write!(self.buf, "[{addr}]").unwrap();
-                auth_meta.host_meta = HostMeta::Ipv6(addr);
-            }
-            Host::RegName(name) => {
-                let mut reader = Reader::new(name.as_str().as_bytes());
-                auth_meta.host_meta = match reader.read_v4() {
-                    Some(_addr) if !reader.has_remaining() => HostMeta::Ipv4(
-                        #[cfg(feature = "net")]
-                        _addr.into(),
-                    ),
-                    _ => HostMeta::RegName,
-                };
-                self.buf.push_str(name.as_str());
-            }
-            _ => unreachable!(),
-        }
-
-        auth_meta.host_bounds.1 = self.buf.len() as _;
+        self.inner.push_host(host);
         self.cast()
     }
 
@@ -301,39 +386,26 @@ impl<S: To<HostEnd>> Builder<S> {
         addr: A,
         default_port: u16,
     ) -> Builder<PortEnd> {
-        let auth_meta = self.meta.auth_meta.as_mut().unwrap();
-        auth_meta.host_bounds.0 = self.buf.len() as _;
-
         let addr = addr.into();
-        match addr {
-            SocketAddr::V4(addr) => {
-                write!(self.buf, "{}", addr.ip()).unwrap();
-                auth_meta.host_meta = HostMeta::Ipv4(*addr.ip());
-            }
-            SocketAddr::V6(addr) => {
-                write!(self.buf, "[{}]", addr.ip()).unwrap();
-                auth_meta.host_meta = HostMeta::Ipv6(*addr.ip());
-            }
-        }
-
-        auth_meta.host_bounds.1 = self.buf.len() as _;
+        self.inner.push_host_from_ip_addr(addr.ip());
         self.cast().port_with_default(addr.port(), default_port)
     }
 }
 
 pub trait PortLike {
-    fn write(&self, buf: &mut String);
+    fn push_to(&self, buf: &mut String);
 }
 
 impl PortLike for u16 {
-    fn write(&self, buf: &mut String) {
-        write!(buf, "{self}").unwrap();
+    fn push_to(&self, buf: &mut String) {
+        write!(buf, ":{self}").unwrap();
     }
 }
 
 impl PortLike for &str {
-    fn write(&self, buf: &mut String) {
+    fn push_to(&self, buf: &mut String) {
         assert!(self.bytes().all(|x| x.is_ascii_digit()), "invalid port");
+        buf.push(':');
         buf.push_str(self)
     }
 }
@@ -350,8 +422,7 @@ impl<S: To<PortEnd>> Builder<S> {
     ///
     /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
     pub fn port<T: PortLike>(mut self, port: T) -> Builder<PortEnd> {
-        self.buf.push(':');
-        port.write(&mut self.buf);
+        port.push_to(&mut self.inner.buf);
         self.cast()
     }
 
@@ -361,13 +432,6 @@ impl<S: To<PortEnd>> Builder<S> {
     pub fn port_with_default(self, port: u16, default: u16) -> Builder<PortEnd> {
         self.optional(Builder::port, Some(port).filter(|&port| port != default))
     }
-}
-
-fn first_segment_contains_colon(path: &str) -> bool {
-    path.split_once('/')
-        .map(|x| x.0)
-        .unwrap_or(path)
-        .contains(':')
 }
 
 impl<S: To<PathEnd>> Builder<S> {
@@ -385,29 +449,7 @@ impl<S: To<PathEnd>> Builder<S> {
     /// [path]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
     /// [rel-ref]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.2
     pub fn path(mut self, path: &EStr<Path>) -> Builder<PathEnd> {
-        let path = path.as_str();
-
-        if self.meta.auth_meta.is_some() {
-            assert!(
-                path.is_empty() || path.starts_with('/'),
-                "path must either be empty or start with '/' when authority is present"
-            );
-        } else {
-            assert!(
-                !path.starts_with("//"),
-                "path cannot start with \"//\" when authority is absent"
-            );
-            if self.meta.scheme_end.is_none() {
-                assert!(
-                    !first_segment_contains_colon(path),
-                    "first path segment cannot contain ':' in relative-path reference"
-                );
-            }
-        }
-
-        self.meta.path_bounds.0 = self.buf.len() as _;
-        self.buf.push_str(path);
-        self.meta.path_bounds.1 = self.buf.len() as _;
+        self.inner.push_path(path.as_str());
         self.cast()
     }
 }
@@ -417,9 +459,7 @@ impl<S: To<QueryEnd>> Builder<S> {
     ///
     /// [query]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.4
     pub fn query(mut self, query: &EStr<Query>) -> Builder<QueryEnd> {
-        self.buf.push('?');
-        self.buf.push_str(query.as_str());
-        self.meta.query_end = NonZeroU32::new(self.buf.len() as _);
+        self.inner.push_query(query.as_str());
         self.cast()
     }
 }
@@ -429,8 +469,7 @@ impl<S: To<FragmentEnd>> Builder<S> {
     ///
     /// [fragment]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.5
     pub fn fragment(mut self, fragment: &EStr<Fragment>) -> Builder<FragmentEnd> {
-        self.buf.push('#');
-        self.buf.push_str(fragment.as_str());
+        self.inner.push_fragment(fragment.as_str());
         self.cast()
     }
 }
@@ -443,12 +482,12 @@ impl<S: To<UriEnd>> Builder<S> {
     /// Panics if the output length would be greater than [`u32::MAX`].
     pub fn build(self) -> Uri<String> {
         assert!(
-            self.buf.len() <= u32::MAX as usize,
+            self.inner.buf.len() <= u32::MAX as usize,
             "output length > u32::MAX"
         );
         Uri {
-            val: self.buf,
-            meta: self.meta,
+            val: self.inner.buf,
+            meta: self.inner.meta,
         }
     }
 }
