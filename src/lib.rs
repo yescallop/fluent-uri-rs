@@ -1,7 +1,7 @@
 #![allow(clippy::let_unit_value)]
 #![warn(missing_debug_implementations, missing_docs, rust_2018_idioms)]
 #![forbid(unsafe_code)]
-#![cfg_attr(doc, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![no_std]
 
 //! An [RFC 3986] compliant generic URI parser and builder.
