@@ -7,6 +7,11 @@ use core::{num::NonZeroU32, ops, str};
 #[cfg(feature = "net")]
 use std::net::{Ipv4Addr, Ipv6Addr};
 
+pub trait Val: Default {}
+
+impl Val for &str {}
+impl Val for String {}
+
 pub trait ToUri {
     type Val;
     type Err;

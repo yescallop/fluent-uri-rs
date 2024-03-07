@@ -51,7 +51,7 @@ use encoding::{
     encoder::{Encoder, Fragment, Path, Query},
     EStr,
 };
-use internal::{Meta, ToUri};
+use internal::{Meta, ToUri, Val};
 
 /// A [URI reference] defined in RFC 3986.
 ///
@@ -296,7 +296,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     }
 }
 
-impl<T: Bos<str> + Default> Default for Uri<T> {
+impl<T: Val> Default for Uri<T> {
     /// Creates an empty URI reference.
     fn default() -> Self {
         Uri {
