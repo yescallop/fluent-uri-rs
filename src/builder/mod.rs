@@ -8,7 +8,7 @@ use crate::{
         encoder::{Fragment, Path, Query, Userinfo},
         EStr,
     },
-    internal::{AuthMeta, Meta},
+    internal::{AuthMeta, HostMeta, Meta},
     parser::Reader,
     Uri,
 };
@@ -233,9 +233,6 @@ impl<S: To<HostEnd>> Builder<S> {
         let auth_meta = self.meta.auth_meta.as_mut().unwrap();
         auth_meta.host_bounds.0 = self.buf.len() as _;
 
-        #[cfg(feature = "net")]
-        use crate::internal::HostMeta;
-
         match host {
             #[cfg(feature = "net")]
             Host::Ipv4(addr) => {
@@ -250,7 +247,10 @@ impl<S: To<HostEnd>> Builder<S> {
             Host::RegName(name) => {
                 let mut reader = Reader::new(name.as_str().as_bytes());
                 auth_meta.host_meta = match reader.read_v4() {
-                    Some(addr) if !reader.has_remaining() => HostMeta::Ipv4(addr.into()),
+                    Some(_addr) if !reader.has_remaining() => HostMeta::Ipv4(
+                        #[cfg(feature = "net")]
+                        _addr.into(),
+                    ),
                     _ => HostMeta::RegName,
                 };
                 self.buf.push_str(name.as_str());
@@ -303,8 +303,6 @@ impl<S: To<HostEnd>> Builder<S> {
     ) -> Builder<PortEnd> {
         let auth_meta = self.meta.auth_meta.as_mut().unwrap();
         auth_meta.host_bounds.0 = self.buf.len() as _;
-
-        use crate::internal::HostMeta;
 
         let addr = addr.into();
         match addr {
