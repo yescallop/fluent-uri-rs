@@ -1,6 +1,6 @@
 [package]
 name = "fluent-uri"
-version = "0.2.0"
+version = "0.2.0-alpha.0"
 authors = ["Scallop Ye <yescallop@gmail.com>"]
 edition = "2021"
 description = "A fast, easy generic URI parser and builder compliant with RFC 3986."
