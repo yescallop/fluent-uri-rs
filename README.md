@@ -14,7 +14,7 @@ A fast, easy generic URI parser and builder compliant with [RFC 3986].
 
 [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
 [^bench-res]: It took 59ns for `fluent-uri`, 89ns for `iref`, and 130ns for `iri-string` in
-    [a benchmark on parsing a certain URI](/bench/benches/bench.rs)
+    [a benchmark on parsing a certain URI](https://github.com/yescallop/fluent-uri-rs/blob/main/bench/benches/bench.rs)
     on an Intel Core i5-11300H processor.
 
 ## Features & Examples
@@ -23,7 +23,7 @@ A fast, easy generic URI parser and builder compliant with [RFC 3986].
 
     You can parse into a `Uri<&str>` from a string slice.
     `Uri<&'a str>` outputs references with lifetime `'a` where possibl
-    (thanks to [`borrow-or-share`](borrow-or-share)):
+    (thanks to [`borrow-or-share`](https://github.com/yescallop/borrow-or-share)):
 
     ```rust
     // Keep a reference to the path after dropping the `Uri`.
