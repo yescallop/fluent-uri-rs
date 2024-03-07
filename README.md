@@ -14,7 +14,7 @@ A fast, easy generic URI parser and builder compliant with [RFC 3986].
 
 [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
 [^bench-res]: It took 59ns for `fluent-uri`, 89ns for `iref`, and 130ns for `iri-string` in
-    [a benchmark on parsing a certain URI](bench/benches/bench.rs)
+    [a benchmark on parsing a certain URI](/bench/benches/bench.rs)
     on an Intel Core i5-11300H processor.
 
 ## Features & Examples
@@ -22,7 +22,8 @@ A fast, easy generic URI parser and builder compliant with [RFC 3986].
 - `Uri<&str>` (borrowed) and `Uri<String>` (owned):
 
     You can parse into a `Uri<&str>` from a string slice.
-    `Uri<&'a str>` outputs references with lifetime `'a` where possible (thanks to [`borrow-or-share`]):
+    `Uri<&'a str>` outputs references with lifetime `'a` where possibl
+    (thanks to [`borrow-or-share`](borrow-or-share)):
 
     ```rust
     // Keep a reference to the path after dropping the `Uri`.
@@ -53,7 +54,8 @@ A fast, easy generic URI parser and builder compliant with [RFC 3986].
 
 - `EStr` (Percent-encoded string slices):
 
-    All components in a URI that may be percent-encoded are parsed as `EStr`s, which allows easy splitting and fast decoding:
+    All components in a URI that may be percent-encoded are parsed as `EStr`s,
+    which allows easy splitting and fast decoding:
 
     ```rust
     let query = "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21";
@@ -96,8 +98,6 @@ A fast, easy generic URI parser and builder compliant with [RFC 3986].
         .build();
     assert_eq!(uri.as_str(), "?name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
     ```
-
-[`borrow-or-share`]: https://github.com/yescallop/borrow-or-share
 
 ## Roadmap
 
