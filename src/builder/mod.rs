@@ -30,7 +30,7 @@ use std::net::{IpAddr, SocketAddr};
 /// ```
 /// use fluent_uri::{component::{Host, Scheme}, encoding::EStr, Uri};
 ///
-/// let uri = Uri::builder()
+/// let uri: Uri<String> = Uri::builder()
 ///     .scheme(Scheme::new("foo"))
 ///     .authority(|b| {
 ///         b.userinfo(EStr::new("user"))

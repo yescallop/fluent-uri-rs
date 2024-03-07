@@ -6,13 +6,16 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 ///
 /// # Examples
 ///
-/// Encode key-value pairs to a query string.
+/// Encode key-value pairs to a query string and use it to build a [`Uri`].
 ///
 /// ```
-/// use fluent_uri::encoding::{
-///     encoder::{Encoder, Query},
-///     table::{self, Table},
-///     EString,
+/// use fluent_uri::{
+///     encoding::{
+///         encoder::{Encoder, Query},
+///         table::{self, Table},
+///         EStr, EString,
+///     },
+///     Uri,
 /// };
 ///
 /// struct Data;
@@ -33,7 +36,15 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 /// }
 ///
 /// assert_eq!(buf, "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
+///
+/// let uri = Uri::builder()
+///     .path(EStr::new(""))
+///     .query(&buf)
+///     .build();
+/// assert_eq!(uri.as_str(), "?name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
 /// ```
+///
+/// [`Uri`]: crate::Uri
 #[derive(Clone, Default)]
 pub struct EString<E: Encoder> {
     pub(crate) buf: String,

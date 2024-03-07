@@ -4,7 +4,7 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![no_std]
 
-//! An [RFC 3986] compliant generic URI parser and builder.
+//! A fast, easy generic URI parser and builder compliant with [RFC 3986].
 //!
 //! [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
 //!
@@ -66,7 +66,7 @@ use internal::{Meta, ToUri, Val};
 /// ```
 /// use fluent_uri::Uri;
 ///
-/// // Drop a temporary `Uri` while keeping the reference to the path.
+/// // Keep a reference to the path after dropping the `Uri`.
 /// let path = Uri::parse("foo:bar")?.path();
 /// assert_eq!(path, "bar");
 /// # Ok::<_, fluent_uri::ParseError>(())
