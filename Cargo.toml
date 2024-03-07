@@ -22,4 +22,4 @@ borrow-or-share = { version = "0.1", default-features = false }
 ref-cast = "1.0"
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--cfg", "docsrs"]
+rustdoc-args = ["--cfg", "doc"]
