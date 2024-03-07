@@ -6,7 +6,7 @@ A fast, easy generic URI parser and builder compliant with [RFC 3986].
 [![CI](https://github.com/yescallop/fluent-uri-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/yescallop/fluent-uri-rs/actions/workflows/ci.yml)
 [![license](https://img.shields.io/github/license/yescallop/fluent-uri-rs?color=blue)](/LICENSE)
 
-- **Fast:** Zero-copy parsing. Observed to be faster than common URI parsers in Rust[^bench-res].
+- **Fast:** Zero-copy parsing. Faster than several common URI parsers in Rust[^bench-res].
 - **Easy:** Carefully designed and documented APIs. Handy percent-encoding utilities.
 - **Strict:** Parses every possible URI defined in the RFC and denies anything else.
 
