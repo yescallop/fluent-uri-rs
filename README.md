@@ -19,7 +19,7 @@ A fast, easy generic URI parser and builder compliant with [RFC 3986].
 
 ## Features & Examples
 
-- `Uri<&str>` (borrowed) and `Uri<String>` (owned):
+- `Uri<&str>` and `Uri<String>` (borrowed and owned variants of URI reference):
 
     You can parse into a `Uri<&str>` from a string slice.
     `Uri<&'a str>` outputs references with lifetime `'a` where possibl
