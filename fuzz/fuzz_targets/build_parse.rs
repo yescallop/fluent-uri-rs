@@ -55,9 +55,9 @@ enum HostWrapper<'a> {
     RegName(EStrWrapper<'a, RegName>),
 }
 
-impl<'a> From<HostWrapper<'a>> for Host<'a> {
-    fn from(wrapper: HostWrapper<'a>) -> Self {
-        match wrapper {
+impl<'a> HostWrapper<'a> {
+    fn unwrap(self) -> Host<'a> {
+        match self {
             HostWrapper::Ipv4(addr) => Host::Ipv4(addr),
             HostWrapper::Ipv6(addr) => Host::Ipv6(addr),
             HostWrapper::RegName(name) => Host::RegName(name.0),
@@ -123,7 +123,7 @@ fuzz_target!(|c: UriComponents<'_>| {
             c.authority.map(|a| {
                 move |b: Builder<_>| {
                     b.optional(Builder::userinfo, a.userinfo.map(|s| s.0))
-                        .host(a.host.into())
+                        .host(a.host.unwrap())
                         .optional(Builder::port, a.port.map(|s| s.0))
                 }
             }),
@@ -142,7 +142,14 @@ fuzz_target!(|c: UriComponents<'_>| {
     if let Some(a1) = u1.authority() {
         let a2 = c.authority.unwrap();
         assert_eq!(a1.userinfo(), a2.userinfo.map(|s| s.0));
-        assert_eq!(a1.host_parsed(), a2.host.into());
+
+        match (a1.host_parsed(), a2.host.unwrap()) {
+            (Host::Ipv4(addr), Host::RegName(name)) => {
+                assert_eq!(addr, name.as_str().parse::<Ipv4Addr>().unwrap());
+            }
+            (h1, h2) => assert_eq!(h1, h2),
+        }
+
         assert_eq!(a1.port(), a2.port.map(|s| s.0));
     }
 
@@ -163,14 +170,7 @@ fuzz_target!(|c: UriComponents<'_>| {
         assert_eq!(a1.as_str(), a2.as_str());
         assert_eq!(a1.userinfo(), a2.userinfo());
         assert_eq!(a1.host(), a2.host());
-
-        match (a1.host_parsed(), a2.host_parsed()) {
-            (Host::RegName(name), Host::Ipv4(addr)) => {
-                assert_eq!(addr, name.as_str().parse::<Ipv4Addr>().unwrap());
-            }
-            (h1, h2) => assert_eq!(h1, h2),
-        }
-
+        assert_eq!(a1.host_parsed(), a2.host_parsed());
         assert_eq!(a1.port(), a2.port());
     }
 

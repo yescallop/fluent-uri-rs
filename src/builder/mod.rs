@@ -9,6 +9,7 @@ use crate::{
         EStr,
     },
     internal::{AuthMeta, Meta},
+    parser::Reader,
     Uri,
 };
 use alloc::string::String;
@@ -210,7 +211,24 @@ impl<S: To<UserinfoEnd>> Builder<S> {
 impl<S: To<HostEnd>> Builder<S> {
     /// Sets the [host] subcomponent of authority.
     ///
+    /// If the contents of an input [`Host::RegName`] variant matches the
+    /// `IPv4address` ABNF rule defined in [Section 3.2.2 of RFC 3986][host],
+    /// the resulting [`Uri`] will output a [`Host::Ipv4`] variant instead.
+    ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::{component::Host, encoding::EStr, Uri};
+    /// use std::net::Ipv4Addr;
+    ///
+    /// let uri = Uri::builder()
+    ///     .authority(|b| b.host(Host::RegName(EStr::new("127.0.0.1"))))
+    ///     .path(EStr::new(""))
+    ///     .build();
+    /// assert_eq!(uri.authority().unwrap().host_parsed(), Host::Ipv4(Ipv4Addr::LOCALHOST));
+    /// ```
     pub fn host(mut self, host: Host<'_>) -> Builder<HostEnd> {
         let auth_meta = self.meta.auth_meta.as_mut().unwrap();
         auth_meta.host_bounds.0 = self.buf.len() as _;
@@ -229,7 +247,14 @@ impl<S: To<HostEnd>> Builder<S> {
                 write!(self.buf, "[{addr}]").unwrap();
                 auth_meta.host_meta = HostMeta::Ipv6(addr);
             }
-            Host::RegName(name) => self.buf.push_str(name.as_str()),
+            Host::RegName(name) => {
+                let mut reader = Reader::new(name.as_str().as_bytes());
+                auth_meta.host_meta = match reader.read_v4() {
+                    Some(addr) if !reader.has_remaining() => HostMeta::Ipv4(addr.into()),
+                    _ => HostMeta::RegName,
+                };
+                self.buf.push_str(name.as_str());
+            }
             _ => unreachable!(),
         }
 

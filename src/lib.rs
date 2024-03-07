@@ -106,9 +106,6 @@ pub struct Uri<T> {
     val: T,
     /// Metadata of the URI reference.
     /// Should be identical to parser output with `data` as input.
-    ///
-    /// FIXME: `Builder` may violate the above requirement because
-    /// it accepts a `Host::RegName` with IPv4 address in it.
     meta: Meta,
 }
 
