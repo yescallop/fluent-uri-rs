@@ -8,13 +8,13 @@ A fast, easy generic URI parser and builder compliant with [RFC 3986].
 
 - **Fast:** Zero-copy parsing. Faster than several common URI parsers in Rust[^bench-res].
 - **Easy:** Carefully designed and documented APIs. Handy percent-encoding utilities.
-- **Strict:** Parses every possible URI defined in the RFC and denies anything else.
+- **Strict:** Parses every possible URI defined in RFC 3986 and denies anything else.
 
 [API Docs](https://docs.rs/fluent-uri) | [Discussions](https://github.com/yescallop/fluent-uri-rs/discussions)
 
 [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
 [^bench-res]: It took 59ns for `fluent-uri`, 89ns for `iref`, and 130ns for `iri-string` to
-    parse a certain URI in [a benchmark](https://github.com/yescallop/fluent-uri-rs/blob/main/bench/benches/bench.rs)
+    parse the same URI in [a benchmark](https://github.com/yescallop/fluent-uri-rs/blob/main/bench/benches/bench.rs)
     on an Intel Core i5-11300H processor.
 
 ## Features & Examples

@@ -3,6 +3,7 @@ name = "fluent-uri"
 version = "0.2.0-alpha.0"
 authors = ["Scallop Ye <yescallop@gmail.com>"]
 edition = "2021"
+rust-version = "1.77"
 description = "A fast, easy generic URI parser and builder compliant with RFC 3986."
 documentation = "https://docs.rs/fluent-uri"
 repository = "https://github.com/yescallop/fluent-uri-rs"
@@ -12,9 +13,7 @@ categories = ["encoding", "parser-implementations"]
 
 [features]
 default = ["net", "std"]
-# TODO: Remove std from net when ip_in_core is stablized in 1.77.0.
-# Remember to add feature("std") to Authority::to_socket_addrs.
-net = ["std"]
+net = []
 std = []
 
 [dependencies]

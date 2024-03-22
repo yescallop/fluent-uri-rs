@@ -13,9 +13,12 @@ use core::num::ParseIntError;
 use ref_cast::{ref_cast_custom, RefCastCustom};
 
 #[cfg(feature = "net")]
+use core::net::{Ipv4Addr, Ipv6Addr};
+
+#[cfg(all(feature = "net", feature = "std"))]
 use std::{
     io,
-    net::{Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs},
+    net::{SocketAddr, ToSocketAddrs},
 };
 
 /// The [scheme] component of URI reference.
@@ -299,7 +302,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     ///
     /// Returns `Err` if the port cannot be parsed into `u16`
     /// or if the resolution of a registered name fails.
-    #[cfg(feature = "net")]
+    #[cfg(all(feature = "net", feature = "std"))]
     pub fn to_socket_addrs(
         &'i self,
         default_port: u16,

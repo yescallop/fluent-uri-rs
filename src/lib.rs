@@ -12,12 +12,13 @@
 //!
 //! # Crate features
 //!
-//! - `net` (default, requires `std`): Enables [`std::net`] support.
+//! - `net` (default): Enables [`core::net`] support.
 //!   Includes [`Authority::to_socket_addrs`], [`Builder::host_port_from_socket_addr`],
-//!   and several fields in [`Host`].
+//!   and IP address fields in [`Host`].
 //!   Disabling this will not affect the behavior of [`Uri::parse`].
 //!
-//! - `std` (default): Enables [`std`] support. Includes [`Error`] implementations.
+//! - `std` (default): Enables [`std`] support. Includes [`Error`] implementations
+//!   and [`Authority::to_socket_addrs`].
 //!
 //! [`Error`]: std::error::Error
 //! [`Host`]: component::Host

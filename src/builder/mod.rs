@@ -17,7 +17,7 @@ use core::{fmt::Write, marker::PhantomData, num::NonZeroU32};
 use state::*;
 
 #[cfg(feature = "net")]
-use std::net::{IpAddr, SocketAddr};
+use core::net::{IpAddr, SocketAddr};
 
 /// A builder for URI reference.
 ///
