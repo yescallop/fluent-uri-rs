@@ -23,9 +23,9 @@ jobs:
         run: cargo build --no-default-features -F std
       - name: Build with feature net
         run: cargo build --no-default-features -F net
-      - name: Build docs
+      - name: Build doc
         run: cargo doc
-      - name: Deploy docs
+      - name: Deploy doc
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
