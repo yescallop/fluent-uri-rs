@@ -3,8 +3,9 @@
 A fast, easy generic URI parser and builder compliant with [RFC 3986].
 
 [![crates.io](https://img.shields.io/crates/v/fluent-uri.svg)](https://crates.io/crates/fluent-uri)
-[![CI](https://github.com/yescallop/fluent-uri-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/yescallop/fluent-uri-rs/actions/workflows/ci.yml)
-[![license](https://img.shields.io/github/license/yescallop/fluent-uri-rs?color=blue)](/LICENSE)
+[![build](https://img.shields.io/github/actions/workflow/status/yescallop/fluent-uri-rs/ci.yml
+)](https://github.com/yescallop/fluent-uri-rs/actions/workflows/ci.yml)
+[![license](https://img.shields.io/crates/l/fluent-uri.svg)](/LICENSE)
 
 - **Fast:** Zero-copy parsing. Faster than several common URI parsers in Rust[^bench-res].
 - **Easy:** Carefully designed and documented APIs. Handy percent-encoding utilities.
