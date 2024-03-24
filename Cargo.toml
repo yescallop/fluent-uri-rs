@@ -17,7 +17,7 @@ net = []
 std = []
 
 [dependencies]
-borrow-or-share = { version = "0.1", default-features = false }
+borrow-or-share = "0.2"
 ref-cast = "1.0"
 
 [package.metadata.docs.rs]
