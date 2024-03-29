@@ -59,9 +59,9 @@ impl Encoder for Fragment {
     const TABLE: &'static Table = FRAGMENT;
 }
 
-/// A minimum encoder suitable for encoding any data without conflicting with delimiters.
-pub struct MinData(());
+/// An encoder suitable for encoding any data without conflicting with delimiters.
+pub struct Data(());
 
-impl Encoder for MinData {
+impl Encoder for Data {
     const TABLE: &'static Table = &UNRESERVED.enc();
 }

@@ -13,7 +13,7 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 /// ```
 /// use fluent_uri::{
 ///     encoding::{
-///         encoder::{Encoder, MinData, Query},
+///         encoder::{Data, Encoder, Query},
 ///         table::Table,
 ///         EStr, EString,
 ///     },
@@ -27,17 +27,17 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 ///         buf.push_byte(b'&');
 ///     }
 ///
-///     // WARNING: Be careful not to confuse data with delimiters! Use `MinData`
+///     // WARNING: Be careful not to confuse data with delimiters! Use `Data`
 ///     // to encode data contained in a URI unless you know what you're doing!
 ///     //
-///     // `MinData` preserves only unreserved characters and encodes the others,
+///     // `Data` preserves only unreserved characters and encodes the others,
 ///     // which is always safe to use but may be wasteful of memory because
 ///     // usually not all reserved characters are used as delimiters and you can
 ///     // choose to preserve some of them. See below for an example of creating
 ///     // a custom encoder based on an existing one.
-///     buf.encode::<MinData>(k);
+///     buf.encode::<Data>(k);
 ///     buf.push_byte(b'=');
-///     buf.encode::<MinData>(v);
+///     buf.encode::<Data>(v);
 /// }
 ///
 /// assert_eq!(buf, "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
