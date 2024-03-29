@@ -62,7 +62,8 @@ use internal::{Meta, ToUri, Val};
 ///
 /// Two variants of `Uri` are available: `Uri<&str>` (borrowed) and `Uri<String>` (owned).
 ///
-/// `Uri<&'a str>` outputs references with lifetime `'a` where possible:
+/// `Uri<&'a str>` outputs references with lifetime `'a` where possible
+/// (thanks to [`borrow-or-share`](borrow_or_share)):
 ///
 /// ```
 /// use fluent_uri::Uri;

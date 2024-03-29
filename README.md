@@ -62,7 +62,7 @@ A fast, easy generic URI parser and builder compliant with [RFC 3986].
     let query = "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21";
     let map: HashMap<_, _> = EStr::<Query>::new(query)
         .split('&')
-        .filter_map(|pair| pair.split_once('='))
+        .map(|s| s.split_once('=').unwrap_or((s, EStr::new(""))))
         .map(|(k, v)| (k.decode().into_string_lossy(), v.decode().into_string_lossy()))
         .collect();
     assert_eq!(map["name"], "张三");
