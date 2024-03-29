@@ -29,7 +29,7 @@ use ref_cast::{ref_cast_custom, RefCastCustom};
 /// let query = "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21";
 /// let map: HashMap<_, _> = EStr::<Query>::new(query)
 ///     .split('&')
-///     .filter_map(|pair| pair.split_once('='))
+///     .map(|s| s.split_once('=').unwrap_or((s, EStr::new(""))))
 ///     .map(|(k, v)| (k.decode().into_string_lossy(), v.decode().into_string_lossy()))
 ///     .collect();
 /// assert_eq!(map["name"], "张三");
@@ -188,8 +188,8 @@ impl<E: Encoder> EStr<E> {
     /// use fluent_uri::encoding::{encoder::Path, EStr};
     ///
     /// assert_eq!(
-    ///     EStr::<Path>::new("foo;bar").split_once(';'),
-    ///     Some((EStr::new("foo"), EStr::new("bar")))
+    ///     EStr::<Path>::new("foo;bar;baz").split_once(';'),
+    ///     Some((EStr::new("foo"), EStr::new("bar;baz")))
     /// );
     ///
     /// assert_eq!(EStr::<Path>::new("foo").split_once(';'), None);
@@ -201,6 +201,39 @@ impl<E: Encoder> EStr<E> {
         );
         self.inner
             .split_once(delim)
+            .map(|(a, b)| (Self::new_validated(a), Self::new_validated(b)))
+    }
+
+    /// Splits the `EStr` slice on the last occurrence of the given delimiter and
+    /// returns prefix before delimiter and suffix after delimiter.
+    ///
+    /// Returns `None` if the delimiter is not found.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the delimiter is not a [reserved] character.
+    ///
+    /// [reserved]: https://datatracker.ietf.org/doc/html/rfc3986/#section-2.2
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::encoding::{encoder::Path, EStr};
+    ///
+    /// assert_eq!(
+    ///     EStr::<Path>::new("foo;bar;baz").rsplit_once(';'),
+    ///     Some((EStr::new("foo;bar"), EStr::new("baz")))
+    /// );
+    ///
+    /// assert_eq!(EStr::<Path>::new("foo").rsplit_once(';'), None);
+    /// ```
+    pub fn rsplit_once(&self, delim: char) -> Option<(&Self, &Self)> {
+        assert!(
+            delim.is_ascii() && table::RESERVED.allows(delim as u8),
+            "splitting with non-reserved character"
+        );
+        self.inner
+            .rsplit_once(delim)
             .map(|(a, b)| (Self::new_validated(a), Self::new_validated(b)))
     }
 }

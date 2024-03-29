@@ -60,7 +60,7 @@ impl Table {
     /// Combines two tables into one.
     ///
     /// Returns a new table that allows all the byte patterns allowed
-    /// either by `self` or by `other`.
+    /// by `self` or by `other`.
     pub const fn or(mut self, other: &Table) -> Table {
         let mut i = 0;
         while i < 256 {

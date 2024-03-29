@@ -7,22 +7,18 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 /// # Examples
 ///
 /// Encode key-value pairs to a query string and use it to build a [`Uri`].
+/// 
+/// [`Uri`]: crate::Uri
 ///
 /// ```
 /// use fluent_uri::{
 ///     encoding::{
-///         encoder::{Encoder, Query},
-///         table::{self, Table},
+///         encoder::{Encoder, MinData, Query},
+///         table::Table,
 ///         EStr, EString,
 ///     },
 ///     Uri,
 /// };
-///
-/// struct Data;
-///
-/// impl Encoder for Data {
-///     const TABLE: &'static Table = &table::UNRESERVED.enc();
-/// }
 ///
 /// let pairs = [("name", "张三"), ("speech", "¡Olé!")];
 /// let mut buf = EString::<Query>::new();
@@ -30,9 +26,18 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 ///     if !buf.is_empty() {
 ///         buf.push_byte(b'&');
 ///     }
-///     buf.encode::<Data>(k);
+///
+///     // WARNING: Be careful not to confuse data with delimiters! Use `MinData`
+///     // to encode data contained in a URI unless you know what you're doing!
+///     //
+///     // `MinData` preserves only unreserved characters and encodes the others,
+///     // which is always safe to use but may be wasteful of memory because
+///     // usually not all reserved characters are used as delimiters and you can
+///     // choose to preserve some of them. See below for an example of creating
+///     // a custom encoder based on an existing one.
+///     buf.encode::<MinData>(k);
 ///     buf.push_byte(b'=');
-///     buf.encode::<Data>(v);
+///     buf.encode::<MinData>(v);
 /// }
 ///
 /// assert_eq!(buf, "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
@@ -43,8 +48,29 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 ///     .build();
 /// assert_eq!(uri.as_str(), "?name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
 /// ```
+/// 
+/// Encode a path whose segments may contain the slash (`'/'`) character
+/// by using a custom encoder:
 ///
-/// [`Uri`]: crate::Uri
+/// ```
+/// use fluent_uri::encoding::{
+///     encoder::{Encoder, Path},
+///     table::Table,
+///     EString,
+/// };
+///
+/// struct PathSegment;
+///
+/// impl Encoder for PathSegment {
+///     const TABLE: &'static Table = &Path::TABLE.sub(&Table::gen(b"/"));
+/// }
+///
+/// let mut path = EString::<Path>::new();
+/// path.push_byte(b'/');
+/// path.encode::<PathSegment>("foo/bar");
+///
+/// assert_eq!(path, "/foo%2Fbar");
+/// ```
 #[derive(Clone, Default)]
 pub struct EString<E: Encoder> {
     pub(crate) buf: String,
