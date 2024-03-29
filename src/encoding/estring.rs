@@ -7,7 +7,7 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 /// # Examples
 ///
 /// Encode key-value pairs to a query string and use it to build a [`Uri`].
-/// 
+///
 /// [`Uri`]: crate::Uri
 ///
 /// ```
@@ -48,7 +48,7 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 ///     .build();
 /// assert_eq!(uri.as_str(), "?name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
 /// ```
-/// 
+///
 /// Encode a path whose segments may contain the slash (`'/'`) character
 /// by using a custom encoder:
 ///

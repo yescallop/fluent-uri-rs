@@ -150,7 +150,6 @@ impl BuilderInner {
         let auth_meta = self.meta.auth_meta.as_mut().unwrap();
         auth_meta.host_bounds.0 = self.buf.len() as _;
 
-        let addr = addr.into();
         match addr {
             IpAddr::V4(addr) => {
                 write!(self.buf, "{}", addr).unwrap();
