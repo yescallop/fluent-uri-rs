@@ -74,12 +74,6 @@ A fast, easy generic URI parser and builder compliant with [RFC 3986].
     You can encode key-value pairs to a query string and use it to build a `Uri`:
 
     ```rust
-    struct Data;
-
-    impl Encoder for Data {
-        const TABLE: &'static Table = &table::UNRESERVED.enc();
-    }
-
     let pairs = [("name", "张三"), ("speech", "¡Olé!")];
     let mut buf = EString::<Query>::new();
     for (k, v) in pairs {
