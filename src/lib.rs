@@ -12,12 +12,13 @@
 //!
 //! # Crate features
 //!
-//! - `net` (default): Enables [`core::net`] support.
-//!   Includes [`Authority::to_socket_addrs`] and IP address fields in [`Host`].
+//! - `net` (default): Enables [`std::net`] support.
+//!   Includes IP address fields in [`Host`] and [`Authority::to_socket_addrs`].
 //!   Disabling this will not affect the behavior of [`Uri::parse`].
 //!
 //! - `std` (default): Enables [`std`] support. Includes [`Error`] implementations
-//!   and [`Authority::to_socket_addrs`].
+//!   and [`Authority::to_socket_addrs`]. Disabling this while enabling `net`
+//!   requires [`core::net`] and a minimum Rust version of `1.77`.
 //!
 //! [`Error`]: std::error::Error
 //! [`Host`]: component::Host
@@ -37,6 +38,12 @@ pub use error::ParseError;
 extern crate std;
 
 extern crate alloc;
+
+#[cfg(all(feature = "net", feature = "std"))]
+use std::net;
+
+#[cfg(all(feature = "net", not(feature = "std")))]
+use core::net;
 
 use alloc::{borrow::ToOwned, string::String};
 use borrow_or_share::{BorrowOrShare, Bos};

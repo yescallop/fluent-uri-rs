@@ -13,7 +13,7 @@ use core::num::ParseIntError;
 use ref_cast::{ref_cast_custom, RefCastCustom};
 
 #[cfg(feature = "net")]
-use core::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use crate::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 #[cfg(all(feature = "net", feature = "std"))]
 use std::{

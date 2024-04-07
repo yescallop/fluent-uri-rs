@@ -299,9 +299,6 @@ impl<S: To<UserinfoEnd>> Builder<S> {
     }
 }
 
-#[cfg(doc)]
-use core::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-
 impl<S: To<HostEnd>> Builder<S> {
     /// Sets the [host] subcomponent of authority.
     ///
@@ -317,6 +314,10 @@ impl<S: To<HostEnd>> Builder<S> {
     /// the resulting [`Uri`] will output a [`Host::Ipv4`] variant instead.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
+    /// [`Ipv4Addr`]: std::net::Ipv4Addr
+    /// [`IpAddr::V4`]: std::net::IpAddr::V4
+    /// [`Ipv6Addr`]: std::net::Ipv6Addr
+    /// [`IpAddr::V6`]: std::net::IpAddr::V6
     ///
     /// # Examples
     ///

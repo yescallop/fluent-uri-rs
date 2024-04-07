@@ -5,7 +5,7 @@ use alloc::string::String;
 use core::{num::NonZeroU32, ops, str};
 
 #[cfg(feature = "net")]
-use core::net::{Ipv4Addr, Ipv6Addr};
+use crate::net::{Ipv4Addr, Ipv6Addr};
 
 pub trait Val: Default {}
 
