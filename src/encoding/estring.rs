@@ -4,6 +4,12 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 
 /// A percent-encoded, growable string.
 ///
+/// # Comparison
+///
+/// `EString`s and `EStr` and `str` slices are compared
+/// [lexicographically](Ord#lexicographical-comparison) by their byte values.
+/// Normalization is **not** performed prior to comparison.
+///
 /// # Examples
 ///
 /// Encode key-value pairs to a query string and use it to build a [`Uri`].
@@ -273,10 +279,6 @@ impl<E: Encoder> PartialOrd for EString<E> {
     }
 }
 
-/// Implements ordering on `EString`s.
-///
-/// `EString`s are ordered [lexicographically](Ord#lexicographical-comparison) by their byte values.
-/// Normalization is **not** performed prior to ordering.
 impl<E: Encoder> Ord for EString<E> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.inner.cmp(&other.inner)

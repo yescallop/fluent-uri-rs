@@ -18,6 +18,11 @@ use ref_cast::{ref_cast_custom, RefCastCustom};
 
 /// Percent-encoded string slices.
 ///
+/// # Comparison
+///
+/// `EStr` and `str` slices are compared [lexicographically](Ord#lexicographical-comparison)
+/// by their byte values. Normalization is **not** performed prior to comparison.
+///
 /// # Examples
 ///
 /// Parse key-value pairs from a query string into a hash map:
@@ -70,6 +75,7 @@ impl<E: Encoder> EStr<E> {
     /// # Panics
     ///
     /// Panics if the string is not properly encoded with `E`.
+    /// For a non-panicking variant, use [`try_new`](Self::try_new).
     pub const fn new(s: &str) -> &Self {
         match Self::try_new(s) {
             Some(s) => s,
@@ -78,6 +84,8 @@ impl<E: Encoder> EStr<E> {
     }
 
     /// Converts a string slice to an `EStr` slice, returning `None` if the conversion fails.
+    ///
+    /// This is the non-panicking variant of [`new`](Self::new).
     pub const fn try_new(s: &str) -> Option<&Self> {
         if E::TABLE.validate(s.as_bytes()) {
             Some(EStr::new_validated(s))
@@ -282,10 +290,6 @@ impl<E: Encoder> PartialOrd for EStr<E> {
     }
 }
 
-/// Implements ordering on `EStr` slices.
-///
-/// `EStr` slices are ordered [lexicographically](Ord#lexicographical-comparison) by their byte values.
-/// Normalization is **not** performed prior to ordering.
 impl<E: Encoder> Ord for EStr<E> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.inner.cmp(&other.inner)

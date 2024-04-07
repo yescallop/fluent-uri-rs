@@ -3,13 +3,13 @@
 use crate::{
     encoding::{
         encoder::{RegName, Userinfo},
-        table, EStr,
+        table, EStr, EString,
     },
     internal::{AuthMeta, HostMeta},
     Uri,
 };
 use borrow_or_share::BorrowOrShare;
-use core::num::ParseIntError;
+use core::{net::IpAddr, num::ParseIntError};
 use ref_cast::{ref_cast_custom, RefCastCustom};
 
 #[cfg(feature = "net")]
@@ -40,7 +40,8 @@ impl Scheme {
     /// # Panics
     ///
     /// Panics if the string is not a valid scheme name according to
-    /// [Section 3.1 of RFC 3986][scheme].
+    /// [Section 3.1 of RFC 3986][scheme]. For a non-panicking variant,
+    /// use [`try_new`](Self::try_new).
     ///
     /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
     #[inline]
@@ -52,6 +53,8 @@ impl Scheme {
     }
 
     /// Converts a string slice to `&Scheme`, returning `None` if the conversion fails.
+    ///
+    /// This is the non-panicking variant of [`new`](Self::new).
     #[inline]
     pub const fn try_new(s: &str) -> Option<&Scheme> {
         if matches!(s.as_bytes(), [first, rem @ ..]
@@ -353,4 +356,45 @@ pub enum Host<'a> {
     IpvFuture,
     /// A registered name.
     RegName(&'a EStr<RegName>),
+}
+
+#[cfg(feature = "net")]
+impl<'a> From<Ipv4Addr> for Host<'a> {
+    #[inline]
+    fn from(value: Ipv4Addr) -> Self {
+        Self::Ipv4(value)
+    }
+}
+
+#[cfg(feature = "net")]
+impl<'a> From<Ipv6Addr> for Host<'a> {
+    #[inline]
+    fn from(value: Ipv6Addr) -> Self {
+        Self::Ipv6(value)
+    }
+}
+
+#[cfg(feature = "net")]
+impl<'a> From<IpAddr> for Host<'a> {
+    #[inline]
+    fn from(value: IpAddr) -> Self {
+        match value {
+            IpAddr::V4(addr) => Self::Ipv4(addr),
+            IpAddr::V6(addr) => Self::Ipv6(addr),
+        }
+    }
+}
+
+impl<'a> From<&'a EStr<RegName>> for Host<'a> {
+    #[inline]
+    fn from(value: &'a EStr<RegName>) -> Self {
+        Self::RegName(value)
+    }
+}
+
+impl<'a> From<&'a EString<RegName>> for Host<'a> {
+    #[inline]
+    fn from(value: &'a EString<RegName>) -> Self {
+        Self::RegName(value)
+    }
 }

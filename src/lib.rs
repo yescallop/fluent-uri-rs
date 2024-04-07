@@ -13,8 +13,7 @@
 //! # Crate features
 //!
 //! - `net` (default): Enables [`core::net`] support.
-//!   Includes [`Authority::to_socket_addrs`], [`Builder::host_port_from_socket_addr`],
-//!   and IP address fields in [`Host`].
+//!   Includes [`Authority::to_socket_addrs`] and IP address fields in [`Host`].
 //!   Disabling this will not affect the behavior of [`Uri::parse`].
 //!
 //! - `std` (default): Enables [`std`] support. Includes [`Error`] implementations
@@ -73,6 +72,11 @@ use internal::{Meta, ToUri, Val};
 /// assert_eq!(path, "bar");
 /// # Ok::<_, fluent_uri::ParseError>(())
 /// ```
+///
+/// # Comparison
+///
+/// `Uri`s are compared [lexicographically](Ord#lexicographical-comparison)
+/// by their byte values. Normalization is **not** performed prior to comparison.
 ///
 /// # Examples
 ///
@@ -325,10 +329,6 @@ impl<T: Bos<str>> PartialOrd for Uri<T> {
     }
 }
 
-/// Implements ordering of `Uri`s.
-///
-/// `Uri`s are ordered [lexicographically](Ord#lexicographical-comparison) by their byte values.
-/// Normalization is **not** performed prior to ordering.
 impl<T: Bos<str>> Ord for Uri<T> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.as_str().cmp(other.as_str())

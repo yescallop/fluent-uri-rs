@@ -11,7 +11,7 @@ A fast, easy generic URI parser and builder compliant with [RFC 3986].
 - **Easy:** Carefully designed and documented APIs. Handy percent-encoding utilities.
 - **Strict:** Parses every possible URI defined in RFC 3986 and denies anything else.
 
-[API Docs](https://docs.rs/fluent-uri) | [Discussions](https://github.com/yescallop/fluent-uri-rs/discussions)
+[Documentation](https://docs.rs/fluent-uri) | [Discussions](https://github.com/yescallop/fluent-uri-rs/discussions)
 
 [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
 [^bench-res]: It took 59ns for `fluent-uri`, 89ns for `iref`, and 130ns for `iri-string` to

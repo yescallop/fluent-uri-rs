@@ -59,7 +59,10 @@ impl Encoder for Fragment {
     const TABLE: &'static Table = FRAGMENT;
 }
 
-/// An encoder suitable for encoding any data without conflicting with delimiters.
+/// An encoder for data which preserves only [unreserved] characters
+/// and encodes the others.
+///
+/// [unreserved]: https://datatracker.ietf.org/doc/html/rfc3986/#section-2.3
 pub struct Data(());
 
 impl Encoder for Data {

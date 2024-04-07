@@ -16,9 +16,6 @@ use alloc::string::String;
 use core::{fmt::Write, marker::PhantomData, num::NonZeroU32};
 use state::*;
 
-#[cfg(feature = "net")]
-use core::net::{IpAddr, SocketAddr};
-
 /// A builder for URI reference.
 ///
 /// This struct is created by [`Uri::builder`].
@@ -28,13 +25,13 @@ use core::net::{IpAddr, SocketAddr};
 /// Basic usage:
 ///
 /// ```
-/// use fluent_uri::{component::{Host, Scheme}, encoding::EStr, Uri};
+/// use fluent_uri::{component::Scheme, encoding::EStr, Uri};
 ///
 /// let uri: Uri<String> = Uri::builder()
 ///     .scheme(Scheme::new("foo"))
 ///     .authority(|b| {
 ///         b.userinfo(EStr::new("user"))
-///             .host(Host::RegName(EStr::new("example.com")))
+///             .host(EStr::new("example.com"))
 ///             .port(8042)
 ///     })
 ///     .path(EStr::new("/over/there"))
@@ -48,8 +45,9 @@ use core::net::{IpAddr, SocketAddr};
 /// );
 /// ```
 ///
-/// Only use [`EStr::new`] when you have a percent-encoded string at hand.
-/// You may otherwise encode and append data to an [`EString`]
+/// [`EStr::new`] *panics* on invalid input and is used above
+/// only for illustrative purposes.
+/// You should normally encode and append data to an [`EString`]
 /// which derefs to [`EStr`].
 ///
 /// [`EString`]: crate::encoding::EString
@@ -145,25 +143,6 @@ impl BuilderInner {
         auth_meta.host_bounds.1 = self.buf.len() as _;
     }
 
-    #[cfg(feature = "net")]
-    fn push_host_from_ip_addr(&mut self, addr: IpAddr) {
-        let auth_meta = self.meta.auth_meta.as_mut().unwrap();
-        auth_meta.host_bounds.0 = self.buf.len() as _;
-
-        match addr {
-            IpAddr::V4(addr) => {
-                write!(self.buf, "{}", addr).unwrap();
-                auth_meta.host_meta = HostMeta::Ipv4(addr);
-            }
-            IpAddr::V6(addr) => {
-                write!(self.buf, "[{}]", addr).unwrap();
-                auth_meta.host_meta = HostMeta::Ipv6(addr);
-            }
-        }
-
-        auth_meta.host_bounds.1 = self.buf.len() as _;
-    }
-
     fn push_path(&mut self, v: &str) {
         fn first_segment_contains_colon(path: &str) -> bool {
             path.split_once('/')
@@ -236,7 +215,7 @@ impl<S> Builder<S> {
     /// Variable rebinding may be necessary as this changes the type of the builder.
     ///
     /// ```
-    /// use fluent_uri::{component::{Host, Scheme}, encoding::EStr, Uri};
+    /// use fluent_uri::{component::Scheme, encoding::EStr, Uri};
     ///
     /// fn build(relative: bool) -> Uri<String> {
     ///     let b = Uri::builder();
@@ -244,7 +223,7 @@ impl<S> Builder<S> {
     ///         b.advance()
     ///     } else {
     ///         b.scheme(Scheme::new("http"))
-    ///             .authority(|b| b.host(Host::RegName(EStr::new("example.com"))))
+    ///             .authority(|b| b.host(EStr::new("example.com")))
     ///     };
     ///     b.path(EStr::new("/foo")).build()
     /// }
@@ -320,8 +299,18 @@ impl<S: To<UserinfoEnd>> Builder<S> {
     }
 }
 
+#[cfg(doc)]
+use core::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+
 impl<S: To<HostEnd>> Builder<S> {
     /// Sets the [host] subcomponent of authority.
+    ///
+    /// This method takes any value whose type implements `Into<Host<'_>>` as argument.
+    /// [`Into::into`] converts
+    ///
+    /// - [`Ipv4Addr`] and [`IpAddr::V4`] into [`Host::Ipv4`];
+    /// - [`Ipv6Addr`] and [`IpAddr::V6`] into [`Host::Ipv6`];
+    /// - `&EStr<RegName>` and `&EString<RegName>` into [`Host::RegName`].
     ///
     /// If the contents of an input [`Host::RegName`] variant matches the
     /// `IPv4address` ABNF rule defined in [Section 3.2.2 of RFC 3986][host],
@@ -333,61 +322,16 @@ impl<S: To<HostEnd>> Builder<S> {
     ///
     /// ```
     /// use fluent_uri::{component::Host, encoding::EStr, Uri};
-    /// use std::net::Ipv4Addr;
     ///
     /// let uri = Uri::builder()
-    ///     .authority(|b| b.host(Host::RegName(EStr::new("127.0.0.1"))))
+    ///     .authority(|b| b.host(EStr::new("127.0.0.1")))
     ///     .path(EStr::new(""))
     ///     .build();
-    /// assert_eq!(uri.authority().unwrap().host_parsed(), Host::Ipv4(Ipv4Addr::LOCALHOST));
+    /// assert!(matches!(uri.authority().unwrap().host_parsed(), Host::Ipv4(_)));
     /// ```
-    pub fn host(mut self, host: Host<'_>) -> Builder<HostEnd> {
-        self.inner.push_host(host);
+    pub fn host<'a>(mut self, host: impl Into<Host<'a>>) -> Builder<HostEnd> {
+        self.inner.push_host(host.into());
         self.cast()
-    }
-
-    /// Sets the [host] and the [port] subcomponent of authority to the given socket address.
-    ///
-    /// The port component is omitted when it equals the default value.
-    ///
-    /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
-    /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use fluent_uri::{encoding::EStr, Uri};
-    /// use std::net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6};
-    ///
-    /// let addr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 80);
-    /// let uri = Uri::builder()
-    ///     .authority(|b| b.host_port_from_socket_addr(addr, 80))
-    ///     .path(EStr::new(""))
-    ///     .build();
-    /// assert_eq!(uri.as_str(), "//127.0.0.1");
-    ///
-    /// let uri = Uri::builder()
-    ///     .authority(|b| b.host_port_from_socket_addr(addr, 21))
-    ///     .path(EStr::new(""))
-    ///     .build();
-    /// assert_eq!(uri.as_str(), "//127.0.0.1:80");
-    ///
-    /// let addr = SocketAddrV6::new(Ipv6Addr::LOCALHOST, 80, 0, 0);
-    /// let uri = Uri::builder()
-    ///     .authority(|b| b.host_port_from_socket_addr(addr, 80))
-    ///     .path(EStr::new(""))
-    ///     .build();
-    /// assert_eq!(uri.as_str(), "//[::1]");
-    /// ```
-    #[cfg(feature = "net")]
-    pub fn host_port_from_socket_addr<A: Into<SocketAddr>>(
-        mut self,
-        addr: A,
-        default_port: u16,
-    ) -> Builder<PortEnd> {
-        let addr = addr.into();
-        self.inner.push_host_from_ip_addr(addr.ip());
-        self.cast().port_with_default(addr.port(), default_port)
     }
 }
 
@@ -428,6 +372,7 @@ impl<S: To<PortEnd>> Builder<S> {
     /// Sets the [port] subcomponent of authority, omitting it when it equals the default value.
     ///
     /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
+    #[cfg(fluent_uri_unstable)]
     pub fn port_with_default(self, port: u16, default: u16) -> Builder<PortEnd> {
         self.optional(Builder::port, Some(port).filter(|&port| port != default))
     }
