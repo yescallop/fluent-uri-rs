@@ -19,21 +19,12 @@ pub trait ToUri {
     fn to_uri(self) -> Result<Uri<Self::Val>, Self::Err>;
 }
 
-#[cold]
-fn len_overflow() -> ! {
-    panic!("input length > u32::MAX");
-}
-
 impl<'a> ToUri for &'a str {
     type Val = &'a str;
     type Err = ParseError;
 
     #[inline]
     fn to_uri(self) -> Result<Uri<Self::Val>, Self::Err> {
-        if self.len() > u32::MAX as usize {
-            len_overflow();
-        }
-
         let meta = parser::parse(self.as_bytes())?;
         Ok(Uri { val: self, meta })
     }
@@ -45,10 +36,6 @@ impl ToUri for String {
 
     #[inline]
     fn to_uri(self) -> Result<Uri<Self::Val>, Self::Err> {
-        if self.len() > u32::MAX as usize {
-            len_overflow();
-        }
-
         match parser::parse(self.as_bytes()) {
             Ok(meta) => Ok(Uri { val: self, meta }),
             Err(e) => Err(e.with_input(self)),

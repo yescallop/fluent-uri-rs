@@ -130,8 +130,8 @@ impl<T> Uri<T> {
     /// - `Result<Uri<&str>, ParseError>` for `I = &str`;
     /// - `Result<Uri<String>, ParseError<String>>` for `I = String`.
     ///
-    /// Returns `Ok` if and only if the string matches the [`URI-reference`]
-    /// ABNF rule from RFC 3986.
+    /// When not panicking, returns `Ok` if and only if the string matches
+    /// the [`URI-reference`] ABNF rule from RFC 3986.
     ///
     /// You may recover an input [`String`] by calling [`ParseError::into_input`].
     ///

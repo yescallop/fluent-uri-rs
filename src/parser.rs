@@ -12,6 +12,10 @@ use core::{
 type Result<T> = core::result::Result<T, ParseError>;
 
 pub(crate) fn parse(bytes: &[u8]) -> Result<Meta> {
+    if bytes.len() > u32::MAX as usize {
+        panic!("input length > u32::MAX");
+    }
+
     let mut parser = Parser {
         reader: Reader::new(bytes),
         out: Meta::default(),
