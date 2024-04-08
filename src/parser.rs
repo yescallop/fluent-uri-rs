@@ -358,7 +358,6 @@ impl<'a> Reader<'a> {
         }
     }
 
-    // The marked length must be zero when this method is called.
     fn read_ip_literal(&mut self) -> Result<Option<HostMeta>> {
         if !self.read_str("[") {
             return Ok(None);
