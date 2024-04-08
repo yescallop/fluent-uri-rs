@@ -118,7 +118,7 @@ pub struct Uri<T> {
     /// Value of the URI reference.
     val: T,
     /// Metadata of the URI reference.
-    /// Should be identical to parser output with `data` as input.
+    /// Should be identical to parser output with `val` as input.
     meta: Meta,
 }
 
