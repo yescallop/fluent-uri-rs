@@ -9,12 +9,12 @@ pub(crate) enum ParseErrorKind {
     InvalidOctet,
     /// Unexpected character that is not allowed by the URI syntax.
     ///
-    /// The error index points to the character.
+    /// The error index points to the first byte of the character.
     UnexpectedChar,
-    /// Invalid IP literal address.
+    /// Invalid IPv6 address.
     ///
-    /// The error index points to the preceding left square bracket "[".
-    InvalidIpLiteral,
+    /// The error index points to the first byte of the address.
+    InvalidIpv6Addr,
 }
 
 /// An error occurred when parsing URI references.

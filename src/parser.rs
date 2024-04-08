@@ -350,6 +350,50 @@ impl<'a> Reader<'a> {
             self.skip(i);
         });
     }
+
+    fn read_host(&mut self) -> Result<HostMeta> {
+        match self.read_ip_literal()? {
+            Some(host) => Ok(host),
+            None => self.read_v4_or_reg_name(),
+        }
+    }
+
+    // The marked length must be zero when this method is called.
+    fn read_ip_literal(&mut self) -> Result<Option<HostMeta>> {
+        if !self.read_str("[") {
+            return Ok(None);
+        }
+
+        let start = self.pos;
+
+        let meta = if let Some(_addr) = self.read_v6() {
+            HostMeta::Ipv6(
+                #[cfg(feature = "net")]
+                _addr.into(),
+            )
+        } else if self.pos == start {
+            self.read_ipv_future()?;
+            HostMeta::IpvFuture
+        } else {
+            err!(start, InvalidIpv6Addr);
+        };
+
+        if !self.read_str("]") {
+            err!(self.pos, UnexpectedChar);
+        }
+        Ok(Some(meta))
+    }
+
+    fn read_ipv_future(&mut self) -> Result<()> {
+        if matches!(self.peek(0), Some(b'v' | b'V')) {
+            // INVARIANT: Skipping "v" or "V" is fine.
+            self.skip(1);
+            if self.read(HEXDIG)? && self.read_str(".") && self.read(IPV_FUTURE)? {
+                return Ok(());
+            }
+        }
+        err!(self.pos, UnexpectedChar);
+    }
 }
 
 impl<'a> Parser<'a> {
@@ -485,52 +529,6 @@ impl<'a> Parser<'a> {
             host_meta: host.2,
         });
         self.parse_from_path(PathKind::AbEmpty)
-    }
-
-    fn read_host(&mut self) -> Result<HostMeta> {
-        match self.read_ip_literal()? {
-            Some(host) => Ok(host),
-            None => self.read_v4_or_reg_name(),
-        }
-    }
-
-    // The marked length must be zero when this method is called.
-    fn read_ip_literal(&mut self) -> Result<Option<HostMeta>> {
-        if !self.read_str("[") {
-            return Ok(None);
-        }
-
-        let start = self.pos;
-
-        let meta = if let Some(_addr) = self.read_v6() {
-            HostMeta::Ipv6(
-                #[cfg(feature = "net")]
-                _addr.into(),
-            )
-        } else if self.pos == start {
-            self.read_ipv_future()?;
-            HostMeta::IpvFuture
-        } else {
-            err!(start - 1, InvalidIpLiteral);
-        };
-
-        if !self.read_str("]") {
-            err!(start - 1, InvalidIpLiteral);
-        }
-        Ok(Some(meta))
-    }
-
-    fn read_ipv_future(&mut self) -> Result<()> {
-        let start = self.pos;
-
-        if matches!(self.peek(0), Some(b'v' | b'V')) {
-            // INVARIANT: Skipping "v" or "V" is fine.
-            self.skip(1);
-            if self.read(HEXDIG)? && self.read_str(".") && self.read(IPV_FUTURE)? {
-                return Ok(());
-            }
-        }
-        err!(start - 1, InvalidIpLiteral);
     }
 
     fn parse_from_path(&mut self, kind: PathKind) -> Result<()> {

@@ -283,7 +283,7 @@ fn parse_error() {
 
     // Unclosed bracket
     let e = Uri::parse("https://[::1/").unwrap_err();
-    assert_eq!(e.to_string(), "invalid IP literal at index 8");
+    assert_eq!(e.to_string(), "unexpected character at index 12");
 
     // Not port after IP literal
     let e = Uri::parse("https://[::1]wrong").unwrap_err();
@@ -291,33 +291,33 @@ fn parse_error() {
 
     // IP literal too short
     let e = Uri::parse("http://[:]").unwrap_err();
-    assert_eq!(e.to_string(), "invalid IP literal at index 7");
+    assert_eq!(e.to_string(), "invalid IPv6 address at index 8");
     let e = Uri::parse("http://[]").unwrap_err();
-    assert_eq!(e.to_string(), "invalid IP literal at index 7");
+    assert_eq!(e.to_string(), "unexpected character at index 8");
 
     // Non-hexadecimal version in IPvFuture
     let e = Uri::parse("http://[vG.addr]").unwrap_err();
-    assert_eq!(e.to_string(), "invalid IP literal at index 7");
+    assert_eq!(e.to_string(), "unexpected character at index 9");
 
     // Empty version in IPvFuture
     let e = Uri::parse("http://[v.addr]").unwrap_err();
-    assert_eq!(e.to_string(), "invalid IP literal at index 7");
+    assert_eq!(e.to_string(), "unexpected character at index 9");
 
     // Empty address in IPvFuture
     let e = Uri::parse("ftp://[vF.]").unwrap_err();
-    assert_eq!(e.to_string(), "invalid IP literal at index 6");
+    assert_eq!(e.to_string(), "unexpected character at index 10");
 
     // Percent-encoded address in IPvFuture
     let e = Uri::parse("ftp://[vF.%20]").unwrap_err();
-    assert_eq!(e.to_string(), "invalid IP literal at index 6");
+    assert_eq!(e.to_string(), "unexpected character at index 10");
 
-    // Empty Zone ID
-    let e = Uri::parse("ftp://[fe80::abcd%]").unwrap_err();
-    assert_eq!(e.to_string(), "invalid IP literal at index 6");
+    // With zone identifier
+    let e = Uri::parse("ftp://[fe80::abcd%eth0]").unwrap_err();
+    assert_eq!(e.to_string(), "unexpected character at index 17");
 
     // Invalid IPv6 address
     let e = Uri::parse("example://[44:55::66::77]").unwrap_err();
-    assert_eq!(e.to_string(), "invalid IP literal at index 10");
+    assert_eq!(e.to_string(), "invalid IPv6 address at index 11");
 }
 
 #[test]
@@ -340,10 +340,10 @@ fn strict_ip_addr() {
 
     assert_eq!(
         Uri::parse("//[::01.1.1.1]").unwrap_err().to_string(),
-        "invalid IP literal at index 2"
+        "invalid IPv6 address at index 3"
     );
     assert_eq!(
         Uri::parse("//[::00.1.1.1]").unwrap_err().to_string(),
-        "invalid IP literal at index 2"
+        "invalid IPv6 address at index 3"
     );
 }
