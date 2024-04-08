@@ -39,7 +39,7 @@ A fast, easy generic URI parser and builder compliant with [RFC 3986].
         .scheme(Scheme::new("foo"))
         .authority(|b| {
             b.userinfo(EStr::new("user"))
-                .host(Host::RegName(EStr::new("example.com")))
+                .host(EStr::new("example.com"))
                 .port(8042)
         })
         .path(EStr::new("/over/there"))
