@@ -14,7 +14,6 @@ type Result<T> = core::result::Result<T, ParseError>;
 pub(crate) fn parse(bytes: &[u8]) -> Result<Meta> {
     let mut parser = Parser {
         reader: Reader::new(bytes),
-        mark: 0,
         out: Meta::default(),
     };
     parser.parse_from_scheme()?;
@@ -36,13 +35,12 @@ macro_rules! err {
 ///
 /// # Invariants
 ///
-/// `mark <= pos <= len`, where `pos` and `mark` are non-decreasing
-/// and `bytes[..pos]` is ASCII.
+/// `pos <= len`, `pos` is non-decreasing and `bytes[..pos]` is ASCII.
 ///
 /// # Preconditions and guarantees
 ///
 /// Before parsing, ensure that `len` is no larger than `u32::MAX`
-/// and that `pos`, `mark` and `out` are default initialized.
+/// and that `pos` and `out` are default initialized.
 ///
 /// Start and finish parsing by calling `parse_from_scheme`.
 /// The following are guaranteed when parsing succeeds:
@@ -52,7 +50,6 @@ macro_rules! err {
 /// - All URI components defined by output indexes are validated.
 struct Parser<'a> {
     reader: Reader<'a>,
-    mark: usize,
     out: Meta,
 }
 
@@ -290,7 +287,6 @@ impl<'a> Reader<'a> {
         Some(Seg::Normal(x, colon))
     }
 
-    // The marked length must be zero when this method is called.
     fn read_v4_or_reg_name(&mut self) -> Result<HostMeta> {
         let v4 = self.read_v4();
         let v4_end = self.pos;
@@ -357,16 +353,6 @@ impl<'a> Reader<'a> {
 }
 
 impl<'a> Parser<'a> {
-    fn mark(&mut self) {
-        // INVARIANT: `mark` is non-decreasing as `pos` is.
-        // `mark <= pos` is preserved.
-        self.mark = self.pos;
-    }
-
-    fn marked_len(&self) -> usize {
-        self.pos - self.mark
-    }
-
     fn parse_from_scheme(&mut self) -> Result<()> {
         // Mark initially set to 0.
         self.read(SCHEME)?;
@@ -386,7 +372,7 @@ impl<'a> Parser<'a> {
             } else {
                 self.parse_from_path(PathKind::General)
             };
-        } else if self.marked_len() == 0 {
+        } else if self.pos == 0 {
             // Nothing read.
             if self.read_str("//") {
                 return self.parse_from_authority();
@@ -400,13 +386,15 @@ impl<'a> Parser<'a> {
         let host;
         let start = self.pos;
 
-        // This table contains userinfo, reg-name, ":", and port.
+        // This table contains userinfo, reg-name, ":", and port
+        // and is equivalent to `USERINFO`.
         const TABLE: &Table = &USERINFO.shl(1).or(&Table::gen(b":"));
 
         // The number of colons read.
         let mut colon_cnt = 0;
 
-        self.mark();
+        let auth_start = self.pos;
+
         self.read_enc(TABLE, |v| {
             colon_cnt += (v & 1) as u32;
         })?;
@@ -416,15 +404,15 @@ impl<'a> Parser<'a> {
             // INVARIANT: Skipping "@" is fine.
             self.skip(1);
 
-            self.mark();
-
+            let host_start = self.pos;
             let meta = self.read_host()?;
-            host = (self.mark, self.pos, meta);
+            host = (host_start, self.pos, meta);
+
             self.read_port();
-        } else if self.marked_len() == 0 {
+        } else if self.pos == auth_start {
             // Nothing read. We're now at the start of an IP literal or the path.
             if let Some(meta) = self.read_ip_literal()? {
-                host = (self.mark, self.pos, meta);
+                host = (auth_start, self.pos, meta);
                 self.read_port();
             } else {
                 // Empty authority.
@@ -454,7 +442,7 @@ impl<'a> Parser<'a> {
                 }
                 // Multiple colons.
                 _ => {
-                    let mut i = self.mark;
+                    let mut i = auth_start;
                     loop {
                         // There must be a colon in the way.
                         let x = self.get(i);
@@ -471,9 +459,9 @@ impl<'a> Parser<'a> {
 
             // The entire host is already read so the index is within bounds.
             self.bytes = &self.bytes[..host_end];
-            // INVARIANT: It holds that `mark <= pos <= len`.
+            // INVARIANT: It holds that `auth_start <= pos <= len`.
             // Here `pos` may decrease but will be restored later.
-            self.pos = self.mark;
+            self.pos = auth_start;
 
             let v4 = self.read_v4();
             let meta = match v4 {
@@ -484,7 +472,7 @@ impl<'a> Parser<'a> {
                 _ => HostMeta::RegName,
             };
 
-            host = (self.mark, host_end, meta);
+            host = (auth_start, host_end, meta);
 
             // Restore the state.
             // INVARIANT: Restoring the state would not affect the invariants.
@@ -499,7 +487,6 @@ impl<'a> Parser<'a> {
         self.parse_from_path(PathKind::AbEmpty)
     }
 
-    // The marked length must be zero when this method is called.
     fn read_host(&mut self) -> Result<HostMeta> {
         match self.read_ip_literal()? {
             Some(host) => Ok(host),
@@ -513,25 +500,29 @@ impl<'a> Parser<'a> {
             return Ok(None);
         }
 
+        let start = self.pos;
+
         let meta = if let Some(_addr) = self.read_v6() {
             HostMeta::Ipv6(
                 #[cfg(feature = "net")]
                 _addr.into(),
             )
-        } else if self.marked_len() == 1 {
+        } else if self.pos == start {
             self.read_ipv_future()?;
             HostMeta::IpvFuture
         } else {
-            err!(self.mark, InvalidIpLiteral);
+            err!(start - 1, InvalidIpLiteral);
         };
 
         if !self.read_str("]") {
-            err!(self.mark, InvalidIpLiteral);
+            err!(start - 1, InvalidIpLiteral);
         }
         Ok(Some(meta))
     }
 
     fn read_ipv_future(&mut self) -> Result<()> {
+        let start = self.pos;
+
         if matches!(self.peek(0), Some(b'v' | b'V')) {
             // INVARIANT: Skipping "v" or "V" is fine.
             self.skip(1);
@@ -539,7 +530,7 @@ impl<'a> Parser<'a> {
                 return Ok(());
             }
         }
-        err!(self.mark, InvalidIpLiteral);
+        err!(start - 1, InvalidIpLiteral);
     }
 
     fn parse_from_path(&mut self, kind: PathKind) -> Result<()> {
@@ -567,7 +558,7 @@ impl<'a> Parser<'a> {
                 }
 
                 self.read(PATH)?;
-                (self.mark as _, self.pos as _)
+                (0, self.pos as _)
             }
         };
 
