@@ -397,7 +397,6 @@ impl<'a> Reader<'a> {
 
 impl<'a> Parser<'a> {
     fn parse_from_scheme(&mut self) -> Result<()> {
-        // Mark initially set to 0.
         self.read(SCHEME)?;
 
         if self.peek(0) == Some(b':') {
