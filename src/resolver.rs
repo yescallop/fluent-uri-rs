@@ -9,6 +9,7 @@ use core::num::NonZeroU32;
 pub(crate) fn resolve(
     base: Uri<&str>,
     /* reference */ r: Uri<&str>,
+    pedantic: bool,
 ) -> Result<Uri<String>, ResolveError> {
     if !base.is_absolute_uri() {
         return Err(ResolveError(ResolveErrorKind::NonAbsoluteBase));
@@ -31,7 +32,7 @@ pub(crate) fn resolve(
         t_scheme = r_scheme;
         t_authority = r_authority;
         t_path = if r_path.is_absolute() {
-            remove_dot_segments(&mut buf, r_path.as_str())
+            remove_dot_segments(&mut buf, r_path.as_str(), pedantic)?
         } else {
             r_path.as_str()
         };
@@ -39,7 +40,7 @@ pub(crate) fn resolve(
     } else {
         if r_authority.is_some() {
             t_authority = r_authority;
-            t_path = remove_dot_segments(&mut buf, r_path.as_str());
+            t_path = remove_dot_segments(&mut buf, r_path.as_str(), pedantic)?;
             t_query = r_query;
         } else {
             if r_path.is_empty() {
@@ -51,7 +52,7 @@ pub(crate) fn resolve(
                 }
             } else {
                 if r_path.is_absolute() {
-                    t_path = remove_dot_segments(&mut buf, r_path.as_str());
+                    t_path = remove_dot_segments(&mut buf, r_path.as_str(), pedantic)?;
                 } else {
                     let base_path = base.path().as_str();
 
@@ -72,9 +73,9 @@ pub(crate) fn resolve(
                         buf.push('/');
                     } else {
                         let last_slash_i = base_path.rfind('/').unwrap();
-                        remove_dot_segments(&mut buf, &base_path[..=last_slash_i]);
+                        remove_dot_segments(&mut buf, &base_path[..=last_slash_i], pedantic)?;
                     }
-                    t_path = remove_dot_segments(&mut buf, r_path.as_str());
+                    t_path = remove_dot_segments(&mut buf, r_path.as_str(), pedantic)?;
                 }
                 t_query = r_query;
             }
@@ -133,7 +134,7 @@ pub(crate) fn resolve(
     Ok(Uri { val: buf, meta })
 }
 
-fn remove_dot_segments<'a>(buf: &'a mut String, path: &str) -> &'a str {
+fn remove_dot_segments<'a>(buf: &'a mut String, path: &str, pedantic: bool) -> Result<&'a str, ResolveError> {
     for seg in path.split_inclusive('/') {
         if seg == "." || seg == "./" {
             buf.truncate(buf.rfind('/').unwrap() + 1);
@@ -141,10 +142,14 @@ fn remove_dot_segments<'a>(buf: &'a mut String, path: &str) -> &'a str {
             if buf.len() != 1 {
                 buf.truncate(buf.rfind('/').unwrap());
                 buf.truncate(buf.rfind('/').unwrap() + 1);
+            } else {
+                if pedantic {
+                    return Err(ResolveError(ResolveErrorKind::PathUnderflow))
+                }
             }
         } else {
             buf.push_str(seg);
         }
     }
-    buf
+    Ok(buf)
 }

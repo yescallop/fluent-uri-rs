@@ -355,7 +355,58 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn resolve<U: Bos<str>>(&'i self, base: &Uri<U>) -> Result<Uri<String>, ResolveError> {
-        resolver::resolve(base.into(), self.into())
+        resolver::resolve(base.into(), self.into(), false)
+    }
+
+      /// Resolves the URI reference against the given base URI
+    /// and returns the target URI.
+    ///
+    /// The base URI **must** be an [absolute URI] in the first place.
+    ///
+    /// This method applies the reference resolution algorithm defined in
+    /// [Section 5 of RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986/#section-5)
+    /// with only two exceptions:
+    ///
+    /// - If `base` contains no authority component and its path is [rootless], then
+    ///   `self` **must** either contain a scheme component, be empty, or start with `'#'`.
+    /// - When the target URI contains no authority component and its path would start
+    ///   with `"//"`, the string `"/."` is prepended to the path. This is required for
+    ///   closing a loophole in the original algorithm so that resolving `.//@@` against
+    ///   `foo:/` does not yield `foo://@@` which is not a valid URI.
+    ///
+    /// This means that no normalization except the removal of *unencoded* dot segments
+    /// (`"."` and `".."`, but not their percent-encoded equivalents) will be performed.
+    ///
+    /// [absolute URI]: Self::is_absolute_uri
+    /// [rootless]: EStr::<Path>::is_rootless
+    /// [same-document reference]: Self::is_same_document_reference
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` if any of the above two **must**s is violated or underflow is registered.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the output length would be greater than [`u32::MAX`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::Uri;
+    ///
+    /// let base = Uri::parse("http://example.com/foo/bar")?;
+    ///
+    /// assert_eq!(Uri::parse("baz")?.resolve(&base)?, "http://example.com/foo/baz");
+    /// assert_eq!(Uri::parse("../baz")?.resolve(&base)?, "http://example.com/baz");
+    /// assert_eq!(Uri::parse("?baz")?.resolve(&base)?, "http://example.com/foo/bar?baz");
+    ///
+    /// // The loophole in the original algorithm is closed.
+    /// let base = Uri::parse("foo:/")?;
+    /// assert_eq!(Uri::parse(".//@@")?.resolve(&base)?, "foo:/.//@@");
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn checked_resolve<U: Bos<str>>(&'i self, base: &Uri<U>) -> Result<Uri<String>, ResolveError> {
+        resolver::resolve(base.into(), self.into(), true)
     }
 }
 

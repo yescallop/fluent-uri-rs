@@ -58,6 +58,9 @@ impl Display for ResolveError {
             ResolveErrorKind::NonHierarchicalBase => {
                 "resolving non-same-document relative reference against non-hierarchical base URI"
             }
+            ResolveErrorKind::PathUnderflow => {
+                "resolve underflow"
+            }
         };
         f.write_str(msg)
     }

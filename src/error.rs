@@ -60,15 +60,15 @@ impl<I> std::error::Error for ParseError<I> {}
 
 /// Detailed cause of a [`ResolveError`].
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum ResolveErrorKind {
+pub enum ResolveErrorKind {
     NonAbsoluteBase,
     NonHierarchicalBase,
-    // PathUnderflow,
+    PathUnderflow,
 }
 
 /// An error occurred when resolving URI references.
 #[derive(Clone, Copy, Debug)]
-pub struct ResolveError(pub(crate) ResolveErrorKind);
+pub struct ResolveError(pub ResolveErrorKind);
 
 #[cfg(feature = "std")]
 impl std::error::Error for ResolveError {}
