@@ -1,7 +1,7 @@
 use crate::{
     component::{Authority, Scheme},
     encoding::{encoder::Encoder, EStr, EString},
-    error::{ParseError, ParseErrorKind},
+    error::{ParseError, ParseErrorKind, ResolveError, ResolveErrorKind},
     Uri,
 };
 use borrow_or_share::Bos;
@@ -48,6 +48,18 @@ impl<I> Display for ParseError<I> {
             ParseErrorKind::InvalidIpv6Addr => "invalid IPv6 address at index ",
         };
         write!(f, "{}{}", msg, self.index)
+    }
+}
+
+impl Display for ResolveError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        let msg = match self.0 {
+            ResolveErrorKind::NonAbsoluteBase => "non-absolute base URI",
+            ResolveErrorKind::NonHierarchicalBase => {
+                "resolving non-same-document relative reference against non-hierarchical base URI"
+            }
+        };
+        f.write_str(msg)
     }
 }
 

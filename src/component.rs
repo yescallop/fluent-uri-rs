@@ -81,7 +81,7 @@ impl Scheme {
     /// assert_eq!(uri.scheme().unwrap().as_str(), "http");
     /// let uri = Uri::parse("HTTP://EXAMPLE.COM/")?;
     /// assert_eq!(uri.scheme().unwrap().as_str(), "HTTP");
-    /// # Ok::<_, fluent_uri::ParseError>(())
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[inline]
     pub fn as_str(&self) -> &str {
@@ -104,7 +104,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     #[ref_cast_custom]
     pub(crate) fn new(uri: &Uri<T>) -> &Authority<T>;
 
-    fn meta(&self) -> &AuthMeta {
+    pub(crate) fn meta(&self) -> &AuthMeta {
         self.uri.auth_meta.as_ref().unwrap()
     }
 
@@ -130,7 +130,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// let uri = Uri::parse("ftp://user@[fe80::abcd]:6780/")?;
     /// let authority = uri.authority().unwrap();
     /// assert_eq!(authority.as_str(), "user@[fe80::abcd]:6780");
-    /// # Ok::<_, fluent_uri::ParseError>(())
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     pub fn as_str(&'i self) -> &'o str {
         self.uri.slice(self.start(), self.end())
@@ -148,7 +148,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// let uri = Uri::parse("ftp://user@192.168.1.24/")?;
     /// let authority = uri.authority().unwrap();
     /// assert_eq!(authority.userinfo().unwrap(), "user");
-    /// # Ok::<_, fluent_uri::ParseError>(())
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     pub fn userinfo(&'i self) -> Option<&'o EStr<Userinfo>> {
         let (start, host_start) = (self.start(), self.host_bounds().0);
@@ -169,7 +169,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// let uri = Uri::parse("ftp://user@[::1]/")?;
     /// let authority = uri.authority().unwrap();
     /// assert_eq!(authority.host(), "[::1]");
-    /// # Ok::<_, fluent_uri::ParseError>(())
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     pub fn host(&'i self) -> &'o str {
         let (start, end) = self.host_bounds();
@@ -203,7 +203,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// let authority = uri.authority().unwrap();
     /// assert_eq!(authority.host_parsed(), Host::RegName(EStr::new("localhost")));
     ///
-    /// # Ok::<_, fluent_uri::ParseError>(())
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     pub fn host_parsed(&'i self) -> Host<'o> {
         match self.meta().host_meta {
@@ -250,7 +250,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// let uri = Uri::parse("//localhost:66666/")?;
     /// let authority = uri.authority().unwrap();
     /// assert_eq!(authority.port(), Some("66666"));
-    /// # Ok::<_, fluent_uri::ParseError>(())
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     pub fn port(&'i self) -> Option<&'o str> {
         let (host_end, end) = (self.host_bounds().1, self.end());
@@ -285,7 +285,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// let uri = Uri::parse("//localhost:66666/")?;
     /// let authority = uri.authority().unwrap();
     /// assert!(authority.port_to_u16().is_err());
-    /// # Ok::<_, fluent_uri::ParseError>(())
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     pub fn port_to_u16(&'i self) -> Result<Option<u16>, ParseIntError> {
         self.port()

@@ -1,6 +1,6 @@
 #![allow(missing_debug_implementations)]
 
-use crate::{parser, ParseError, Uri};
+use crate::{error::ParseError, parser, Uri};
 use alloc::string::String;
 use core::{num::NonZeroU32, ops, str};
 

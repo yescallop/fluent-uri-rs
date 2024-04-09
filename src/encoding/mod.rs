@@ -352,7 +352,7 @@ impl EStr<Path> {
     /// // However, segments can be empty in the other cases.
     /// let uri = Uri::parse("/path/to//dir/")?;
     /// assert!(uri.path().segments().eq(["path", "to", "", "dir", ""]));
-    /// # Ok::<_, fluent_uri::ParseError>(())
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[cfg(fluent_uri_unstable)]
     #[inline]

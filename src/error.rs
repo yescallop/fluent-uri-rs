@@ -1,3 +1,5 @@
+//! Error types.
+
 use crate::internal::ToUri;
 
 /// Detailed cause of a [`ParseError`].
@@ -55,3 +57,18 @@ impl<I: ToUri> ParseError<I> {
 
 #[cfg(feature = "std")]
 impl<I> std::error::Error for ParseError<I> {}
+
+/// Detailed cause of a [`ResolveError`].
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum ResolveErrorKind {
+    NonAbsoluteBase,
+    NonHierarchicalBase,
+    // PathUnderflow,
+}
+
+/// An error occurred when resolving URI references.
+#[derive(Clone, Copy, Debug)]
+pub struct ResolveError(pub(crate) ResolveErrorKind);
+
+#[cfg(feature = "std")]
+impl std::error::Error for ResolveError {}

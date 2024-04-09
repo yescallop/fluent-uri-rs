@@ -48,6 +48,12 @@ test = false
 doc = false
 
 [[bin]]
+name = "resolve"
+path = "fuzz_targets/resolve.rs"
+test = false
+doc = false
+
+[[bin]]
 name = "enc_dec"
 path = "fuzz_targets/enc_dec.rs"
 test = false

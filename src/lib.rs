@@ -26,13 +26,13 @@
 mod builder;
 pub mod component;
 pub mod encoding;
-mod error;
+pub mod error;
 mod fmt;
 mod internal;
 mod parser;
+mod resolver;
 
 pub use builder::Builder;
-pub use error::ParseError;
 
 #[cfg(feature = "std")]
 extern crate std;
@@ -58,6 +58,7 @@ use encoding::{
     encoder::{Encoder, Fragment, Path, Query},
     EStr,
 };
+use error::{ParseError, ResolveError};
 use internal::{Meta, ToUri, Val};
 
 /// A [URI reference] defined in RFC 3986.
@@ -77,7 +78,7 @@ use internal::{Meta, ToUri, Val};
 /// // Keep a reference to the path after dropping the `Uri`.
 /// let path = Uri::parse("foo:bar")?.path();
 /// assert_eq!(path, "bar");
-/// # Ok::<_, fluent_uri::ParseError>(())
+/// # Ok::<_, fluent_uri::error::ParseError>(())
 /// ```
 ///
 /// # Comparison
@@ -109,7 +110,7 @@ use internal::{Meta, ToUri, Val};
 /// foo(uri);
 /// // Borrow a `Uri<String>` as `Uri<&str>`.
 /// foo(uri_owned.borrow());
-/// # Ok::<_, fluent_uri::ParseError>(())
+/// # Ok::<_, fluent_uri::error::ParseError>(())
 /// ```
 ///
 /// See the documentation of [`Builder`] for examples of building a `Uri` from its components.
@@ -130,7 +131,9 @@ impl<T> Uri<T> {
     /// - `Result<Uri<&str>, ParseError>` for `I = &str`;
     /// - `Result<Uri<String>, ParseError<String>>` for `I = String`.
     ///
-    /// When not panicking, returns `Ok` if and only if the string matches
+    /// # Errors
+    ///
+    /// Returns `Err` if the string does not match
     /// the [`URI-reference`] ABNF rule from RFC 3986.
     ///
     /// You may recover an input [`String`] by calling [`ParseError::into_input`].
@@ -274,7 +277,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// assert!(uri.is_relative_reference());
     /// let uri = Uri::parse("http://example.com/")?;
     /// assert!(!uri.is_relative_reference());
-    /// # Ok::<_, fluent_uri::ParseError>(())
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     pub fn is_relative_reference(&self) -> bool {
         self.scheme_end.is_none()
@@ -299,10 +302,61 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// assert!(!uri.is_absolute_uri());
     /// let uri = Uri::parse("/path/to/file")?;
     /// assert!(!uri.is_absolute_uri());
-    /// # Ok::<_, fluent_uri::ParseError>(())
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     pub fn is_absolute_uri(&self) -> bool {
         self.scheme_end.is_some() && self.fragment_start().is_none()
+    }
+
+    /// Resolves the URI reference against the given base URI
+    /// and returns the target URI.
+    ///
+    /// The base URI **must** be an [absolute URI] in the first place.
+    ///
+    /// This method applies the reference resolution algorithm defined in
+    /// [Section 5 of RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986/#section-5)
+    /// with only two exceptions:
+    ///
+    /// - If `base` contains no authority component and its path is [rootless], then
+    ///   `self` **must** either contain a scheme component, be empty, or start with `'#'`.
+    /// - When the target URI contains no authority component and its path would start
+    ///   with `"//"`, the string `"/."` is prepended to the path. This is required for
+    ///   closing a loophole in the original algorithm so that resolving `.//@@` against
+    ///   `foo:/` does not yield `foo://@@` which is not a valid URI.
+    ///
+    /// This means that no normalization except the removal of *unencoded* dot segments
+    /// (`"."` and `".."`, but not their percent-encoded equivalents) will be performed.
+    ///
+    /// [absolute URI]: Self::is_absolute_uri
+    /// [rootless]: EStr::<Path>::is_rootless
+    /// [same-document reference]: Self::is_same_document_reference
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` if any of the above two **must**s is violated.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the output length would be greater than [`u32::MAX`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::Uri;
+    ///
+    /// let base = Uri::parse("http://example.com/foo/bar")?;
+    ///
+    /// assert_eq!(Uri::parse("baz")?.resolve(&base)?, "http://example.com/foo/baz");
+    /// assert_eq!(Uri::parse("../baz")?.resolve(&base)?, "http://example.com/baz");
+    /// assert_eq!(Uri::parse("?baz")?.resolve(&base)?, "http://example.com/foo/bar?baz");
+    ///
+    /// // The loophole in the original algorithm is closed.
+    /// let base = Uri::parse("foo:/")?;
+    /// assert_eq!(Uri::parse(".//@@")?.resolve(&base)?, "foo:/.//@@");
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn resolve<U: Bos<str>>(&'i self, base: &Uri<U>) -> Result<Uri<String>, ResolveError> {
+        resolver::resolve(base.into(), self.into())
     }
 }
 
@@ -319,6 +373,30 @@ impl<T: Val> Default for Uri<T> {
 impl<T: Bos<str>, U: Bos<str>> PartialEq<Uri<U>> for Uri<T> {
     fn eq(&self, other: &Uri<U>) -> bool {
         self.as_str() == other.as_str()
+    }
+}
+
+impl<T: Bos<str>> PartialEq<str> for Uri<T> {
+    fn eq(&self, other: &str) -> bool {
+        self.as_str() == other
+    }
+}
+
+impl<T: Bos<str>> PartialEq<Uri<T>> for str {
+    fn eq(&self, other: &Uri<T>) -> bool {
+        self == other.as_str()
+    }
+}
+
+impl<T: Bos<str>> PartialEq<&str> for Uri<T> {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str() == *other
+    }
+}
+
+impl<T: Bos<str>> PartialEq<Uri<T>> for &str {
+    fn eq(&self, other: &Uri<T>) -> bool {
+        *self == other.as_str()
     }
 }
 
@@ -358,6 +436,16 @@ impl From<Uri<&str>> for Uri<String> {
     #[inline]
     fn from(uri: Uri<&str>) -> Self {
         uri.to_owned()
+    }
+}
+
+impl<'a, T: Bos<str>> From<&'a Uri<T>> for Uri<&'a str> {
+    #[inline]
+    fn from(uri: &'a Uri<T>) -> Self {
+        Uri {
+            val: uri.as_str(),
+            meta: uri.meta,
+        }
     }
 }
 

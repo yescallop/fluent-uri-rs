@@ -1,7 +1,6 @@
 use crate::{
     encoding::{imp::OCTET_TABLE_LO, table::*},
     internal::{AuthMeta, HostMeta, Meta},
-    ParseError,
 };
 use core::{
     num::NonZeroU32,
@@ -9,7 +8,7 @@ use core::{
     str,
 };
 
-type Result<T> = core::result::Result<T, ParseError>;
+type Result<T> = core::result::Result<T, crate::error::ParseError>;
 
 pub(crate) fn parse(bytes: &[u8]) -> Result<Meta> {
     if bytes.len() > u32::MAX as usize {

@@ -18,7 +18,19 @@ A fast, easy generic URI parser and builder compliant with [RFC 3986].
     parse the same URI in [a benchmark](https://github.com/yescallop/fluent-uri-rs/blob/main/bench/benches/bench.rs)
     on an Intel Core i5-11300H processor.
 
-## Features & Examples
+## Features
+
+Implemented:
+
+- [x] Parsing.
+- [x] Building.
+- [x] Reference resolution.
+
+Planned:
+
+- [ ] Normalization.
+
+## Examples
 
 - `Uri<&str>` and `Uri<String>` (borrowed and owned variants of URI reference):
 
@@ -51,6 +63,16 @@ A fast, easy generic URI parser and builder compliant with [RFC 3986].
         uri.as_str(),
         "foo://user@example.com:8042/over/there?name=ferret#nose"
     );
+    ```
+
+    You can resolve a URI reference against a base URI:
+
+    ```rust
+    let base = Uri::parse("http://example.com/foo/bar")?;
+
+    assert_eq!(Uri::parse("baz")?.resolve(&base)?, "http://example.com/foo/baz");
+    assert_eq!(Uri::parse("../baz")?.resolve(&base)?, "http://example.com/baz");
+    assert_eq!(Uri::parse("?baz")?.resolve(&base)?, "http://example.com/foo/bar?baz");
     ```
 
 - `EStr` (Percent-encoded string slices):
@@ -93,9 +115,3 @@ A fast, easy generic URI parser and builder compliant with [RFC 3986].
         .build();
     assert_eq!(uri.as_str(), "?name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
     ```
-
-## Roadmap
-
-- [ ] Reference resolution.
-- [ ] Normalization.
-- [ ] Host: IDNA encoding and DNS syntax checking.
