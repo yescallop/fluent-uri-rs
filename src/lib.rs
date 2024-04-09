@@ -8,7 +8,8 @@
 //!
 //! [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
 //!
-//! See the documentation of [`Uri`] for usage.
+//! **Examples:** [Parsing](Uri#examples). [Building](Builder#examples).
+//! [Reference resolution](Uri::resolve).
 //!
 //! # Crate features
 //!
@@ -112,8 +113,6 @@ use internal::{Meta, ToUri, Val};
 /// foo(uri_owned.borrow());
 /// # Ok::<_, fluent_uri::error::ParseError>(())
 /// ```
-///
-/// See the documentation of [`Builder`] for examples of building a `Uri` from its components.
 #[derive(Clone, Copy)]
 pub struct Uri<T> {
     /// Value of the URI reference.
