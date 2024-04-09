@@ -20,7 +20,7 @@ use ref_cast::{ref_cast_custom, RefCastCustom};
 ///
 /// # Comparison
 ///
-/// `EStr` and `str` slices are compared [lexicographically](Ord#lexicographical-comparison)
+/// `EStr` slices are compared [lexicographically](Ord#lexicographical-comparison)
 /// by their byte values. Normalization is **not** performed prior to comparison.
 ///
 /// # Examples

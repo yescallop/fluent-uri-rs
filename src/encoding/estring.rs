@@ -6,9 +6,8 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 ///
 /// # Comparison
 ///
-/// `EString`s and `EStr` and `str` slices are compared
-/// [lexicographically](Ord#lexicographical-comparison) by their byte values.
-/// Normalization is **not** performed prior to comparison.
+/// `EString`s are compared [lexicographically](Ord#lexicographical-comparison)
+/// by their byte values. Normalization is **not** performed prior to comparison.
 ///
 /// # Examples
 ///
