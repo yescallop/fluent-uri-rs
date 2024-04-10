@@ -5,12 +5,11 @@ on:
 name: CI
 
 jobs:
-  test-and-doc:
-    name: Test & Doc
+  test:
+    name: Test
     runs-on: ubuntu-latest
     env:
       RUSTFLAGS: -D warnings
-      RUSTDOCFLAGS: --cfg docsrs
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust nightly
@@ -23,11 +22,3 @@ jobs:
         run: cargo build --no-default-features -F std
       - name: Build with feature net
         run: cargo build --no-default-features -F net
-      - name: Build doc
-        run: cargo doc
-      - name: Deploy doc
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./target/doc
-          publish_branch: doc
