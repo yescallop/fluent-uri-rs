@@ -17,6 +17,10 @@ pub(crate) enum ParseErrorKind {
     ///
     /// The error index points to the first byte of the address.
     InvalidIpv6Addr,
+    /// The input length is greater than [`u32::MAX`].
+    ///
+    /// The error index equals `0`.
+    OverlongInput,
 }
 
 /// An error occurred when parsing URI references.
@@ -63,6 +67,7 @@ impl<I> std::error::Error for ParseError<I> {}
 pub(crate) enum ResolveErrorKind {
     NonAbsoluteBase,
     NonHierarchicalBase,
+    OverlongOutput,
     // PathUnderflow,
 }
 

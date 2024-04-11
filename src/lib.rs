@@ -134,15 +134,12 @@ impl<T> Uri<T> {
     /// # Errors
     ///
     /// Returns `Err` if the string does not match
-    /// the [`URI-reference`] ABNF rule from RFC 3986.
+    /// the [`URI-reference`] ABNF rule from RFC 3986 or
+    /// if the input length is greater than [`u32::MAX`].
     ///
     /// You may recover an input [`String`] by calling [`ParseError::into_input`].
     ///
     /// [`URI-reference`]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.1
-    ///
-    /// # Panics
-    ///
-    /// Panics if the input length is greater than [`u32::MAX`].
     pub fn parse<I>(input: I) -> Result<Self, I::Err>
     where
         I: ToUri<Val = T>,
@@ -334,11 +331,8 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     ///
     /// # Errors
     ///
-    /// Returns `Err` if any of the above two **must**s is violated.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the output length would be greater than [`u32::MAX`].
+    /// Returns `Err` if any of the above two **must**s is violated or
+    /// if the output length would be greater than [`u32::MAX`].
     ///
     /// # Examples
     ///

@@ -10,19 +10,6 @@ use core::{
 
 type Result<T> = core::result::Result<T, crate::error::ParseError>;
 
-pub(crate) fn parse(bytes: &[u8]) -> Result<Meta> {
-    if bytes.len() > u32::MAX as usize {
-        panic!("input length > u32::MAX");
-    }
-
-    let mut parser = Parser {
-        reader: Reader::new(bytes),
-        out: Meta::default(),
-    };
-    parser.parse_from_scheme()?;
-    Ok(parser.out)
-}
-
 /// Returns immediately with an error.
 macro_rules! err {
     ($index:expr, $kind:ident) => {
@@ -32,6 +19,19 @@ macro_rules! err {
             input: (),
         })
     };
+}
+
+pub(crate) fn parse(bytes: &[u8]) -> Result<Meta> {
+    if bytes.len() > u32::MAX as usize {
+        err!(0, OverlongInput);
+    }
+
+    let mut parser = Parser {
+        reader: Reader::new(bytes),
+        out: Meta::default(),
+    };
+    parser.parse_from_scheme()?;
+    Ok(parser.out)
 }
 
 /// URI parser.

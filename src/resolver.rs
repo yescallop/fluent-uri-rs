@@ -128,9 +128,11 @@ pub(crate) fn resolve(
         buf.push_str(fragment.as_str());
     }
 
-    assert!(buf.len() <= u32::MAX as usize, "output length > u32::MAX");
-
-    Ok(Uri { val: buf, meta })
+    if buf.len() <= u32::MAX as usize {
+        Ok(Uri { val: buf, meta })
+    } else {
+        Err(ResolveError(ResolveErrorKind::OverlongOutput))
+    }
 }
 
 /// Removes dot segments from an absolute path.
