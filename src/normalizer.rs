@@ -1,19 +1,21 @@
 use crate::{
-    encoding::{decode_octet, table::UNRESERVED},
-    internal::{HostMeta, Meta},
-    parser, resolver, Uri,
+    encoding::{decode_octet, table::UNRESERVED}, error::ResolveError, internal::{HostMeta, Meta}, parser, resolver, Uri
 };
 use alloc::string::String;
 use core::{fmt::Write, num::NonZeroU32};
 
-pub(crate) fn normalize(u: Uri<&str>) -> Uri<String> {
+pub(crate) fn normalize(u: Uri<&str>, pedantic: bool) -> Result<Uri<String>, ResolveError> {
     let mut buf = String::new();
 
     let path = u.path().as_str();
     let mut path_buf = String::new();
     if u.scheme_end.is_some() && path.starts_with('/') {
         normalize_estr(&mut buf, path, false);
-        resolver::remove_dot_segments(&mut path_buf, &buf, false).ok();
+        let result = resolver::remove_dot_segments(&mut path_buf, &buf, pedantic);
+        match result {
+            Err(err ) => if pedantic { return Err(err) },
+            _ => {},
+        }
         buf.clear();
     } else {
         // Don't remove dot segments from relative reference or rootless path.
@@ -98,7 +100,7 @@ pub(crate) fn normalize(u: Uri<&str>) -> Uri<String> {
     }
 
     // No need to check the length because it cannot grow larger.
-    Uri { val: buf, meta }
+    Ok(Uri { val: buf, meta })
 }
 
 fn normalize_estr(buf: &mut String, s: &str, to_lowercase: bool) {

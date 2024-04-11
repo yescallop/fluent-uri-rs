@@ -422,7 +422,27 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// # Ok::<_, Box<fluent_uri::error::ParseError>>(())
     /// ```
     pub fn normalize(&self) -> Uri<String> {
-        normalizer::normalize(self.into())
+        normalizer::normalize(self.into(), false).ok().unwrap()
+    }
+
+    /// Normalizes the URI reference.
+    ///
+    /// This method applies the syntax-based normalization described in
+    /// [Section 6.2.2 of RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986/#section-6.2.2).
+    ///
+    /// TODO: Expand the doc.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::Uri;
+    ///
+    /// let uri = Uri::parse("eXAMPLE://a/./b/../b/%63/%7bfoo%7d")?;
+    /// assert_eq!(uri.normalize_checked().ok().unwrap(), "example://a/b/c/%7Bfoo%7D");
+    /// # Ok::<_, Box<fluent_uri::error::ParseError>>(())
+    /// ```
+    pub fn normalize_checked(&self) -> Result<Uri<String>, ResolveError> {
+        normalizer::normalize(self.into(), true)
     }
 }
 
