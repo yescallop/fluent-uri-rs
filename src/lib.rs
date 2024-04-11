@@ -9,7 +9,7 @@
 //! [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
 //!
 //! **Examples:** [Parsing](Uri#examples). [Building](Builder#examples).
-//! [Reference resolution](Uri::resolve).
+//! [Reference resolution](Uri::resolve). [Normalization](Uri::normalize).
 //!
 //! # Crate features
 //!
@@ -30,6 +30,7 @@ pub mod encoding;
 pub mod error;
 mod fmt;
 mod internal;
+mod normalizer;
 mod parser;
 mod resolver;
 
@@ -323,12 +324,13 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     ///   closing a loophole in the original algorithm so that resolving `.//@@` against
     ///   `foo:/` does not yield `foo://@@` which is not a valid URI.
     ///
-    /// This means that no normalization except the removal of *unencoded* dot segments
+    /// No normalization except the removal of *unencoded* dot segments
     /// (`"."` and `".."`, but not their percent-encoded equivalents) will be performed.
+    /// Use [`normalize`] if need be.
     ///
     /// [absolute URI]: Self::is_absolute_uri
     /// [rootless]: EStr::<Path>::is_rootless
-    /// [same-document reference]: Self::is_same_document_reference
+    /// [`normalize`]: Self::normalize
     ///
     /// # Errors
     ///
@@ -354,8 +356,28 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// assert_eq!(Uri::parse(".//@@")?.resolve(&base)?, "foo:/.//@@");
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn resolve<U: Bos<str>>(&'i self, base: &Uri<U>) -> Result<Uri<String>, ResolveError> {
+    pub fn resolve<U: Bos<str>>(&self, base: &Uri<U>) -> Result<Uri<String>, ResolveError> {
         resolver::resolve(base.into(), self.into())
+    }
+
+    /// Normalizes the URI reference.
+    ///
+    /// This method applies the syntax-based normalization described in
+    /// [Section 6.2.2 of RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986/#section-6.2.2).
+    ///
+    /// TODO: Expand the doc.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::Uri;
+    ///
+    /// let uri = Uri::parse("eXAMPLE://a/./b/../b/%63/%7bfoo%7d")?;
+    /// assert_eq!(uri.normalize(), "example://a/b/c/%7Bfoo%7D");
+    /// # Ok::<_, Box<fluent_uri::error::ParseError>>(())
+    /// ```
+    pub fn normalize(&self) -> Uri<String> {
+        normalizer::normalize(self.into())
     }
 }
 

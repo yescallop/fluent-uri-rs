@@ -9,8 +9,7 @@ use crate::{
         EStr,
     },
     internal::{AuthMeta, HostMeta, Meta},
-    parser::Reader,
-    Uri,
+    parser, Uri,
 };
 use alloc::string::String;
 use core::{fmt::Write, marker::PhantomData, num::NonZeroU32};
@@ -127,14 +126,7 @@ impl BuilderInner {
                 auth_meta.host_meta = HostMeta::Ipv6(addr);
             }
             Host::RegName(name) => {
-                let mut reader = Reader::new(name.as_str().as_bytes());
-                auth_meta.host_meta = match reader.read_v4() {
-                    Some(_addr) if !reader.has_remaining() => HostMeta::Ipv4(
-                        #[cfg(feature = "net")]
-                        _addr.into(),
-                    ),
-                    _ => HostMeta::RegName,
-                };
+                auth_meta.host_meta = parser::reparse_reg_name(name.as_str().as_bytes());
                 self.buf.push_str(name.as_str());
             }
             _ => unreachable!(),

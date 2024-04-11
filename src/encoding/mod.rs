@@ -2,10 +2,12 @@
 
 pub mod encoder;
 mod estring;
-pub(crate) mod imp;
+mod imp;
 pub mod table;
 
 pub use estring::EString;
+
+pub(crate) use imp::{decode_octet, OCTET_TABLE_LO};
 
 use alloc::{
     borrow::{Cow, ToOwned},

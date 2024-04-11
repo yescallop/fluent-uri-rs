@@ -20,15 +20,10 @@ A fast, easy generic URI parser and builder compliant with [RFC 3986].
 
 ## Features
 
-Implemented:
-
 - [x] Parsing.
 - [x] Building.
 - [x] Reference resolution.
-
-Planned:
-
-- [ ] Normalization.
+- [x] Normalization.
 
 ## Examples
 
@@ -73,6 +68,13 @@ Planned:
     assert_eq!(Uri::parse("baz")?.resolve(&base)?, "http://example.com/foo/baz");
     assert_eq!(Uri::parse("../baz")?.resolve(&base)?, "http://example.com/baz");
     assert_eq!(Uri::parse("?baz")?.resolve(&base)?, "http://example.com/foo/bar?baz");
+    ```
+
+    You can normalize a URI reference.
+
+    ```rust
+    let uri = Uri::parse("eXAMPLE://a/./b/../b/%63/%7bfoo%7d")?;
+    assert_eq!(uri.normalize(), "example://a/b/c/%7Bfoo%7D");
     ```
 
 - `EStr` (Percent-encoded string slices):

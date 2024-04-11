@@ -21,7 +21,7 @@ const OCTET_TABLE_HI: &[u8; 256] = &gen_octet_table(true);
 pub(crate) const OCTET_TABLE_LO: &[u8; 256] = &gen_octet_table(false);
 
 /// Decodes a percent-encoded octet, assuming that the bytes are hexadecimal.
-fn decode_octet(hi: u8, lo: u8) -> u8 {
+pub(crate) fn decode_octet(hi: u8, lo: u8) -> u8 {
     debug_assert!(hi.is_ascii_hexdigit() && lo.is_ascii_hexdigit());
     OCTET_TABLE_HI[hi as usize] | OCTET_TABLE_LO[lo as usize]
 }

@@ -133,7 +133,8 @@ pub(crate) fn resolve(
     Ok(Uri { val: buf, meta })
 }
 
-fn remove_dot_segments<'a>(buf: &'a mut String, path: &str) -> &'a str {
+/// Removes dot segments from an absolute path.
+pub(crate) fn remove_dot_segments<'a>(buf: &'a mut String, path: &str) -> &'a str {
     for seg in path.split_inclusive('/') {
         if seg == "." || seg == "./" {
             buf.truncate(buf.rfind('/').unwrap() + 1);
