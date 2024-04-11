@@ -8,7 +8,7 @@ use crate::{
         encoder::{Fragment, Path, Query, Userinfo},
         EStr,
     },
-    internal::{AuthMeta, HostMeta, Meta},
+    internal::{AuthMeta, Meta},
     parser, Uri,
 };
 use alloc::string::String;
@@ -118,15 +118,15 @@ impl BuilderInner {
             #[cfg(feature = "net")]
             Host::Ipv4(addr) => {
                 write!(self.buf, "{addr}").unwrap();
-                auth_meta.host_meta = HostMeta::Ipv4(addr);
+                auth_meta.host_meta = crate::internal::HostMeta::Ipv4(addr);
             }
             #[cfg(feature = "net")]
             Host::Ipv6(addr) => {
                 write!(self.buf, "[{addr}]").unwrap();
-                auth_meta.host_meta = HostMeta::Ipv6(addr);
+                auth_meta.host_meta = crate::internal::HostMeta::Ipv6(addr);
             }
             Host::RegName(name) => {
-                auth_meta.host_meta = parser::reparse_reg_name(name.as_str().as_bytes());
+                auth_meta.host_meta = parser::parse_v4_or_reg_name(name.as_str().as_bytes());
                 self.buf.push_str(name.as_str());
             }
             _ => unreachable!(),

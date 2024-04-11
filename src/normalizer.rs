@@ -41,8 +41,15 @@ pub(crate) fn normalize(u: Uri<&str>) -> Uri<String> {
         auth_meta.host_bounds.0 = buf.len() as _;
         match auth_meta.host_meta {
             // An IPv4 address is always canonical.
-            HostMeta::Ipv4(_) => buf.push_str(auth.host()),
+            HostMeta::Ipv4(..) => buf.push_str(auth.host()),
+            #[cfg(feature = "net")]
             HostMeta::Ipv6(addr) => write!(buf, "[{addr}]").unwrap(),
+            #[cfg(not(feature = "net"))]
+            HostMeta::Ipv6(..) => {
+                buf.push('[');
+                write_v6(&mut buf, parser::parse_v6(&auth.host().as_bytes()[1..]));
+                buf.push(']');
+            }
             HostMeta::IpvFuture => {
                 let start = buf.len();
                 buf.push_str(auth.host());
@@ -56,7 +63,7 @@ pub(crate) fn normalize(u: Uri<&str>) -> Uri<String> {
 
                 if buf.len() < start + host.len() {
                     // Only reparse when the length is less than before.
-                    auth_meta.host_meta = parser::reparse_reg_name(&buf.as_bytes()[start..]);
+                    auth_meta.host_meta = parser::parse_v4_or_reg_name(&buf.as_bytes()[start..]);
                 }
             }
         }
@@ -120,6 +127,65 @@ fn normalize_estr(buf: &mut String, s: &str, to_lowercase: bool) {
             }
             buf.push(x as char);
             i += 1;
+        }
+    }
+}
+
+// Taken from `std`.
+#[cfg(not(feature = "net"))]
+fn write_v6(buf: &mut String, segments: [u16; 8]) {
+    if let [0, 0, 0, 0, 0, 0xffff, ab, cd] = segments {
+        let [a, b] = ab.to_be_bytes();
+        let [c, d] = cd.to_be_bytes();
+        write!(buf, "::ffff:{}.{}.{}.{}", a, b, c, d).unwrap()
+    } else {
+        #[derive(Copy, Clone, Default)]
+        struct Span {
+            start: usize,
+            len: usize,
+        }
+
+        // Find the inner 0 span
+        let zeroes = {
+            let mut longest = Span::default();
+            let mut current = Span::default();
+
+            for (i, &segment) in segments.iter().enumerate() {
+                if segment == 0 {
+                    if current.len == 0 {
+                        current.start = i;
+                    }
+
+                    current.len += 1;
+
+                    if current.len > longest.len {
+                        longest = current;
+                    }
+                } else {
+                    current = Span::default();
+                }
+            }
+
+            longest
+        };
+
+        /// Write a colon-separated part of the address
+        #[inline]
+        fn write_subslice(buf: &mut String, chunk: &[u16]) {
+            if let Some((first, tail)) = chunk.split_first() {
+                write!(buf, "{:x}", first).unwrap();
+                for segment in tail {
+                    write!(buf, ":{:x}", segment).unwrap();
+                }
+            }
+        }
+
+        if zeroes.len > 1 {
+            write_subslice(buf, &segments[..zeroes.start]);
+            buf.push_str("::");
+            write_subslice(buf, &segments[zeroes.start + zeroes.len..]);
+        } else {
+            write_subslice(buf, &segments);
         }
     }
 }

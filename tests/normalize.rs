@@ -1,6 +1,10 @@
-use std::net::{Ipv4Addr, Ipv6Addr};
+#[cfg(feature = "net")]
+use core::net::{Ipv4Addr, Ipv6Addr};
 
-use fluent_uri::{component::Host, Uri};
+#[cfg(feature = "net")]
+use fluent_uri::component::Host;
+
+use fluent_uri::Uri;
 
 #[test]
 fn normalize() {
@@ -72,6 +76,7 @@ fn normalize() {
     // Normal IPv4 address.
     let u = Uri::parse("//127.0.0.1").unwrap();
     assert_eq!(u.normalize(), "//127.0.0.1");
+    #[cfg(feature = "net")]
     assert_eq!(
         u.normalize().authority().unwrap().host_parsed(),
         Host::Ipv4(Ipv4Addr::LOCALHOST)
@@ -80,6 +85,7 @@ fn normalize() {
     // Percent-encoded IPv4 address.
     let u = Uri::parse("//127.0.0.%31").unwrap();
     assert_eq!(u.normalize(), "//127.0.0.1");
+    #[cfg(feature = "net")]
     assert_eq!(
         u.normalize().authority().unwrap().host_parsed(),
         Host::Ipv4(Ipv4Addr::LOCALHOST)
@@ -88,6 +94,7 @@ fn normalize() {
     // Normal IPv6 address.
     let u = Uri::parse("//[::1]").unwrap();
     assert_eq!(u.normalize(), "//[::1]");
+    #[cfg(feature = "net")]
     assert_eq!(
         u.normalize().authority().unwrap().host_parsed(),
         Host::Ipv6(Ipv6Addr::LOCALHOST)
@@ -96,10 +103,19 @@ fn normalize() {
     // Verbose IPv6 address.
     let u = Uri::parse("//[0000:0000:0000::1]").unwrap();
     assert_eq!(u.normalize(), "//[::1]");
+    #[cfg(feature = "net")]
     assert_eq!(
         u.normalize().authority().unwrap().host_parsed(),
         Host::Ipv6(Ipv6Addr::LOCALHOST)
     );
+
+    // IPv4-mapped IPv6 address.
+    let u = Uri::parse("//[0:0:0:0:0:ffff:192.0.2.1]").unwrap();
+    assert_eq!(u.normalize(), "//[::ffff:192.0.2.1]");
+
+    // Deprecated IPv4-compatible IPv6 address.
+    let u = Uri::parse("//[::192.0.2.1]").unwrap();
+    assert_eq!(u.normalize(), "//[::c000:201]");
 
     // IPvFuture address.
     let u = Uri::parse("//[v1FdE.AddR]").unwrap();

@@ -398,7 +398,7 @@ impl<'a> Reader<'a> {
     }
 }
 
-pub(crate) fn reparse_reg_name(bytes: &[u8]) -> HostMeta {
+pub(crate) fn parse_v4_or_reg_name(bytes: &[u8]) -> HostMeta {
     let mut reader = Reader::new(bytes);
     match reader.read_v4() {
         Some(_addr) if !reader.has_remaining() => HostMeta::Ipv4(
@@ -407,6 +407,11 @@ pub(crate) fn reparse_reg_name(bytes: &[u8]) -> HostMeta {
         ),
         _ => HostMeta::RegName,
     }
+}
+
+#[cfg(not(feature = "net"))]
+pub(crate) fn parse_v6(bytes: &[u8]) -> [u16; 8] {
+    Reader::new(bytes).read_v6().unwrap()
 }
 
 impl<'a> Parser<'a> {

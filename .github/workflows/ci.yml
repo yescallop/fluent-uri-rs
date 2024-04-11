@@ -16,9 +16,9 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
       - name: Test with default features
         run: cargo test
-      - name: Build with no features
-        run: cargo build --no-default-features
-      - name: Build with feature std
-        run: cargo build --no-default-features -F std
-      - name: Build with feature net
-        run: cargo build --no-default-features -F net
+      - name: Test with no features
+        run: cargo test --tests --no-default-features
+      - name: Test with feature std
+        run: cargo test --tests --no-default-features -F std
+      - name: Test with feature net
+        run: cargo test --tests --no-default-features -F net
