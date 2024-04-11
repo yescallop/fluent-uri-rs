@@ -1,4 +1,5 @@
-use std::net::{Ipv4Addr, Ipv6Addr};
+#[cfg(feature = "net")]
+use core::net::{Ipv4Addr, Ipv6Addr};
 
 use fluent_uri::{component::Host, encoding::EStr, Uri};
 
@@ -47,6 +48,7 @@ fn parse_absolute() {
     assert_eq!(a.as_str(), "[2001:db8::7]");
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "[2001:db8::7]");
+    #[cfg(feature = "net")]
     assert_eq!(
         a.host_parsed(),
         Host::Ipv6(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 0x7))
@@ -83,6 +85,7 @@ fn parse_absolute() {
     assert_eq!(a.as_str(), "192.0.2.16:80");
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "192.0.2.16");
+    #[cfg(feature = "net")]
     assert_eq!(a.host_parsed(), Host::Ipv4(Ipv4Addr::new(192, 0, 2, 16)));
     assert_eq!(a.port(), Some("80"));
     assert_eq!(u.path(), "/");
@@ -117,6 +120,7 @@ fn parse_absolute() {
         Some(EStr::new("cnn.example.com&story=breaking_news"))
     );
     assert_eq!(a.host(), "10.0.0.1");
+    #[cfg(feature = "net")]
     assert_eq!(a.host_parsed(), Host::Ipv4(Ipv4Addr::new(10, 0, 0, 1)));
     assert_eq!(a.port(), None);
     assert_eq!(u.path(), "/top_story.htm");
@@ -141,6 +145,7 @@ fn parse_absolute() {
     assert_eq!(a.as_str(), "127.0.0.1:");
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "127.0.0.1");
+    #[cfg(feature = "net")]
     assert_eq!(a.host_parsed(), Host::Ipv4(Ipv4Addr::new(127, 0, 0, 1)));
     assert_eq!(a.port(), Some(""));
     assert_eq!(u.path(), "/");
@@ -153,6 +158,7 @@ fn parse_absolute() {
     assert_eq!(a.as_str(), "127.0.0.1:8080");
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "127.0.0.1");
+    #[cfg(feature = "net")]
     assert_eq!(a.host_parsed(), Host::Ipv4(Ipv4Addr::new(127, 0, 0, 1)));
     assert_eq!(a.port(), Some("8080"));
     assert_eq!(u.path(), "/");
@@ -165,6 +171,7 @@ fn parse_absolute() {
     assert_eq!(a.as_str(), "127.0.0.1:80808");
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "127.0.0.1");
+    #[cfg(feature = "net")]
     assert_eq!(a.host_parsed(), Host::Ipv4(Ipv4Addr::new(127, 0, 0, 1)));
     assert_eq!(a.port(), Some("80808"));
     assert_eq!(u.path(), "/");

@@ -1,3 +1,5 @@
+#![cfg(all(feature = "net", feature = "std"))]
+
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6};
 
 use fluent_uri::Uri;

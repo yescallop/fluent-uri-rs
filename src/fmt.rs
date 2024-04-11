@@ -46,6 +46,7 @@ impl<I> Display for ParseError<I> {
             ParseErrorKind::InvalidOctet => "invalid percent-encoded octet at index ",
             ParseErrorKind::UnexpectedChar => "unexpected character at index ",
             ParseErrorKind::InvalidIpv6Addr => "invalid IPv6 address at index ",
+            ParseErrorKind::OverlongInput => "overlong input at index ",
         };
         write!(f, "{}{}", msg, self.index)
     }
@@ -58,6 +59,7 @@ impl Display for ResolveError {
             ResolveErrorKind::NonHierarchicalBase => {
                 "resolving non-same-document relative reference against non-hierarchical base URI"
             }
+            ResolveErrorKind::OverlongOutput => "overlong output",
             ResolveErrorKind::PathUnderflow => {
                 "resolve underflow"
             }

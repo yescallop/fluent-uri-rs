@@ -54,21 +54,8 @@ pub(crate) fn resolve(
                 if r_path.is_absolute() {
                     t_path = remove_dot_segments(&mut buf, r_path.as_str(), pedantic)?;
                 } else {
+                    // Instead of merging the paths, remove dot segments incrementally.
                     let base_path = base.path().as_str();
-
-                    // let merged_path = if base_path.is_empty() {
-                    //     alloc::format!("/{base_path}")
-                    // } else {
-                    //     alloc::format!(
-                    //         "{}/{}",
-                    //         base_path.rsplit_once('/').unwrap().0,
-                    //         r_path.as_str()
-                    //     )
-                    // };
-                    // t_path = remove_dot_segments(&mut buf, &merged_path);
-
-                    // Merging paths like above requires another allocation.
-
                     if base_path.is_empty() {
                         buf.push('/');
                     } else {
@@ -129,12 +116,15 @@ pub(crate) fn resolve(
         buf.push_str(fragment.as_str());
     }
 
-    assert!(buf.len() <= u32::MAX as usize, "output length > u32::MAX");
-
-    Ok(Uri { val: buf, meta })
+    if buf.len() <= u32::MAX as usize {
+        Ok(Uri { val: buf, meta })
+    } else {
+        Err(ResolveError(ResolveErrorKind::OverlongOutput))
+    }
 }
 
-fn remove_dot_segments<'a>(buf: &'a mut String, path: &str, pedantic: bool) -> Result<&'a str, ResolveError> {
+/// Removes dot segments from an absolute path.
+pub(crate) fn remove_dot_segments<'a>(buf: &'a mut String, path: &str, pedantic: bool) -> Result<&'a str, ResolveError> {
     for seg in path.split_inclusive('/') {
         if seg == "." || seg == "./" {
             buf.truncate(buf.rfind('/').unwrap() + 1);

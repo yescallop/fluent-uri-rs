@@ -1,4 +1,6 @@
-use std::net::{Ipv4Addr, Ipv6Addr};
+#![cfg(feature = "net")]
+
+use core::net::{Ipv4Addr, Ipv6Addr};
 
 use fluent_uri::{component::Host, Uri};
 

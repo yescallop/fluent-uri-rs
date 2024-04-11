@@ -1,5 +1,5 @@
 use crate::{
-    encoding::{imp::OCTET_TABLE_LO, table::*},
+    encoding::{table::*, OCTET_TABLE_LO},
     internal::{AuthMeta, HostMeta, Meta},
 };
 use core::{
@@ -10,19 +10,6 @@ use core::{
 
 type Result<T> = core::result::Result<T, crate::error::ParseError>;
 
-pub(crate) fn parse(bytes: &[u8]) -> Result<Meta> {
-    if bytes.len() > u32::MAX as usize {
-        panic!("input length > u32::MAX");
-    }
-
-    let mut parser = Parser {
-        reader: Reader::new(bytes),
-        out: Meta::default(),
-    };
-    parser.parse_from_scheme()?;
-    Ok(parser.out)
-}
-
 /// Returns immediately with an error.
 macro_rules! err {
     ($index:expr, $kind:ident) => {
@@ -32,6 +19,19 @@ macro_rules! err {
             input: (),
         })
     };
+}
+
+pub(crate) fn parse(bytes: &[u8]) -> Result<Meta> {
+    if bytes.len() > u32::MAX as usize {
+        err!(0, OverlongInput);
+    }
+
+    let mut parser = Parser {
+        reader: Reader::new(bytes),
+        out: Meta::default(),
+    };
+    parser.parse_from_scheme()?;
+    Ok(parser.out)
 }
 
 /// URI parser.
@@ -56,7 +56,7 @@ struct Parser<'a> {
     out: Meta,
 }
 
-pub(crate) struct Reader<'a> {
+struct Reader<'a> {
     bytes: &'a [u8],
     pos: usize,
 }
@@ -93,7 +93,7 @@ enum Seg {
 }
 
 impl<'a> Reader<'a> {
-    pub(crate) fn new(bytes: &'a [u8]) -> Self {
+    fn new(bytes: &'a [u8]) -> Self {
         Reader { bytes, pos: 0 }
     }
 
@@ -101,7 +101,7 @@ impl<'a> Reader<'a> {
         self.bytes.len()
     }
 
-    pub(crate) fn has_remaining(&self) -> bool {
+    fn has_remaining(&self) -> bool {
         self.pos < self.len()
     }
 
@@ -304,7 +304,7 @@ impl<'a> Reader<'a> {
         })
     }
 
-    pub(crate) fn read_v4(&mut self) -> Option<u32> {
+    fn read_v4(&mut self) -> Option<u32> {
         let mut addr = self.read_v4_octet()? << 24;
         for i in (0..3).rev() {
             if !self.read_str(".") {
@@ -396,6 +396,22 @@ impl<'a> Reader<'a> {
         }
         err!(self.pos, UnexpectedChar);
     }
+}
+
+pub(crate) fn parse_v4_or_reg_name(bytes: &[u8]) -> HostMeta {
+    let mut reader = Reader::new(bytes);
+    match reader.read_v4() {
+        Some(_addr) if !reader.has_remaining() => HostMeta::Ipv4(
+            #[cfg(feature = "net")]
+            _addr.into(),
+        ),
+        _ => HostMeta::RegName,
+    }
+}
+
+#[cfg(not(feature = "net"))]
+pub(crate) fn parse_v6(bytes: &[u8]) -> [u16; 8] {
+    Reader::new(bytes).read_v6().unwrap()
 }
 
 impl<'a> Parser<'a> {
