@@ -45,7 +45,7 @@ pub(crate) fn normalize(u: Uri<&str>) -> Uri<String> {
             #[cfg(feature = "net")]
             HostMeta::Ipv6(addr) => write!(buf, "[{addr}]").unwrap(),
             #[cfg(not(feature = "net"))]
-            HostMeta::Ipv6(..) => {
+            HostMeta::Ipv6() => {
                 buf.push('[');
                 write_v6(&mut buf, parser::parse_v6(&auth.host().as_bytes()[1..]));
                 buf.push(']');

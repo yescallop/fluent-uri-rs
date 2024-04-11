@@ -53,21 +53,8 @@ pub(crate) fn resolve(
                 if r_path.is_absolute() {
                     t_path = remove_dot_segments(&mut buf, r_path.as_str());
                 } else {
+                    // Instead of merging the paths, remove dot segments incrementally.
                     let base_path = base.path().as_str();
-
-                    // let merged_path = if base_path.is_empty() {
-                    //     alloc::format!("/{base_path}")
-                    // } else {
-                    //     alloc::format!(
-                    //         "{}/{}",
-                    //         base_path.rsplit_once('/').unwrap().0,
-                    //         r_path.as_str()
-                    //     )
-                    // };
-                    // t_path = remove_dot_segments(&mut buf, &merged_path);
-
-                    // Merging paths like above requires another allocation.
-
                     if base_path.is_empty() {
                         buf.push('/');
                     } else {
