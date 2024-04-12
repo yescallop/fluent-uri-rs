@@ -1,7 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use fluent_uri::*;
+use fluent_uri::{component::Scheme, encoding::EStr, *};
 use iref::UriRef;
 use iri_string::{
+    build::Builder,
     format::ToDedicatedString,
     types::{UriAbsoluteStr, UriReferenceStr, UriStr},
 };
@@ -14,6 +15,8 @@ criterion_group!(
     bench_parse_iri_string,
     bench_parse_oxiri,
     bench_parse_url,
+    bench_build,
+    bench_build_iri_string,
     bench_normalize,
     bench_normalize_iri_string,
     bench_resolve,
@@ -51,6 +54,43 @@ fn bench_parse_oxiri(c: &mut Criterion) {
 fn bench_parse_url(c: &mut Criterion) {
     c.bench_function("parse_url", |b| {
         b.iter(|| Url::parse(black_box(PARSE_CASE)))
+    });
+}
+
+fn bench_build(c: &mut Criterion) {
+    c.bench_function("build", |b| {
+        b.iter(|| {
+            Uri::builder()
+                .scheme(Scheme::new("foo"))
+                .authority(|b| {
+                    b.userinfo(EStr::new("user"))
+                        .host(EStr::new("example.com"))
+                        .port(8042)
+                })
+                .path(EStr::new("/over/there"))
+                .query(EStr::new("name=ferret"))
+                .fragment(EStr::new("nose"))
+                .build()
+        })
+    });
+}
+
+fn bench_build_iri_string(c: &mut Criterion) {
+    c.bench_function("build_iri_string", |b| {
+        b.iter(|| {
+            let mut builder = Builder::new();
+            builder.scheme("foo");
+            builder.userinfo("user");
+            builder.host("example.com");
+            builder.port(8042u16);
+            builder.path("/over/there");
+            builder.query("name=ferret");
+            builder.fragment("nose");
+            builder
+                .build::<UriReferenceStr>()
+                .unwrap()
+                .to_dedicated_string()
+        })
     });
 }
 
