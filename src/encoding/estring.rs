@@ -1,4 +1,4 @@
-use super::{encoder::Encoder, Assert, EStr};
+use super::{Assert, EStr, Encoder};
 use alloc::{borrow::ToOwned, string::String};
 use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref};
 
@@ -18,9 +18,8 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 /// ```
 /// use fluent_uri::{
 ///     encoding::{
-///         encoder::{Data, Encoder, Query},
-///         table::Table,
-///         EStr, EString,
+///         encoder::{Data, Query},
+///         EStr, EString, Encoder, Table,
 ///     },
 ///     Uri,
 /// };
@@ -58,11 +57,7 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 /// by using a custom encoder:
 ///
 /// ```
-/// use fluent_uri::encoding::{
-///     encoder::{Encoder, Path},
-///     table::Table,
-///     EString,
-/// };
+/// use fluent_uri::encoding::{encoder::Path, EString, Encoder, Table};
 ///
 /// struct PathSegment;
 ///
@@ -122,7 +117,7 @@ impl<E: Encoder> EString<E> {
     /// Panics at compile time if `SubE` is not a [sub-encoder](Encoder#sub-encoders) of `E`,
     /// or if `SubE::TABLE` does not [allow percent-encoding].
     ///
-    /// [allow percent-encoding]: super::table::Table::allows_enc
+    /// [allow percent-encoding]: super::Table::allows_enc
     pub fn encode<SubE: Encoder>(&mut self, s: &(impl AsRef<[u8]> + ?Sized)) {
         let _ = Assert::<SubE, E>::LEFT_IS_SUB_ENCODER_OF_RIGHT;
         let _ = EStr::<SubE>::ASSERT_ALLOWS_ENC;
@@ -138,7 +133,7 @@ impl<E: Encoder> EString<E> {
     ///
     /// Panics if `E::TABLE` does not [allow] the byte.
     ///
-    /// [allow]: super::table::Table::allows
+    /// [allow]: super::Table::allows
     pub fn push_byte(&mut self, x: u8) {
         assert!(E::TABLE.allows(x), "table does not allow the byte");
         self.buf.push(x as char);

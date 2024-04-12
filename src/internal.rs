@@ -13,7 +13,7 @@ impl Val for &str {}
 impl Val for String {}
 
 pub trait ToUri {
-    type Val;
+    type Val: Val;
     type Err;
 
     fn to_uri(self) -> Result<Uri<Self::Val>, Self::Err>;

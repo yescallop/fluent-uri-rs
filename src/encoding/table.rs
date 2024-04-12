@@ -5,6 +5,7 @@
 //!
 //! [RFC 5234]: https://datatracker.ietf.org/doc/html/rfc5234/
 
+use super::Table;
 use alloc::string::String;
 
 const fn gen_hex_table() -> [u8; 512] {
@@ -21,13 +22,6 @@ const fn gen_hex_table() -> [u8; 512] {
 }
 
 const HEX_TABLE: &[u8; 512] = &gen_hex_table();
-
-/// A table determining the byte patterns allowed in a string.
-#[derive(Clone, Copy, Debug)]
-pub struct Table {
-    arr: [u8; 256],
-    allows_enc: bool,
-}
 
 impl Table {
     /// Generates a table that only allows the given unencoded bytes.

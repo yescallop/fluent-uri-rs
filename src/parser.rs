@@ -1,5 +1,5 @@
 use crate::{
-    encoding::{table::*, OCTET_TABLE_LO},
+    encoding::{table::*, Table, OCTET_TABLE_LO},
     internal::{AuthMeta, HostMeta, Meta},
 };
 use core::{

@@ -2,22 +2,7 @@
 
 //! Percent-encoders for URI components.
 
-use super::table::*;
-
-/// A trait used by [`EStr`] and [`EString`] to specify the table used for encoding.
-///
-/// [`EStr`]: super::EStr
-/// [`EString`]: super::EString
-///
-/// # Sub-encoders
-///
-/// A sub-encoder `SubE` of `E` is an encoder such that `SubE::TABLE` is a [subset] of `E::TABLE`.
-///
-/// [subset]: Table::is_subset
-pub trait Encoder: 'static {
-    /// The table used for encoding.
-    const TABLE: &'static Table;
-}
+use super::{table::*, Encoder, Table};
 
 /// An encoder for userinfo.
 pub struct Userinfo(());

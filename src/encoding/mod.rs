@@ -3,7 +3,7 @@
 pub mod encoder;
 mod estring;
 mod imp;
-pub mod table;
+pub(crate) mod table;
 
 pub use estring::EString;
 
@@ -15,8 +15,30 @@ use alloc::{
     vec::Vec,
 };
 use core::{cmp::Ordering, hash, iter::FusedIterator, marker::PhantomData, str};
-use encoder::{Encoder, Path};
+use encoder::Path;
 use ref_cast::{ref_cast_custom, RefCastCustom};
+
+/// A table determining the byte patterns allowed in a string.
+#[derive(Clone, Copy, Debug)]
+pub struct Table {
+    arr: [u8; 256],
+    allows_enc: bool,
+}
+
+/// A trait used by [`EStr`] and [`EString`] to specify the table used for encoding.
+///
+/// [`EStr`]: EStr
+/// [`EString`]: EString
+///
+/// # Sub-encoders
+///
+/// A sub-encoder `SubE` of `E` is an encoder such that `SubE::TABLE` is a [subset] of `E::TABLE`.
+///
+/// [subset]: Table::is_subset
+pub trait Encoder: 'static {
+    /// The table used for encoding.
+    const TABLE: &'static Table;
+}
 
 /// Percent-encoded string slices.
 ///
@@ -132,7 +154,7 @@ impl<E: Encoder> EStr<E> {
     ///
     /// Panics at compile time if `E::TABLE` does not [allow percent-encoding].
     ///
-    /// [allow percent-encoding]: table::Table::allows_enc
+    /// [allow percent-encoding]: Table::allows_enc
     ///
     /// # Examples
     ///

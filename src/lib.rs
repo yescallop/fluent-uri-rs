@@ -49,6 +49,7 @@ use core::net;
 
 use alloc::{borrow::ToOwned, string::String};
 use borrow_or_share::{BorrowOrShare, Bos};
+use builder::BuilderStart;
 use component::{Authority, Scheme};
 use core::{
     borrow::Borrow,
@@ -57,8 +58,8 @@ use core::{
     str::{self, FromStr},
 };
 use encoding::{
-    encoder::{Encoder, Fragment, Path, Query},
-    EStr,
+    encoder::{Fragment, Path, Query},
+    EStr, Encoder,
 };
 use error::{ParseError, ResolveError};
 use internal::{Meta, ToUri, Val};
@@ -151,7 +152,7 @@ impl<T> Uri<T> {
 impl Uri<String> {
     /// Creates a new builder for URI reference.
     #[inline]
-    pub fn builder() -> Builder {
+    pub fn builder() -> BuilderStart {
         Builder::new()
     }
 

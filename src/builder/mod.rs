@@ -80,7 +80,7 @@ use state::*;
 /// [`query`]: Self::query
 /// [`fragment`]: Self::fragment
 /// [`build`]: Self::build
-pub struct Builder<S = UriStart> {
+pub struct Builder<S> {
     inner: BuilderInner,
     state: PhantomData<S>,
 }
@@ -178,7 +178,9 @@ impl BuilderInner {
     }
 }
 
-impl Builder {
+pub(crate) type BuilderStart = Builder<Start>;
+
+impl Builder<Start> {
     #[inline]
     pub(crate) fn new() -> Self {
         Self {
@@ -411,7 +413,7 @@ impl<S: To<FragmentEnd>> Builder<S> {
     }
 }
 
-impl<S: To<UriEnd>> Builder<S> {
+impl<S: To<End>> Builder<S> {
     /// Builds the URI reference.
     ///
     /// # Panics

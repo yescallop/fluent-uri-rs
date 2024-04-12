@@ -1,6 +1,6 @@
 use crate::{
     component::{Authority, Scheme},
-    encoding::{encoder::Encoder, EStr, EString},
+    encoding::{EStr, EString, Encoder},
     error::{ParseError, ParseErrorKind, ResolveError, ResolveErrorKind},
     Uri,
 };
