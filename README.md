@@ -10,6 +10,7 @@ A fast, easy generic URI parser and builder compliant with [RFC 3986].
 - **Fast:** Zero-copy parsing. Faster than several common URI parsers in Rust[^bench-res].
 - **Easy:** Carefully designed and documented APIs. Handy percent-encoding utilities.
 - **Strict:** Parses every possible URI defined in RFC 3986 and denies anything else.
+- **Correct:** Forbids unsafe code. Extensively fuzz-tested against other implementations.
 
 [Documentation](https://docs.rs/fluent-uri) | [Discussions](https://github.com/yescallop/fluent-uri-rs/discussions)
 
@@ -70,7 +71,7 @@ A fast, easy generic URI parser and builder compliant with [RFC 3986].
     assert_eq!(Uri::parse("?baz")?.resolve(&base)?, "http://example.com/foo/bar?baz");
     ```
 
-    You can normalize a URI reference.
+    You can normalize a URI reference:
 
     ```rust
     let uri = Uri::parse("eXAMPLE://a/./b/../b/%63/%7bfoo%7d")?;

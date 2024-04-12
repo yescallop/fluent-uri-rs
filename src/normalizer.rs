@@ -131,7 +131,7 @@ fn normalize_estr(buf: &mut String, s: &str, to_lowercase: bool) {
     }
 }
 
-// Taken from `std`.
+// Taken from `impl Display for Ipv6Addr`.
 #[cfg(not(feature = "net"))]
 fn write_v6(buf: &mut String, segments: [u16; 8]) {
     if let [0, 0, 0, 0, 0, 0xffff, ab, cd] = segments {

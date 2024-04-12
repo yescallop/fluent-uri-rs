@@ -314,9 +314,9 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// [Section 5 of RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986/#section-5)
     /// with only two exceptions:
     ///
-    /// - If `base` contains no authority component and its path is [rootless], then
-    ///   `self` **must** either contain a scheme component, be empty, or start with `'#'`.
-    /// - When the target URI contains no authority component and its path would start
+    /// - If `base` contains no authority and its path is [rootless], then
+    ///   `self` **must** either contain a scheme, be empty, or start with `'#'`.
+    /// - When the target URI contains no authority and its path would start
     ///   with `"//"`, the string `"/."` is prepended to the path. This is required for
     ///   closing a loophole in the original algorithm so that resolving `.//@@` against
     ///   `foo:/` does not yield `foo://@@` which is not a valid URI.
@@ -357,9 +357,19 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// Normalizes the URI reference.
     ///
     /// This method applies the syntax-based normalization described in
-    /// [Section 6.2.2 of RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986/#section-6.2.2).
+    /// [Section 6.2.2 of RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986/#section-6.2.2),
+    /// which is effectively equivalent to taking the following steps in order:
     ///
-    /// TODO: Expand the doc.
+    /// - Decode any percent-encoded octet that corresponds to an unreserved character.
+    /// - Uppercase the hexadecimal digits within all percent-encoded octets.
+    /// - Lowercase the scheme and the host except the percent-encoded octets.
+    /// - Turn any IPv6 literal address into its canonical form.
+    /// - If the port is empty, remove its `':'` delimiter.
+    /// - If the URI reference contains a scheme and an absolute path,
+    ///   apply the `remove_dot_segments` algorithm to the path, as described in
+    ///   [Section 5.2.4 of RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986/#section-5.2.4).
+    /// - If the URI reference contains no authority and its path would start with
+    ///   `"//"`, prepend `"/."` to the path.
     ///
     /// # Examples
     ///
@@ -368,7 +378,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     ///
     /// let uri = Uri::parse("eXAMPLE://a/./b/../b/%63/%7bfoo%7d")?;
     /// assert_eq!(uri.normalize(), "example://a/b/c/%7Bfoo%7D");
-    /// # Ok::<_, Box<fluent_uri::error::ParseError>>(())
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     pub fn normalize(&self) -> Uri<String> {
         normalizer::normalize(self.into())

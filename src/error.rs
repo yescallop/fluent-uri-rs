@@ -17,7 +17,7 @@ pub(crate) enum ParseErrorKind {
     ///
     /// The error index points to the first byte of the address.
     InvalidIpv6Addr,
-    /// The input length is greater than [`u32::MAX`].
+    /// Input length greater than [`u32::MAX`].
     ///
     /// The error index equals `0`.
     OverlongInput,
