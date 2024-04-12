@@ -188,6 +188,13 @@ impl<T: Bos<str>> Uri<T> {
     fn len(&self) -> u32 {
         self.as_str().len() as _
     }
+
+    fn as_ref(&self) -> Uri<&str> {
+        Uri {
+            val: self.as_str(),
+            meta: self.meta,
+        }
+    }
 }
 
 impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
@@ -352,7 +359,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn resolve<U: Bos<str>>(&self, base: &Uri<U>) -> Result<Uri<String>, ResolveError> {
-        resolver::resolve(base.into(), self.into())
+        resolver::resolve(base.as_ref(), self.as_ref())
     }
 
     /// Normalizes the URI reference.
@@ -382,7 +389,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     pub fn normalize(&self) -> Uri<String> {
-        normalizer::normalize(self.into())
+        normalizer::normalize(self.as_ref())
     }
 }
 
@@ -462,16 +469,6 @@ impl From<Uri<&str>> for Uri<String> {
     #[inline]
     fn from(uri: Uri<&str>) -> Self {
         uri.to_owned()
-    }
-}
-
-impl<'a, T: Bos<str>> From<&'a Uri<T>> for Uri<&'a str> {
-    #[inline]
-    fn from(uri: &'a Uri<T>) -> Self {
-        Uri {
-            val: uri.as_str(),
-            meta: uri.meta,
-        }
     }
 }
 
