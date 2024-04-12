@@ -7,10 +7,11 @@ use alloc::string::String;
 use core::{fmt::Write, num::NonZeroU32};
 
 pub(crate) fn normalize(u: Uri<&str>) -> Uri<String> {
-    let mut buf = String::new();
+    let mut buf = String::with_capacity(u.as_str().len());
 
     let path = u.path().as_str();
-    let mut path_buf = String::new();
+    let mut path_buf = String::with_capacity(path.len());
+
     if u.scheme_end.is_some() && path.starts_with('/') {
         normalize_estr(&mut buf, path, false);
         resolver::remove_dot_segments(&mut path_buf, &buf);

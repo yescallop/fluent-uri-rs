@@ -31,6 +31,7 @@ pub(crate) fn resolve(
         t_scheme = r_scheme;
         t_authority = r_authority;
         t_path = if r_path.is_absolute() {
+            buf.reserve_exact(r_path.len());
             remove_dot_segments(&mut buf, r_path.as_str())
         } else {
             r_path.as_str()
@@ -39,6 +40,7 @@ pub(crate) fn resolve(
     } else {
         if r_authority.is_some() {
             t_authority = r_authority;
+            buf.reserve_exact(r_path.len());
             t_path = remove_dot_segments(&mut buf, r_path.as_str());
             t_query = r_query;
         } else {
@@ -51,14 +53,17 @@ pub(crate) fn resolve(
                 }
             } else {
                 if r_path.is_absolute() {
+                    buf.reserve_exact(r_path.len());
                     t_path = remove_dot_segments(&mut buf, r_path.as_str());
                 } else {
                     // Instead of merging the paths, remove dot segments incrementally.
                     let base_path = base.path().as_str();
                     if base_path.is_empty() {
+                        buf.reserve_exact(r_path.len() + 1);
                         buf.push('/');
                     } else {
                         let last_slash_i = base_path.rfind('/').unwrap();
+                        buf.reserve_exact(last_slash_i + r_path.len() + 1);
                         remove_dot_segments(&mut buf, &base_path[..=last_slash_i]);
                     }
                     t_path = remove_dot_segments(&mut buf, r_path.as_str());
@@ -71,7 +76,27 @@ pub(crate) fn resolve(
     }
     t_fragment = r_fragment;
 
-    let mut buf = String::new();
+    // Calculate the output length.
+    let mut len = t_scheme.as_str().len() + 1;
+    if let Some(authority) = t_authority {
+        len += authority.as_str().len() + 2;
+    }
+    if t_authority.is_none() && t_path.starts_with("//") {
+        len += 2;
+    }
+    len += t_path.len();
+    if let Some(query) = t_query {
+        len += query.len() + 1;
+    }
+    if let Some(fragment) = t_fragment {
+        len += fragment.len() + 1;
+    }
+
+    if len > u32::MAX as usize {
+        return Err(ResolveError(ResolveErrorKind::OverlongOutput));
+    }
+
+    let mut buf = String::with_capacity(len);
     let mut meta = Meta::default();
 
     buf.push_str(t_scheme.as_str());
@@ -115,11 +140,9 @@ pub(crate) fn resolve(
         buf.push_str(fragment.as_str());
     }
 
-    if buf.len() <= u32::MAX as usize {
-        Ok(Uri { val: buf, meta })
-    } else {
-        Err(ResolveError(ResolveErrorKind::OverlongOutput))
-    }
+    debug_assert_eq!(buf.len(), len);
+
+    Ok(Uri { val: buf, meta })
 }
 
 /// Removes dot segments from an absolute path.
