@@ -319,18 +319,25 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// The base URI **must** be an [absolute URI] in the first place.
     ///
     /// This method applies the reference resolution algorithm defined in
-    /// [Section 5 of RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986/#section-5)
-    /// with only two exceptions:
+    /// [Section 5 of RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986/#section-5),
+    /// except for the following deviations:
     ///
     /// - If `base` contains no authority and its path is [rootless], then
     ///   `self` **must** either contain a scheme, be empty, or start with `'#'`.
     /// - When the target URI contains no authority and its path would start
-    ///   with `"//"`, the string `"/."` is prepended to the path. This is required for
-    ///   closing a loophole in the original algorithm so that resolving `.//@@` against
-    ///   `foo:/` does not yield `foo://@@` which is not a valid URI.
+    ///   with `"//"`, the string `"/."` is prepended to the path. This closes a
+    ///   loophole in the original algorithm that resolving `".//@@"` against
+    ///   `"foo:/"` yields `"foo://@@"` which is not a valid URI.
+    /// - Percent-encoded dot segments (e.g. `"%2E"` and `".%2e"`) are also removed.
+    ///   This closes a loophole in the original algorithm that resolving `".."`
+    ///   against `"foo:/bar/.%2E/"` yields `"foo:/bar/"`, while first
+    ///   normalizing the base URI and then resolving `".."` against it yields `"foo:/"`.
+    /// - A slash (`'/'`) is appended to the base URI when it ends with a double-dot
+    ///   segment. This closes a loophole in the original algorithm that resolving
+    ///   `"."` against `"foo:/bar/.."` yields `"foo:/bar/"`, while first
+    ///   normalizing the base URI and then resolving `"."` against it yields `"foo:/"`.
     ///
-    /// No normalization except the removal of *unencoded* dot segments
-    /// (`"."` and `".."`, but not their percent-encoded equivalents) will be performed.
+    /// No normalization except the removal of dot segments will be performed.
     /// Use [`normalize`] if need be.
     ///
     /// [absolute URI]: Self::is_absolute_uri
@@ -352,10 +359,6 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// assert_eq!(Uri::parse("baz")?.resolve(&base)?, "http://example.com/foo/baz");
     /// assert_eq!(Uri::parse("../baz")?.resolve(&base)?, "http://example.com/baz");
     /// assert_eq!(Uri::parse("?baz")?.resolve(&base)?, "http://example.com/foo/bar?baz");
-    ///
-    /// // The loophole in the original algorithm is closed.
-    /// let base = Uri::parse("foo:/")?;
-    /// assert_eq!(Uri::parse(".//@@")?.resolve(&base)?, "foo:/.//@@");
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn resolve<U: Bos<str>>(&self, base: &Uri<U>) -> Result<Uri<String>, ResolveError> {
@@ -374,10 +377,13 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// - Turn any IPv6 literal address into its canonical form.
     /// - If the port is empty, remove its `':'` delimiter.
     /// - If the URI reference contains a scheme and an absolute path,
-    ///   apply the `remove_dot_segments` algorithm to the path, as described in
-    ///   [Section 5.2.4 of RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986/#section-5.2.4).
+    ///   apply the [`remove_dot_segments`] algorithm to the path, taking account of
+    ///   percent-encoded dot segments as described at [`resolve`].
     /// - If the URI reference contains no authority and its path would start with
     ///   `"//"`, prepend `"/."` to the path.
+    ///
+    /// [`remove_dot_segments`]: https://datatracker.ietf.org/doc/html/rfc3986/#section-5.2.4
+    /// [`resolve`]: Self::resolve
     ///
     /// # Examples
     ///

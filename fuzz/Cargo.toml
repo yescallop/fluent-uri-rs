@@ -17,7 +17,8 @@ uriparse = { git = "https://github.com/sgodwincs/uriparse-rs" }
 uriparser-sys = { path = "uriparser-sys" }
 
 [dependencies.fluent-uri]
-path = ".."
+git = "https://github.com/yescallop/fluent-uri-rs"
+rev = "1b4c04c55b48131de24c1cbfb398a679ede078f5"
 
 # Prevent this from interfering with workspaces
 [workspace]

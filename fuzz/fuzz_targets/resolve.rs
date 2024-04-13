@@ -28,4 +28,9 @@ fuzz_target!(|data: (&str, &str)| {
     assert_eq!(u1.path(), u2.path());
     assert_eq!(u1.query(), u2.query());
     assert_eq!(u1.fragment(), u2.fragment());
+
+    // Swapping the order of resolution and normalization does not change the result.
+    let resolve_then_normalize = u1.normalize();
+    let normalize_then_resolve = r.normalize().resolve(&base.normalize()).unwrap();
+    assert_eq!(resolve_then_normalize, normalize_then_resolve);
 });

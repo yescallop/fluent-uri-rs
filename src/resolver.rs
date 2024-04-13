@@ -62,9 +62,17 @@ pub(crate) fn resolve(
                         buf.reserve_exact(r_path.len() + 1);
                         buf.push('/');
                     } else {
+                        // Make sure that swapping the order of resolution and normalization
+                        // does not change the result.
                         let last_slash_i = base_path.rfind('/').unwrap();
-                        buf.reserve_exact(last_slash_i + r_path.len() + 1);
-                        remove_dot_segments(&mut buf, &base_path[..=last_slash_i]);
+                        let last_seg = &base_path[last_slash_i + 1..];
+                        let base_path_stripped = match classify_segment(last_seg) {
+                            SegKind::DoubleDot => base_path,
+                            _ => &base_path[..=last_slash_i],
+                        };
+
+                        buf.reserve_exact(base_path_stripped.len() + r_path.len());
+                        remove_dot_segments(&mut buf, base_path_stripped);
                     }
                     t_path = remove_dot_segments(&mut buf, r_path.as_str());
                 }
@@ -148,7 +156,8 @@ pub(crate) fn resolve(
 /// Removes dot segments from an absolute path.
 pub(crate) fn remove_dot_segments<'a>(buf: &'a mut String, path: &str) -> &'a str {
     for seg in path.split_inclusive('/') {
-        match classify_segment(seg) {
+        let seg_stripped = seg.strip_suffix('/').unwrap_or(seg);
+        match classify_segment(seg_stripped) {
             SegKind::Dot => buf.truncate(buf.rfind('/').unwrap() + 1),
             SegKind::DoubleDot => {
                 if buf.len() != 1 {
@@ -169,9 +178,6 @@ enum SegKind {
 }
 
 fn classify_segment(mut seg: &str) -> SegKind {
-    if let Some(rem) = seg.strip_suffix('/') {
-        seg = rem;
-    }
     if seg.is_empty() {
         return SegKind::Normal;
     }
