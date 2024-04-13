@@ -11,11 +11,11 @@ fuzz_target!(|data: (&str, &str)| {
         return;
     };
 
-    if r.path().is_rootless() {
+    let Ok(u1) = r.resolve(&base) else { return };
+
+    if r.scheme().is_some() && r.authority().is_none() && r.path().is_rootless() {
         return;
     }
-
-    let Ok(u1) = r.resolve(&base) else { return };
 
     // if u1.path() == "/.//" {
     //     return;
