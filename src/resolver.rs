@@ -148,16 +148,45 @@ pub(crate) fn resolve(
 /// Removes dot segments from an absolute path.
 pub(crate) fn remove_dot_segments<'a>(buf: &'a mut String, path: &str) -> &'a str {
     for seg in path.split_inclusive('/') {
-        if seg == "." || seg == "./" {
-            buf.truncate(buf.rfind('/').unwrap() + 1);
-        } else if seg == ".." || seg == "../" {
-            if buf.len() != 1 {
-                buf.truncate(buf.rfind('/').unwrap());
-                buf.truncate(buf.rfind('/').unwrap() + 1);
+        match classify_segment(seg) {
+            SegKind::Dot => buf.truncate(buf.rfind('/').unwrap() + 1),
+            SegKind::DoubleDot => {
+                if buf.len() != 1 {
+                    buf.truncate(buf.rfind('/').unwrap());
+                    buf.truncate(buf.rfind('/').unwrap() + 1);
+                }
             }
-        } else {
-            buf.push_str(seg);
+            SegKind::Normal => buf.push_str(seg),
         }
     }
     buf
+}
+
+enum SegKind {
+    Dot,
+    DoubleDot,
+    Normal,
+}
+
+fn classify_segment(mut seg: &str) -> SegKind {
+    if let Some(rem) = seg.strip_suffix('/') {
+        seg = rem;
+    }
+    if seg.is_empty() {
+        return SegKind::Normal;
+    }
+    if let Some(rem) = seg.strip_prefix('.') {
+        seg = rem;
+    } else if let Some(rem) = seg.strip_prefix("%2E") {
+        seg = rem;
+    } else if let Some(rem) = seg.strip_prefix("%2e") {
+        seg = rem;
+    }
+    if seg.is_empty() {
+        SegKind::Dot
+    } else if seg == "." || seg == "%2E" || seg == "%2e" {
+        SegKind::DoubleDot
+    } else {
+        SegKind::Normal
+    }
 }
