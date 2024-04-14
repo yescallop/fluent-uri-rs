@@ -17,10 +17,6 @@ fuzz_target!(|data: (&str, &str)| {
         return;
     }
 
-    // if u1.path() == "/.//" {
-    //     return;
-    // }
-
     let base = UriAbsoluteStr::new(data.0).unwrap();
     let r = UriReferenceStr::new(data.1).unwrap();
 
