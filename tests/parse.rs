@@ -277,16 +277,15 @@ fn parse_error() {
     assert_eq!(e.to_string(), "invalid percent-encoded octet at index 0");
 
     // Non-decimal port
-    // In this case the port is validated in reverse.
     let e = Uri::parse("http://example.com:80ab").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 22");
+    assert_eq!(e.to_string(), "unexpected character at index 21");
 
     let e = Uri::parse("http://user@example.com:80ab").unwrap_err();
     assert_eq!(e.to_string(), "unexpected character at index 26");
 
     // Multiple colons in authority
     let e = Uri::parse("http://user:pass:example.com/").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 11");
+    assert_eq!(e.to_string(), "unexpected character at index 16");
 
     // Unclosed bracket
     let e = Uri::parse("https://[::1/").unwrap_err();

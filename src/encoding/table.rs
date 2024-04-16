@@ -96,16 +96,6 @@ impl Table {
         !self.allows_enc || other.allows_enc
     }
 
-    /// Shifts the table values left.
-    pub(crate) const fn shl(mut self, n: u8) -> Table {
-        let mut i = 0;
-        while i < 256 {
-            self.arr[i] <<= n;
-            i += 1;
-        }
-        self
-    }
-
     /// Returns the specified table value.
     #[inline]
     pub(crate) const fn get(&self, x: u8) -> u8 {

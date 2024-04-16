@@ -124,7 +124,7 @@ impl<'a> Reader<'a> {
     fn read(&mut self, table: &Table) -> Result<bool> {
         let start = self.pos;
         if table.allows_enc() {
-            self.read_enc(table, |_| {})?;
+            self.read_enc(table, |_, _| {})?;
         } else {
             let mut i = self.pos;
             while i < self.len() {
@@ -140,7 +140,7 @@ impl<'a> Reader<'a> {
         Ok(self.pos > start)
     }
 
-    fn read_enc(&mut self, table: &Table, mut f: impl FnMut(u8)) -> Result<()> {
+    fn read_enc(&mut self, table: &Table, mut f: impl FnMut(usize, u8)) -> Result<()> {
         let mut i = self.pos;
 
         while i < self.len() {
@@ -159,11 +159,10 @@ impl<'a> Reader<'a> {
                 // INVARIANT: Since `i + 2 < len`, it holds that `i + 3 <= len`.
                 i += 3;
             } else {
-                let v = table.get(x);
-                if v == 0 {
+                if !table.allows(x) {
                     break;
                 }
-                f(v);
+                f(i, x);
                 // INVARIANT: Since `i < len`, it holds that `i + 1 <= len`.
                 i += 1;
             }
@@ -447,17 +446,16 @@ impl<'a> Parser<'a> {
         let host;
         let start = self.pos;
 
-        // This table contains userinfo, reg-name, ":", and port
-        // and is equivalent to `USERINFO`.
-        const TABLE: &Table = &USERINFO.shl(1).or(&Table::gen(b":"));
-
-        // The number of colons read.
         let mut colon_cnt = 0;
+        let mut colon_i = 0;
 
         let auth_start = self.pos;
 
-        self.read_enc(TABLE, |v| {
-            colon_cnt += (v & 1) as u32;
+        self.read_enc(USERINFO, |i, x| {
+            if x == b':' {
+                colon_cnt += 1;
+                colon_i = i;
+            }
         })?;
 
         if self.peek(0) == Some(b'@') {
@@ -486,58 +484,19 @@ impl<'a> Parser<'a> {
                 0 => self.pos,
                 // Host and port.
                 1 => {
-                    let mut i = self.pos - 1;
-                    loop {
-                        // There must be a colon in the way.
-                        let x = self.get(i);
-                        if !x.is_ascii_digit() {
-                            if x == b':' {
-                                break;
-                            } else {
-                                err!(i, UnexpectedChar);
-                            }
+                    for i in colon_i + 1..self.pos {
+                        if !self.get(i).is_ascii_digit() {
+                            err!(i, UnexpectedChar);
                         }
-                        i -= 1;
                     }
-                    i
+                    colon_i
                 }
                 // Multiple colons.
-                _ => {
-                    let mut i = auth_start;
-                    loop {
-                        // There must be a colon in the way.
-                        let x = self.get(i);
-                        if x == b':' {
-                            err!(i, UnexpectedChar)
-                        }
-                        i += 1;
-                    }
-                }
+                _ => err!(colon_i, UnexpectedChar),
             };
 
-            // Save the state.
-            let state = (self.bytes, self.pos);
-
-            // The entire host is already read so the index is within bounds.
-            self.bytes = &self.bytes[..host_end];
-            // INVARIANT: It holds that `auth_start <= pos <= len`.
-            // Here `pos` may decrease but will be restored later.
-            self.pos = auth_start;
-
-            let v4 = self.read_v4();
-            let meta = match v4 {
-                Some(_addr) if !self.has_remaining() => HostMeta::Ipv4(
-                    #[cfg(feature = "net")]
-                    _addr.into(),
-                ),
-                _ => HostMeta::RegName,
-            };
-
+            let meta = parse_v4_or_reg_name(&self.bytes[auth_start..host_end]);
             host = (auth_start, host_end, meta);
-
-            // Restore the state.
-            // INVARIANT: Restoring the state would not affect the invariants.
-            (self.bytes, self.pos) = state;
         }
 
         self.out.auth_meta = Some(AuthMeta {
