@@ -20,7 +20,7 @@ pub(crate) enum ParseErrorKind {
     /// Input length greater than [`u32::MAX`].
     ///
     /// The error index equals `0`.
-    OverlongInput,
+    OverlargeInput,
 }
 
 /// An error occurred when parsing URI references.
@@ -62,12 +62,28 @@ impl<I: ToUri> ParseError<I> {
 #[cfg(feature = "std")]
 impl<I> std::error::Error for ParseError<I> {}
 
+/// Detailed cause of a [`BuildError`].
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum BuildErrorKind {
+    NonAbemptyPath,
+    PathStartingWithDoubleSlash,
+    ColonInFirstPathSegment,
+    OverlargeOutput,
+}
+
+/// An error occurred when building URI references.
+#[derive(Clone, Copy, Debug)]
+pub struct BuildError(pub(crate) BuildErrorKind);
+
+#[cfg(feature = "std")]
+impl std::error::Error for BuildError {}
+
 /// Detailed cause of a [`ResolveError`].
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ResolveErrorKind {
     NonAbsoluteBase,
     NonHierarchicalBase,
-    OverlongOutput,
+    OverlargeOutput,
     // PathUnderflow,
 }
 

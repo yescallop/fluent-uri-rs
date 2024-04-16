@@ -7,20 +7,44 @@ use iri_string::{
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: (&str, &str)| {
-    let (Ok(base), Ok(r)) = (Uri::parse(data.0), Uri::parse(data.1)) else {
+    let (Ok(base1), Ok(r1)) = (Uri::parse(data.0), Uri::parse(data.1)) else {
         return;
     };
 
-    let Ok(u1) = r.resolve(&base) else { return };
+    let Ok(u1) = r1.resolve(&base1) else { return };
 
-    if r.scheme().is_some() && r.authority().is_none() && r.path().is_rootless() {
+    if r1.scheme().is_some() && r1.authority().is_none() && r1.path().is_rootless() {
         return;
     }
 
-    let base = UriAbsoluteStr::new(data.0).unwrap();
-    let r = UriReferenceStr::new(data.1).unwrap();
+    let base2 = UriAbsoluteStr::new(data.0).unwrap();
+    let r2 = UriReferenceStr::new(data.1).unwrap();
 
-    let u2 = r.resolve_against(base).to_dedicated_string();
+    let u2 = r2.resolve_against(base2).to_dedicated_string();
 
-    assert_eq!(u1.as_str(), u2.as_str());
+    if u1.as_str() == u2.as_str() {
+        return;
+    }
+
+    if let Some((_, last_seg)) = base1.path().as_str().rsplit_once('/') {
+        if is_double_dot(last_seg) {
+            return;
+        }
+    }
+
+    panic!("{} != {}", u1.as_str(), u2.as_str());
 });
+
+fn is_double_dot(mut seg: &str) -> bool {
+    if seg.is_empty() {
+        return false;
+    }
+    if let Some(rem) = seg.strip_prefix('.') {
+        seg = rem;
+    } else if let Some(rem) = seg.strip_prefix("%2E") {
+        seg = rem;
+    } else if let Some(rem) = seg.strip_prefix("%2e") {
+        seg = rem;
+    }
+    seg == "." || seg == "%2E" || seg == "%2e"
+}

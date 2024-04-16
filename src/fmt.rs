@@ -1,7 +1,9 @@
 use crate::{
     component::{Authority, Scheme},
     encoding::{EStr, EString, Encoder},
-    error::{ParseError, ParseErrorKind, ResolveError, ResolveErrorKind},
+    error::{
+        BuildError, BuildErrorKind, ParseError, ParseErrorKind, ResolveError, ResolveErrorKind,
+    },
     Uri,
 };
 use borrow_or_share::Bos;
@@ -46,9 +48,27 @@ impl<I> Display for ParseError<I> {
             ParseErrorKind::InvalidOctet => "invalid percent-encoded octet at index ",
             ParseErrorKind::UnexpectedChar => "unexpected character at index ",
             ParseErrorKind::InvalidIpv6Addr => "invalid IPv6 address at index ",
-            ParseErrorKind::OverlongInput => "overlong input at index ",
+            ParseErrorKind::OverlargeInput => return f.write_str("input larger than 4 GiB"),
         };
         write!(f, "{}{}", msg, self.index)
+    }
+}
+
+impl Display for BuildError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        let msg = match self.0 {
+            BuildErrorKind::NonAbemptyPath => {
+                "path must either be empty or start with '/' when authority is present"
+            }
+            BuildErrorKind::PathStartingWithDoubleSlash => {
+                "path cannot start with \"//\" when authority is absent"
+            }
+            BuildErrorKind::ColonInFirstPathSegment => {
+                "first path segment cannot contain ':' in relative-path reference"
+            }
+            BuildErrorKind::OverlargeOutput => "output larger than 4 GiB",
+        };
+        f.write_str(msg)
     }
 }
 
@@ -59,7 +79,7 @@ impl Display for ResolveError {
             ResolveErrorKind::NonHierarchicalBase => {
                 "resolving non-same-document relative reference against non-hierarchical base URI"
             }
-            ResolveErrorKind::OverlongOutput => "overlong output",
+            ResolveErrorKind::OverlargeOutput => "output larger than 4 GiB",
         };
         f.write_str(msg)
     }

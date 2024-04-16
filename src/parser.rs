@@ -23,7 +23,7 @@ macro_rules! err {
 
 pub(crate) fn parse(bytes: &[u8]) -> Result<Meta> {
     if bytes.len() > u32::MAX as usize {
-        err!(0, OverlongInput);
+        err!(0, OverlargeInput);
     }
 
     let mut parser = Parser {

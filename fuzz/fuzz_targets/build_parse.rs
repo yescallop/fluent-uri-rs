@@ -1,7 +1,7 @@
 #![no_main]
 use fluent_uri::{
     component::{Host, Scheme},
-    encoding::{encoder::*, EStr},
+    encoding::{encoder::*, EStr, Encoder},
     Builder, Uri,
 };
 use libfuzzer_sys::{
@@ -95,28 +95,8 @@ struct UriComponents<'a> {
     fragment: Option<EStrWrapper<'a, Fragment>>,
 }
 
-fn first_segment_contains_colon(path: &str) -> bool {
-    path.split_once('/')
-        .map(|x| x.0)
-        .unwrap_or(path)
-        .contains(':')
-}
-
 fuzz_target!(|c: UriComponents<'_>| {
-    if c.authority.is_some() {
-        if !c.path.0.is_empty() && c.path.0.is_rootless() {
-            return;
-        }
-    } else {
-        if c.path.0.as_str().starts_with("//") {
-            return;
-        }
-        if c.scheme.is_none() && first_segment_contains_colon(c.path.0.as_str()) {
-            return;
-        }
-    }
-
-    let u1 = Uri::builder()
+    let Ok(u1) = Uri::builder()
         .optional(Builder::scheme, c.scheme.map(|s| s.0))
         .optional(
             Builder::authority,
@@ -131,7 +111,10 @@ fuzz_target!(|c: UriComponents<'_>| {
         .path(c.path.0)
         .optional(Builder::query, c.query.map(|s| s.0))
         .optional(Builder::fragment, c.fragment.map(|s| s.0))
-        .build();
+        .build()
+    else {
+        return;
+    };
 
     assert_eq!(
         u1.scheme().map(|s| s.as_str()),

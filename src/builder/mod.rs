@@ -8,6 +8,7 @@ use crate::{
         encoder::{Fragment, Path, Query, Userinfo},
         EStr,
     },
+    error::{BuildError, BuildErrorKind},
     internal::{AuthMeta, Meta},
     parser, Uri,
 };
@@ -36,7 +37,8 @@ use state::*;
 ///     .path(EStr::new("/over/there"))
 ///     .query(EStr::new("name=ferret"))
 ///     .fragment(EStr::new("nose"))
-///     .build();
+///     .build()
+///     .unwrap();
 ///
 /// assert_eq!(
 ///     uri.as_str(),
@@ -136,6 +138,12 @@ impl BuilderInner {
     }
 
     fn push_path(&mut self, v: &str) {
+        self.meta.path_bounds.0 = self.buf.len() as _;
+        self.buf.push_str(v);
+        self.meta.path_bounds.1 = self.buf.len() as _;
+    }
+
+    fn validate_path(&self) -> Result<(), BuildError> {
         fn first_segment_contains_colon(path: &str) -> bool {
             path.split_once('/')
                 .map(|x| x.0)
@@ -143,27 +151,22 @@ impl BuilderInner {
                 .contains(':')
         }
 
+        let (start, end) = self.meta.path_bounds;
+        let path = &self.buf[start as usize..end as usize];
+
         if self.meta.auth_meta.is_some() {
-            assert!(
-                v.is_empty() || v.starts_with('/'),
-                "path must either be empty or start with '/' when authority is present"
-            );
+            if !path.is_empty() && !path.starts_with('/') {
+                return Err(BuildError(BuildErrorKind::NonAbemptyPath));
+            }
         } else {
-            assert!(
-                !v.starts_with("//"),
-                "path cannot start with \"//\" when authority is absent"
-            );
-            if self.meta.scheme_end.is_none() {
-                assert!(
-                    !first_segment_contains_colon(v),
-                    "first path segment cannot contain ':' in relative-path reference"
-                );
+            if path.starts_with("//") {
+                return Err(BuildError(BuildErrorKind::PathStartingWithDoubleSlash));
+            }
+            if self.meta.scheme_end.is_none() && first_segment_contains_colon(path) {
+                return Err(BuildError(BuildErrorKind::ColonInFirstPathSegment));
             }
         }
-
-        self.meta.path_bounds.0 = self.buf.len() as _;
-        self.buf.push_str(v);
-        self.meta.path_bounds.1 = self.buf.len() as _;
+        Ok(())
     }
 
     fn push_query(&mut self, v: &str) {
@@ -219,7 +222,7 @@ impl<S> Builder<S> {
     ///         b.scheme(Scheme::new("http"))
     ///             .authority(|b| b.host(EStr::new("example.com")))
     ///     };
-    ///     b.path(EStr::new("/foo")).build()
+    ///     b.path(EStr::new("/foo")).build().unwrap()
     /// }
     ///
     /// assert_eq!(build(false).as_str(), "http://example.com/foo");
@@ -242,7 +245,8 @@ impl<S> Builder<S> {
     ///     .path(EStr::new("foo"))
     ///     .optional(Builder::query, Some(EStr::new("bar")))
     ///     .optional(Builder::fragment, None)
-    ///     .build();
+    ///     .build()
+    ///     .unwrap();
     ///
     /// assert_eq!(uri.as_str(), "foo?bar");
     /// ```
@@ -321,7 +325,8 @@ impl<S: To<HostEnd>> Builder<S> {
     /// let uri = Uri::builder()
     ///     .authority(|b| b.host(EStr::new("127.0.0.1")))
     ///     .path(EStr::new(""))
-    ///     .build();
+    ///     .build()
+    ///     .unwrap();
     /// assert!(matches!(uri.authority().unwrap().host_parsed(), Host::Ipv4(_)));
     /// ```
     pub fn host<'a>(mut self, host: impl Into<Host<'a>>) -> Builder<HostEnd> {
@@ -376,17 +381,7 @@ impl<S: To<PortEnd>> Builder<S> {
 impl<S: To<PathEnd>> Builder<S> {
     /// Sets the [path] component.
     ///
-    /// # Panics
-    ///
-    /// Panics if any of the following conditions is not met, as required in
-    /// [Section 3.3 of RFC 3986][path].
-    ///
-    /// - When authority is present, the path must either be empty or start with `'/'`.
-    /// - When authority is absent, the path cannot start with `"//"`.
-    /// - In a [relative-path reference][rel-ref], the first path segment cannot contain `':'`.
-    ///
     /// [path]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
-    /// [rel-ref]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.2
     pub fn path(mut self, path: &EStr<Path>) -> Builder<PathEnd> {
         self.inner.push_path(path.as_str());
         self.cast()
@@ -416,17 +411,24 @@ impl<S: To<FragmentEnd>> Builder<S> {
 impl<S: To<End>> Builder<S> {
     /// Builds the URI reference.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the output length would be greater than [`u32::MAX`].
-    pub fn build(self) -> Uri<String> {
-        assert!(
-            self.inner.buf.len() <= u32::MAX as usize,
-            "output length > u32::MAX"
-        );
-        Uri {
+    /// Returns `Err` if any of the following conditions is not met.
+    ///
+    /// - When authority is present, the path must either be empty or start with `'/'`.
+    /// - When authority is not present, the path cannot start with `"//"`.
+    /// - In a [relative-path reference][rel-ref], the first path segment cannot contain `':'`.
+    /// - The output length cannot be greater than [`u32::MAX`].
+    ///
+    /// [rel-ref]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.2
+    pub fn build(self) -> Result<Uri<String>, BuildError> {
+        if self.inner.buf.len() > u32::MAX as usize {
+            return Err(BuildError(BuildErrorKind::OverlargeOutput));
+        }
+        self.inner.validate_path()?;
+        Ok(Uri {
             val: self.inner.buf,
             meta: self.inner.meta,
-        }
+        })
     }
 }

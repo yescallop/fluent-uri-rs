@@ -101,7 +101,7 @@ pub(crate) fn resolve(
     }
 
     if len > u32::MAX as usize {
-        return Err(ResolveError(ResolveErrorKind::OverlongOutput));
+        return Err(ResolveError(ResolveErrorKind::OverlargeOutput));
     }
 
     let mut buf = String::with_capacity(len);
