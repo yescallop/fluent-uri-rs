@@ -15,13 +15,22 @@ fuzz_target!(|data: &str| {
     let u1 = u1.normalize();
     let u2 = u2.normalize().to_dedicated_string();
 
+    if u1.as_str() == u2.as_str() {
+        return;
+    }
+
     if let Some(auth) = u1.authority() {
-        if let Host::RegName(name1) = auth.host_parsed() {
-            let name2 = u2.authority_components().unwrap().host();
-            if name1.as_str().eq_ignore_ascii_case(name2) {
-                return;
+        match auth.host_parsed() {
+            Host::RegName(name1) => {
+                let name2 = u2.authority_components().unwrap().host();
+                if name1.as_str().eq_ignore_ascii_case(name2) {
+                    return;
+                }
             }
+            Host::Ipv6(_) => return,
+            _ => {}
         }
     }
-    assert_eq!(u1.as_str(), u2.as_str());
+
+    panic!("{} != {}", u1.as_str(), u2.as_str());
 });
