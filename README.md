@@ -1,16 +1,15 @@
 # fluent-uri
 
-A fast, easy generic URI parser and builder compliant with [RFC 3986].
+A full-featured URI handling library compliant with [RFC 3986]. It is:
+
+- **Fast:** Zero-copy parsing. Faster than several common URI parsers in Rust[^bench-res].
+- **Easy:** Carefully designed and documented APIs. Handy percent-encoding utilities.
+- **Correct:** Forbids unsafe code. Extensively fuzz-tested against other implementations.
 
 [![crates.io](https://img.shields.io/crates/v/fluent-uri.svg)](https://crates.io/crates/fluent-uri)
 [![build](https://img.shields.io/github/actions/workflow/status/yescallop/fluent-uri-rs/ci.yml
 )](https://github.com/yescallop/fluent-uri-rs/actions/workflows/ci.yml)
 [![license](https://img.shields.io/crates/l/fluent-uri.svg)](/LICENSE)
-
-- **Fast:** Zero-copy parsing. Faster than several common URI parsers in Rust[^bench-res].
-- **Easy:** Carefully designed and documented APIs. Handy percent-encoding utilities.
-- **Strict:** Parses every possible URI defined in RFC 3986 and denies anything else.
-- **Correct:** Forbids unsafe code. Extensively fuzz-tested against other implementations.
 
 [Documentation](https://docs.rs/fluent-uri) | [Discussions](https://github.com/yescallop/fluent-uri-rs/discussions)
 

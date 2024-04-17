@@ -4,7 +4,7 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![no_std]
 
-//! A fast, easy generic URI parser and builder compliant with [RFC 3986].
+//! A full-featured URI handling library compliant with [RFC 3986].
 //!
 //! [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
 //!
