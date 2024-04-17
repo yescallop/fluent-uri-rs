@@ -290,12 +290,8 @@ impl<'a> Reader<'a> {
     }
 
     fn read_v4_or_reg_name(&mut self) -> Result<HostMeta> {
-        let v4 = self.read_v4();
-        let v4_end = self.pos;
-        self.read(REG_NAME)?;
-
-        Ok(match v4 {
-            Some(_addr) if self.pos == v4_end => HostMeta::Ipv4(
+        Ok(match (self.read_v4(), self.read(REG_NAME)?) {
+            (Some(_addr), false) => HostMeta::Ipv4(
                 #[cfg(feature = "net")]
                 _addr.into(),
             ),
