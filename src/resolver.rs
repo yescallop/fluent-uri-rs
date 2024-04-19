@@ -153,7 +153,6 @@ pub(crate) fn resolve(
     Ok(Uri { val: buf, meta })
 }
 
-/// Removes dot segments from an absolute path.
 pub(crate) fn remove_dot_segments<'a>(buf: &'a mut String, path: &str) -> &'a str {
     for seg in path.split_inclusive('/') {
         let seg_stripped = seg.strip_suffix('/').unwrap_or(seg);

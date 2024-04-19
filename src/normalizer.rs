@@ -98,6 +98,8 @@ pub(crate) fn normalize(u: Uri<&str>) -> Uri<String> {
         normalize_estr(&mut buf, fragment.as_str(), false);
     }
 
+    debug_assert!(buf.len() <= u.as_str().len());
+
     // No need to check the length because it cannot grow larger.
     Uri { val: buf, meta }
 }

@@ -29,10 +29,7 @@ pub(crate) fn decode_octet(hi: u8, lo: u8) -> u8 {
 /// Decodes a percent-encoded string, assuming that the string is properly encoded.
 pub(crate) fn decode(s: &[u8]) -> Option<Vec<u8>> {
     // Skip bytes that are not '%'.
-    let mut i = match s.iter().position(|&x| x == b'%') {
-        Some(i) => i,
-        None => return None,
-    };
+    let mut i = s.iter().position(|&x| x == b'%')?;
 
     let mut buf = Vec::with_capacity(s.len());
     buf.extend_from_slice(&s[..i]);

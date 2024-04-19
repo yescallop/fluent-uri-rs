@@ -268,20 +268,19 @@ impl<'a> Reader<'a> {
         let mut i = 1;
 
         while i < 4 {
-            if let Some(b) = self.peek(i) {
-                match OCTET_TABLE_LO[b as usize] {
-                    v if v < 128 => {
-                        x = (x << 4) | v as u16;
-                        i += 1;
-                        continue;
-                    }
-                    _ if b == b'.' => return Some(Seg::MaybeV4(colon)),
-                    _ => break,
-                }
-            } else {
+            let Some(b) = self.peek(i) else {
                 // INVARIANT: Skipping `i` hexadecimal digits is fine.
                 self.skip(i);
                 return None;
+            };
+            match OCTET_TABLE_LO[b as usize] {
+                v if v < 128 => {
+                    x = (x << 4) | v as u16;
+                    i += 1;
+                    continue;
+                }
+                _ if b == b'.' => return Some(Seg::MaybeV4(colon)),
+                _ => break,
             }
         }
         // INVARIANT: Skipping `i` hexadecimal digits is fine.
@@ -382,7 +381,7 @@ impl<'a> Reader<'a> {
     }
 
     fn read_ipv_future(&mut self) -> Result<()> {
-        if matches!(self.peek(0), Some(b'v' | b'V')) {
+        if let Some(b'v' | b'V') = self.peek(0) {
             // INVARIANT: Skipping "v" or "V" is fine.
             self.skip(1);
             if self.read(HEXDIG)? && self.read_str(".") && self.read(IPV_FUTURE)? {
@@ -447,6 +446,7 @@ impl<'a> Parser<'a> {
 
         let auth_start = self.pos;
 
+        // `USERINFO` contains userinfo, reg-name, ':', and port.
         self.read_enc(USERINFO, |i, x| {
             if x == b':' {
                 colon_cnt += 1;

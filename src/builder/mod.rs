@@ -143,7 +143,22 @@ impl BuilderInner {
         self.meta.path_bounds.1 = self.buf.len() as _;
     }
 
-    fn validate_path(&self) -> Result<(), BuildError> {
+    fn push_query(&mut self, v: &str) {
+        self.buf.push('?');
+        self.buf.push_str(v);
+        self.meta.query_end = NonZeroU32::new(self.buf.len() as _);
+    }
+
+    fn push_fragment(&mut self, v: &str) {
+        self.buf.push('#');
+        self.buf.push_str(v);
+    }
+
+    fn validate(&self) -> Result<(), BuildError> {
+        if self.buf.len() > u32::MAX as usize {
+            return Err(BuildError(BuildErrorKind::OverlargeOutput));
+        }
+
         fn first_segment_contains_colon(path: &str) -> bool {
             path.split_once('/')
                 .map(|x| x.0)
@@ -167,17 +182,6 @@ impl BuilderInner {
             }
         }
         Ok(())
-    }
-
-    fn push_query(&mut self, v: &str) {
-        self.buf.push('?');
-        self.buf.push_str(v);
-        self.meta.query_end = NonZeroU32::new(self.buf.len() as _);
-    }
-
-    fn push_fragment(&mut self, v: &str) {
-        self.buf.push('#');
-        self.buf.push_str(v);
     }
 }
 
@@ -422,11 +426,7 @@ impl<S: To<End>> Builder<S> {
     ///
     /// [rel-ref]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.2
     pub fn build(self) -> Result<Uri<String>, BuildError> {
-        if self.inner.buf.len() > u32::MAX as usize {
-            return Err(BuildError(BuildErrorKind::OverlargeOutput));
-        }
-        self.inner.validate_path()?;
-        Ok(Uri {
+        self.inner.validate().map(|_| Uri {
             val: self.inner.buf,
             meta: self.inner.meta,
         })
