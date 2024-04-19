@@ -135,6 +135,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// assert_eq!(authority.as_str(), "user@[fe80::abcd]:6780");
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
+    #[must_use]
     pub fn as_str(&'i self) -> &'o str {
         self.uri.slice(self.start(), self.end())
     }
@@ -153,6 +154,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// assert_eq!(authority.userinfo().unwrap(), "user");
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
+    #[must_use]
     pub fn userinfo(&'i self) -> Option<&'o EStr<Userinfo>> {
         let (start, host_start) = (self.start(), self.host_bounds().0);
         (start != host_start).then(|| self.uri.eslice(start, host_start - 1))
@@ -174,6 +176,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// assert_eq!(authority.host(), "[::1]");
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
+    #[must_use]
     pub fn host(&'i self) -> &'o str {
         let (start, end) = self.host_bounds();
         self.uri.slice(start, end)
@@ -208,6 +211,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     ///
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
+    #[must_use]
     pub fn host_parsed(&'i self) -> Host<'o> {
         match self.meta().host_meta {
             #[cfg(feature = "net")]
@@ -255,6 +259,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// assert_eq!(authority.port(), Some("66666"));
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
+    #[must_use]
     pub fn port(&'i self) -> Option<&'o str> {
         let (host_end, end) = (self.host_bounds().1, self.end());
         (host_end != end).then(|| self.uri.slice(host_end + 1, end))

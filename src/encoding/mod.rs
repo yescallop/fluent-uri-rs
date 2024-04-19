@@ -144,8 +144,9 @@ impl<E: Encoder> EStr<E> {
     ///
     /// Panics at compile time if `E` is not a [sub-encoder](Encoder#sub-encoders) of `SuperE`.
     #[cfg(fluent_uri_unstable)]
+    #[must_use]
     pub fn upcast<SuperE: Encoder>(&self) -> &EStr<SuperE> {
-        let _ = Assert::<E, SuperE>::LEFT_IS_SUB_ENCODER_OF_RIGHT;
+        let () = Assert::<E, SuperE>::LEFT_IS_SUB_ENCODER_OF_RIGHT;
         EStr::new_validated(self.as_str())
     }
 

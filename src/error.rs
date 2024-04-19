@@ -45,11 +45,13 @@ impl<I: ToUri> ParseError<I> {
     /// Recovers the input that was attempted to parse into a [`Uri`].
     ///
     /// [`Uri`]: crate::Uri
+    #[must_use]
     pub fn into_input(self) -> I {
         self.input
     }
 
     /// Returns the error with input erased.
+    #[must_use]
     pub fn plain(&self) -> ParseError {
         ParseError {
             index: self.index,

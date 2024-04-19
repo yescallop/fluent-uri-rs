@@ -216,6 +216,7 @@ impl<T: Bos<str>> Uri<T> {
 
 impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// Returns the URI reference as a string slice.
+    #[must_use]
     pub fn as_str(&'i self) -> &'o str {
         self.val.borrow_or_share()
     }
@@ -233,6 +234,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// Returns the [scheme] component.
     ///
     /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
+    #[must_use]
     pub fn scheme(&'i self) -> Option<&'o Scheme> {
         self.scheme_end
             .map(|i| Scheme::new_validated(self.slice(0, i.get())))
@@ -241,6 +243,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// Returns the [authority] component.
     ///
     /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
+    #[must_use]
     pub fn authority(&self) -> Option<&Authority<T>> {
         if self.auth_meta.is_some() {
             Some(Authority::new(self))
@@ -255,6 +258,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     ///
     /// [path]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
     /// [extension methods]: EStr#impl-EStr<Path>
+    #[must_use]
     pub fn path(&'i self) -> &'o EStr<Path> {
         self.eslice(self.path_bounds.0, self.path_bounds.1)
     }
@@ -262,6 +266,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// Returns the [query] component.
     ///
     /// [query]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.4
+    #[must_use]
     pub fn query(&'i self) -> Option<&'o EStr<Query>> {
         self.query_end
             .map(|i| self.eslice(self.path_bounds.1 + 1, i.get()))
@@ -275,6 +280,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// Returns the [fragment] component.
     ///
     /// [fragment]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.5
+    #[must_use]
     pub fn fragment(&'i self) -> Option<&'o EStr<Fragment>> {
         self.fragment_start().map(|i| self.eslice(i, self.len()))
     }
@@ -298,6 +304,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// assert!(!uri.is_relative_reference());
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
+    #[must_use]
     pub fn is_relative_reference(&self) -> bool {
         self.scheme_end.is_none()
     }
@@ -323,6 +330,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// assert!(!uri.is_absolute_uri());
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
+    #[must_use]
     pub fn is_absolute_uri(&self) -> bool {
         self.scheme_end.is_some() && self.fragment_start().is_none()
     }
@@ -409,6 +417,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// assert_eq!(uri.normalize(), "example://a/b/c/%7Bfoo%7D");
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
+    #[must_use]
     pub fn normalize(&self) -> Uri<String> {
         normalizer::normalize(self.as_ref())
     }
