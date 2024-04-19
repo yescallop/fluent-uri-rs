@@ -117,7 +117,7 @@ fn normalize_estr(buf: &mut String, s: &str, to_lowercase: bool) {
                 if to_lowercase {
                     octet = octet.to_ascii_lowercase();
                 }
-                buf.push(octet as char)
+                buf.push(octet as char);
             } else {
                 buf.push('%');
                 buf.push(hi.to_ascii_uppercase() as char);
@@ -140,7 +140,7 @@ fn write_v6(buf: &mut String, segments: [u16; 8]) {
     if let [0, 0, 0, 0, 0, 0xffff, ab, cd] = segments {
         let [a, b] = ab.to_be_bytes();
         let [c, d] = cd.to_be_bytes();
-        write!(buf, "::ffff:{}.{}.{}.{}", a, b, c, d).unwrap()
+        write!(buf, "::ffff:{}.{}.{}.{}", a, b, c, d).unwrap();
     } else {
         #[derive(Copy, Clone, Default)]
         struct Span {

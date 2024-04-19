@@ -45,6 +45,7 @@ impl Scheme {
     ///
     /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
     #[inline]
+    #[must_use]
     pub const fn new(s: &str) -> &Scheme {
         match Self::try_new(s) {
             Some(scheme) => scheme,
@@ -56,6 +57,7 @@ impl Scheme {
     ///
     /// This is the non-panicking variant of [`new`](Self::new).
     #[inline]
+    #[must_use]
     pub const fn try_new(s: &str) -> Option<&Scheme> {
         if matches!(s.as_bytes(), [first, rem @ ..]
         if first.is_ascii_alphabetic() && table::SCHEME.validate(rem))
@@ -84,6 +86,7 @@ impl Scheme {
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[inline]
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.inner
     }
@@ -290,7 +293,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     pub fn port_to_u16(&'i self) -> Result<Option<u16>, ParseIntError> {
         self.port()
             .filter(|port| !port.is_empty())
-            .map(|port| port.parse())
+            .map(str::parse)
             .transpose()
     }
 

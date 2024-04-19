@@ -82,6 +82,7 @@ use state::*;
 /// [`query`]: Self::query
 /// [`fragment`]: Self::fragment
 /// [`build`]: Self::build
+#[must_use]
 pub struct Builder<S> {
     inner: BuilderInner,
     state: PhantomData<S>,
@@ -160,10 +161,7 @@ impl BuilderInner {
         }
 
         fn first_segment_contains_colon(path: &str) -> bool {
-            path.split_once('/')
-                .map(|x| x.0)
-                .unwrap_or(path)
-                .contains(':')
+            path.split_once('/').map_or(path, |x| x.0).contains(':')
         }
 
         let (start, end) = self.meta.path_bounds;
@@ -353,7 +351,7 @@ impl PortLike for &str {
     fn push_to(&self, buf: &mut String) {
         assert!(self.bytes().all(|x| x.is_ascii_digit()), "invalid port");
         buf.push(':');
-        buf.push_str(self)
+        buf.push_str(self);
     }
 }
 
@@ -426,7 +424,7 @@ impl<S: To<End>> Builder<S> {
     ///
     /// [rel-ref]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.2
     pub fn build(self) -> Result<Uri<String>, BuildError> {
-        self.inner.validate().map(|_| Uri {
+        self.inner.validate().map(|()| Uri {
             val: self.inner.buf,
             meta: self.inner.meta,
         })

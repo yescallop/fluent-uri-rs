@@ -318,19 +318,17 @@ impl<'a> Reader<'a> {
         }
 
         for i in 1..3 {
-            match self.peek_digit(i) {
-                Some(x) => res = res * 10 + x,
-                None => {
-                    // INVARIANT: Skipping `i` digits is fine.
-                    self.skip(i);
-                    return Some(res);
-                }
-            }
+            let Some(x) = self.peek_digit(i) else {
+                // INVARIANT: Skipping `i` digits is fine.
+                self.skip(i);
+                return Some(res);
+            };
+            res = res * 10 + x;
         }
         // INVARIANT: Skipping 3 digits is fine.
         self.skip(3);
 
-        (res <= u8::MAX as u32).then_some(res)
+        u8::try_from(res).is_ok().then_some(res)
     }
 
     fn peek_digit(&self, i: usize) -> Option<u32> {

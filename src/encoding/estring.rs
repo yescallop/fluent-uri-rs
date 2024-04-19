@@ -95,16 +95,19 @@ impl<E: Encoder> EString<E> {
     }
 
     /// Creates a new empty `EString`.
+    #[must_use]
     pub fn new() -> Self {
         Self::new_validated(String::new())
     }
 
     /// Creates a new empty `EString` with a particular capacity.
+    #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
         Self::new_validated(String::with_capacity(capacity))
     }
 
     /// Coerces to an `EStr` slice.
+    #[must_use]
     pub fn as_estr(&self) -> &EStr<E> {
         self
     }
@@ -120,11 +123,11 @@ impl<E: Encoder> EString<E> {
     ///
     /// [allow percent-encoding]: super::Table::allows_enc
     pub fn encode<SubE: Encoder>(&mut self, s: &(impl AsRef<[u8]> + ?Sized)) {
-        let _ = Assert::<SubE, E>::LEFT_IS_SUB_ENCODER_OF_RIGHT;
-        let _ = EStr::<SubE>::ASSERT_ALLOWS_ENC;
+        let () = Assert::<SubE, E>::LEFT_IS_SUB_ENCODER_OF_RIGHT;
+        let () = EStr::<SubE>::ASSERT_ALLOWS_ENC;
 
         for &x in s.as_ref() {
-            SubE::TABLE.encode(x, &mut self.buf)
+            SubE::TABLE.encode(x, &mut self.buf);
         }
     }
 
@@ -142,10 +145,11 @@ impl<E: Encoder> EString<E> {
 
     /// Appends an `EStr` slice onto the end of this `EString`.
     pub fn push_estr(&mut self, s: &EStr<E>) {
-        self.buf.push_str(s.as_str())
+        self.buf.push_str(s.as_str());
     }
 
     /// Consumes this `EString` and yields the underlying `String`.
+    #[must_use]
     pub fn into_string(self) -> String {
         self.buf
     }
@@ -153,6 +157,7 @@ impl<E: Encoder> EString<E> {
     /// Invokes [`capacity`] on the underlying `String`.
     ///
     /// [`capacity`]: String::capacity
+    #[must_use]
     pub fn capacity(&self) -> usize {
         self.buf.capacity()
     }
@@ -173,6 +178,7 @@ impl<E: Encoder> EString<E> {
 
     /// Truncates this `EString` to zero length and casts it to
     /// associate with another encoder, preserving the capacity.
+    #[must_use]
     pub fn clear<F: Encoder>(mut self) -> EString<F> {
         self.buf.clear();
         EString {
@@ -264,7 +270,7 @@ impl<E: Encoder> Eq for EString<E> {}
 
 impl<E: Encoder> hash::Hash for EString<E> {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        self.buf.hash(state)
+        self.buf.hash(state);
     }
 }
 

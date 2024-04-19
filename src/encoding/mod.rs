@@ -100,6 +100,7 @@ impl<E: Encoder> EStr<E> {
     ///
     /// Panics if the string is not properly encoded with `E`.
     /// For a non-panicking variant, use [`try_new`](Self::try_new).
+    #[must_use]
     pub const fn new(s: &str) -> &Self {
         match Self::try_new(s) {
             Some(s) => s,
@@ -110,6 +111,7 @@ impl<E: Encoder> EStr<E> {
     /// Converts a string slice to an `EStr` slice, returning `None` if the conversion fails.
     ///
     /// This is the non-panicking variant of [`new`](Self::new).
+    #[must_use]
     pub const fn try_new(s: &str) -> Option<&Self> {
         if E::TABLE.validate(s.as_bytes()) {
             Some(EStr::new_validated(s))
@@ -119,16 +121,19 @@ impl<E: Encoder> EStr<E> {
     }
 
     /// Yields the underlying string slice.
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.inner
     }
 
     /// Returns the length of the `EStr` slice in bytes.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.inner.len()
     }
 
     /// Checks whether the `EStr` slice is empty.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
@@ -166,8 +171,9 @@ impl<E: Encoder> EStr<E> {
     /// assert_eq!(dec.into_string()?, "¡Hola!");
     /// # Ok::<_, std::string::FromUtf8Error>(())
     /// ```
+    #[must_use]
     pub fn decode(&self) -> Decode<'_> {
-        let _ = Self::ASSERT_ALLOWS_ENC;
+        let () = Self::ASSERT_ALLOWS_ENC;
 
         match imp::decode(self.inner.as_bytes()) {
             Some(vec) => Decode::Owned(vec),
@@ -226,6 +232,7 @@ impl<E: Encoder> EStr<E> {
     ///
     /// assert_eq!(EStr::<Path>::new("foo").split_once(';'), None);
     /// ```
+    #[must_use]
     pub fn split_once(&self, delim: char) -> Option<(&Self, &Self)> {
         assert!(
             delim.is_ascii() && table::RESERVED.allows(delim as u8),
@@ -259,6 +266,7 @@ impl<E: Encoder> EStr<E> {
     ///
     /// assert_eq!(EStr::<Path>::new("foo").rsplit_once(';'), None);
     /// ```
+    #[must_use]
     pub fn rsplit_once(&self, delim: char) -> Option<(&Self, &Self)> {
         assert!(
             delim.is_ascii() && table::RESERVED.allows(delim as u8),
@@ -304,7 +312,7 @@ impl<E: Encoder> Eq for EStr<E> {}
 
 impl<E: Encoder> hash::Hash for EStr<E> {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        self.inner.hash(state)
+        self.inner.hash(state);
     }
 }
 
@@ -335,7 +343,7 @@ impl<E: Encoder> ToOwned for EStr<E> {
     }
 
     fn clone_into(&self, target: &mut EString<E>) {
-        self.inner.clone_into(&mut target.buf)
+        self.inner.clone_into(&mut target.buf);
     }
 }
 
@@ -345,12 +353,14 @@ impl<E: Encoder> ToOwned for EStr<E> {
 impl EStr<Path> {
     /// Checks whether the path is absolute, i.e., starting with `'/'`.
     #[inline]
+    #[must_use]
     pub fn is_absolute(&self) -> bool {
         self.inner.starts_with('/')
     }
 
     /// Checks whether the path is rootless, i.e., not starting with `'/'`.
     #[inline]
+    #[must_use]
     pub fn is_rootless(&self) -> bool {
         !self.inner.starts_with('/')
     }
@@ -405,6 +415,7 @@ pub enum Decode<'a> {
 impl<'a> Decode<'a> {
     /// Returns a reference to the decoded bytes.
     #[inline]
+    #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         match self {
             Self::Borrowed(s) => s.as_bytes(),
@@ -414,6 +425,7 @@ impl<'a> Decode<'a> {
 
     /// Consumes this `Decode` and yields the underlying decoded bytes.
     #[inline]
+    #[must_use]
     pub fn into_bytes(self) -> Cow<'a, [u8]> {
         match self {
             Self::Borrowed(s) => Cow::Borrowed(s.as_bytes()),
@@ -435,6 +447,7 @@ impl<'a> Decode<'a> {
     /// Converts the decoded bytes to a string, including invalid characters.
     ///
     /// This calls [`String::from_utf8_lossy`] if the bytes are not valid UTF-8.
+    #[must_use]
     pub fn into_string_lossy(self) -> Cow<'a, str> {
         match self.into_string() {
             Ok(string) => string,

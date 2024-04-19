@@ -1,5 +1,19 @@
-#![allow(clippy::let_unit_value)]
-#![warn(missing_debug_implementations, missing_docs, rust_2018_idioms)]
+#![warn(
+    future_incompatible,
+    missing_debug_implementations,
+    missing_docs,
+    nonstandard_style,
+    rust_2018_idioms,
+    clippy::checked_conversions,
+    clippy::if_not_else,
+    clippy::ignored_unit_patterns,
+    clippy::map_unwrap_or,
+    clippy::must_use_candidate,
+    clippy::semicolon_if_nothing_returned,
+    clippy::single_match_else,
+    // clippy::missing_errors_doc,
+    // clippy::redundant_closure_for_method_calls,
+)]
 #![forbid(unsafe_code)]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![no_std]
@@ -159,6 +173,7 @@ impl Uri<String> {
     /// Borrows this `Uri<String>` as `Uri<&str>`.
     #[allow(clippy::should_implement_trait)]
     #[inline]
+    #[must_use]
     pub fn borrow(&self) -> Uri<&str> {
         Uri {
             val: &self.val,
@@ -168,6 +183,7 @@ impl Uri<String> {
 
     /// Consumes this `Uri<String>` and yields the underlying [`String`].
     #[inline]
+    #[must_use]
     pub fn into_string(self) -> String {
         self.val
     }
@@ -176,6 +192,7 @@ impl Uri<String> {
 impl Uri<&str> {
     /// Creates a new `Uri<String>` by cloning the contents of this `Uri<&str>`.
     #[inline]
+    #[must_use]
     pub fn to_owned(&self) -> Uri<String> {
         Uri {
             val: self.val.to_owned(),
@@ -251,10 +268,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     }
 
     fn fragment_start(&self) -> Option<u32> {
-        let query_or_path_end = self
-            .query_end
-            .map(|i| i.get())
-            .unwrap_or(self.path_bounds.1);
+        let query_or_path_end = self.query_end.map_or(self.path_bounds.1, |i| i.get());
         (query_or_path_end != self.len()).then_some(query_or_path_end + 1)
     }
 
@@ -444,7 +458,7 @@ impl<T: Bos<str>> Eq for Uri<T> {}
 
 impl<T: Bos<str>> hash::Hash for Uri<T> {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        self.as_str().hash(state)
+        self.as_str().hash(state);
     }
 }
 
