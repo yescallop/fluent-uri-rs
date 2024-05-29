@@ -98,6 +98,7 @@ pub(crate) fn normalize(u: Uri<&str>) -> Uri<String> {
         normalize_estr(&mut buf, fragment.as_str(), false);
     }
 
+    // FIXME: This fails for "a://[::ffff:5:9]/".
     debug_assert!(buf.len() <= u.as_str().len());
 
     // No need to check the length because it cannot grow larger.
