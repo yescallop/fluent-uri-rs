@@ -6,14 +6,14 @@ fuzz_target!(|data: &str| {
     let Ok(uri) = Uri::parse(data) else { return };
     if let Some(auth) = uri.authority() {
         if let Host::RegName(name) = auth.host_parsed() {
-            name.decode();
+            let _ = name.decode();
         }
     }
-    uri.path().decode();
+    let _ = uri.path().decode();
     if let Some(query) = uri.query() {
-        query.decode();
+        let _ = query.decode();
     }
     if let Some(fragment) = uri.fragment() {
-        fragment.decode();
+        let _ = fragment.decode();
     }
 });
