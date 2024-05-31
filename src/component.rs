@@ -9,7 +9,7 @@ use crate::{
     Uri,
 };
 use borrow_or_share::BorrowOrShare;
-use core::num::ParseIntError;
+use core::{iter, num::ParseIntError};
 use ref_cast::{ref_cast_custom, RefCastCustom};
 
 #[cfg(feature = "net")]
@@ -24,6 +24,14 @@ use std::{
 /// The [scheme] component of URI reference.
 ///
 /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
+///
+/// # Comparison
+///
+/// `Scheme`s are compared case-insensitively, as the generic URI syntax
+/// considers them to be case-insensitive. You may also restrict them
+/// to lower case by directly comparing the result of [`as_str`].
+///
+/// [`as_str`]: Self::as_str
 #[derive(RefCastCustom)]
 #[repr(transparent)]
 pub struct Scheme {
@@ -70,10 +78,6 @@ impl Scheme {
 
     /// Returns the scheme as a string slice.
     ///
-    /// Note that the scheme is case-insensitive in the generic URI syntax.
-    /// You may want to use [`str::eq_ignore_ascii_case`]
-    /// for a case-insensitive comparison.
-    ///
     /// # Examples
     ///
     /// ```
@@ -91,6 +95,22 @@ impl Scheme {
         &self.inner
     }
 }
+
+impl PartialEq for Scheme {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        const ASCII_CASE_MASK: u8 = 0b0010_0000;
+
+        let (a, b) = (self.inner.as_bytes(), other.inner.as_bytes());
+
+        // The only characters allowed in a scheme are alphabets, digits, '+', '-' and '.'.
+        // Their ASCII codes allow us to simply set the sixth bit and compare.
+        a.len() == b.len()
+            && iter::zip(a, b).all(|(a, b)| a | ASCII_CASE_MASK == b | ASCII_CASE_MASK)
+    }
+}
+
+impl Eq for Scheme {}
 
 /// The [authority] component of URI reference.
 ///
