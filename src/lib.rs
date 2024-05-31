@@ -149,8 +149,7 @@ impl<T> Uri<T> {
     /// # Errors
     ///
     /// Returns `Err` if the string does not match
-    /// the [`URI-reference`] ABNF rule from RFC 3986 or
-    /// if the input length is greater than [`u32::MAX`].
+    /// the [`URI-reference`] ABNF rule from RFC 3986.
     ///
     /// You may recover an input [`String`] by calling [`ParseError::into_input`].
     ///
@@ -202,8 +201,8 @@ impl Uri<&str> {
 }
 
 impl<T: Bos<str>> Uri<T> {
-    fn len(&self) -> u32 {
-        self.as_str().len() as _
+    fn len(&self) -> usize {
+        self.as_str().len()
     }
 
     fn as_ref(&self) -> Uri<&str> {
@@ -222,12 +221,12 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     }
 
     /// Returns a string slice of the `Uri` between the given indexes.
-    fn slice(&'i self, start: u32, end: u32) -> &'o str {
-        &self.as_str()[start as usize..end as usize]
+    fn slice(&'i self, start: usize, end: usize) -> &'o str {
+        &self.as_str()[start..end]
     }
 
     /// Returns an `EStr` slice of the `Uri` between the given indexes.
-    fn eslice<E: Encoder>(&'i self, start: u32, end: u32) -> &'o EStr<E> {
+    fn eslice<E: Encoder>(&'i self, start: usize, end: usize) -> &'o EStr<E> {
         EStr::new_validated(self.slice(start, end))
     }
 
@@ -272,7 +271,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
             .map(|i| self.eslice(self.path_bounds.1 + 1, i.get()))
     }
 
-    fn fragment_start(&self) -> Option<u32> {
+    fn fragment_start(&self) -> Option<usize> {
         let query_or_path_end = self.query_end.map_or(self.path_bounds.1, |i| i.get());
         (query_or_path_end != self.len()).then_some(query_or_path_end + 1)
     }
@@ -368,8 +367,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     ///
     /// # Errors
     ///
-    /// Returns `Err` if any of the above two **must**s is violated or
-    /// if the output length would be greater than [`u32::MAX`].
+    /// Returns `Err` if any of the above two **must**s is violated.
     ///
     /// # Examples
     ///

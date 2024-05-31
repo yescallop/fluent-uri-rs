@@ -2,7 +2,7 @@
 
 use crate::{error::ParseError, parser, Uri};
 use alloc::string::String;
-use core::{num::NonZeroU32, ops, str};
+use core::{num::NonZeroUsize, ops, str};
 
 #[cfg(feature = "net")]
 use crate::net::{Ipv4Addr, Ipv6Addr};
@@ -46,11 +46,11 @@ impl ToUri for String {
 #[derive(Clone, Copy, Default)]
 pub struct Meta {
     // The index of the trailing colon.
-    pub scheme_end: Option<NonZeroU32>,
+    pub scheme_end: Option<NonZeroUsize>,
     pub auth_meta: Option<AuthMeta>,
-    pub path_bounds: (u32, u32),
+    pub path_bounds: (usize, usize),
     // One byte past the last byte of query.
-    pub query_end: Option<NonZeroU32>,
+    pub query_end: Option<NonZeroUsize>,
 }
 
 #[doc(hidden)]
@@ -72,8 +72,8 @@ impl<T> ops::DerefMut for Uri<T> {
 #[derive(Clone, Copy, Default)]
 pub struct AuthMeta {
     /// One byte past the preceding "//".
-    pub start: u32,
-    pub host_bounds: (u32, u32),
+    pub start: usize,
+    pub host_bounds: (usize, usize),
     pub host_meta: HostMeta,
 }
 

@@ -3,7 +3,7 @@ use crate::{
     internal::{AuthMeta, HostMeta, Meta},
 };
 use core::{
-    num::NonZeroU32,
+    num::NonZeroUsize,
     ops::{Deref, DerefMut},
     str,
 };
@@ -14,7 +14,7 @@ type Result<T> = core::result::Result<T, crate::error::ParseError>;
 macro_rules! err {
     ($index:expr, $kind:ident) => {
         return Err(crate::error::ParseError {
-            index: $index as u32,
+            index: $index,
             kind: crate::error::ParseErrorKind::$kind,
             input: (),
         })
@@ -22,10 +22,6 @@ macro_rules! err {
 }
 
 pub(crate) fn parse(bytes: &[u8]) -> Result<Meta> {
-    if bytes.len() > u32::MAX as usize {
-        err!(0, OverlargeInput);
-    }
-
     let mut parser = Parser {
         reader: Reader::new(bytes),
         out: Meta::default(),
@@ -42,8 +38,7 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Meta> {
 ///
 /// # Preconditions and guarantees
 ///
-/// Before parsing, ensure that `len` is no larger than `u32::MAX`
-/// and that `pos` and `out` are default initialized.
+/// Before parsing, ensure that `pos` and `out` are default initialized.
 ///
 /// Start and finish parsing by calling `parse_from_scheme`.
 /// The following are guaranteed when parsing succeeds:
@@ -413,7 +408,7 @@ impl<'a> Parser<'a> {
         if self.peek(0) == Some(b':') {
             // Scheme starts with a letter.
             if self.pos > 0 && self.get(0).is_ascii_alphabetic() {
-                self.out.scheme_end = NonZeroU32::new(self.pos as _);
+                self.out.scheme_end = NonZeroUsize::new(self.pos);
             } else {
                 err!(0, UnexpectedChar);
             }
@@ -494,8 +489,8 @@ impl<'a> Parser<'a> {
         }
 
         self.out.auth_meta = Some(AuthMeta {
-            start: start as _,
-            host_bounds: (host.0 as _, host.1 as _),
+            start,
+            host_bounds: (host.0, host.1),
             host_meta: host.2,
         });
         self.parse_from_path(PathKind::AbEmpty)
@@ -506,7 +501,7 @@ impl<'a> Parser<'a> {
             PathKind::General => {
                 let start = self.pos;
                 self.read(PATH)?;
-                (start as _, self.pos as _)
+                (start, self.pos)
             }
             PathKind::AbEmpty => {
                 let start = self.pos;
@@ -514,7 +509,7 @@ impl<'a> Parser<'a> {
                 if self.read(PATH)? && self.get(start) != b'/' {
                     err!(start, UnexpectedChar);
                 }
-                (start as _, self.pos as _)
+                (start, self.pos)
             }
             PathKind::ContinuedNoScheme => {
                 self.read(SEGMENT_NZ_NC)?;
@@ -526,13 +521,13 @@ impl<'a> Parser<'a> {
                 }
 
                 self.read(PATH)?;
-                (0, self.pos as _)
+                (0, self.pos)
             }
         };
 
         if self.read_str("?") {
             self.read(QUERY)?;
-            self.out.query_end = NonZeroU32::new(self.pos as _);
+            self.out.query_end = NonZeroUsize::new(self.pos);
         }
 
         if self.read_str("#") {

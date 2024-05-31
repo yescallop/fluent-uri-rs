@@ -111,15 +111,15 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
         self.uri.auth_meta.as_ref().unwrap()
     }
 
-    fn start(&self) -> u32 {
+    fn start(&self) -> usize {
         self.meta().start
     }
 
-    fn end(&self) -> u32 {
+    fn end(&self) -> usize {
         self.uri.path_bounds.0
     }
 
-    fn host_bounds(&self) -> (u32, u32) {
+    fn host_bounds(&self) -> (usize, usize) {
         self.meta().host_bounds
     }
 

@@ -4,7 +4,7 @@ use crate::{
     Uri,
 };
 use alloc::string::String;
-use core::num::NonZeroU32;
+use core::num::NonZeroUsize;
 
 pub(crate) fn resolve(
     base: Uri<&str>,
@@ -100,15 +100,11 @@ pub(crate) fn resolve(
         len += fragment.len() + 1;
     }
 
-    if len > u32::MAX as usize {
-        return Err(ResolveError(ResolveErrorKind::OverlargeOutput));
-    }
-
     let mut buf = String::with_capacity(len);
     let mut meta = Meta::default();
 
     buf.push_str(t_scheme.as_str());
-    meta.scheme_end = NonZeroU32::new(buf.len() as _);
+    meta.scheme_end = NonZeroUsize::new(buf.len());
     buf.push(':');
 
     if let Some(authority) = t_authority {
@@ -119,7 +115,7 @@ pub(crate) fn resolve(
         );
 
         buf.push_str("//");
-        auth_meta.start = buf.len() as _;
+        auth_meta.start = buf.len();
         auth_meta.host_bounds = (
             auth_meta.start + host_offsets.0,
             auth_meta.start + host_offsets.1,
@@ -129,18 +125,18 @@ pub(crate) fn resolve(
         meta.auth_meta = Some(auth_meta);
     }
 
-    meta.path_bounds.0 = buf.len() as _;
+    meta.path_bounds.0 = buf.len();
     // Close the loophole in the original algorithm.
     if t_authority.is_none() && t_path.starts_with("//") {
         buf.push_str("/.");
     }
     buf.push_str(t_path);
-    meta.path_bounds.1 = buf.len() as _;
+    meta.path_bounds.1 = buf.len();
 
     if let Some(query) = t_query {
         buf.push('?');
         buf.push_str(query.as_str());
-        meta.query_end = NonZeroU32::new(buf.len() as _);
+        meta.query_end = NonZeroUsize::new(buf.len());
     }
 
     if let Some(fragment) = t_fragment {

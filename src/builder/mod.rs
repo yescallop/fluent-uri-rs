@@ -13,7 +13,7 @@ use crate::{
     parser, Uri,
 };
 use alloc::string::String;
-use core::{fmt::Write, marker::PhantomData, num::NonZeroU32};
+use core::{fmt::Write, marker::PhantomData, num::NonZeroUsize};
 use state::*;
 
 /// A builder for URI reference.
@@ -96,14 +96,14 @@ struct BuilderInner {
 impl BuilderInner {
     fn push_scheme(&mut self, v: &str) {
         self.buf.push_str(v);
-        self.meta.scheme_end = NonZeroU32::new(self.buf.len() as _);
+        self.meta.scheme_end = NonZeroUsize::new(self.buf.len());
         self.buf.push(':');
     }
 
     fn start_authority(&mut self) {
         self.buf.push_str("//");
         self.meta.auth_meta = Some(AuthMeta {
-            start: self.buf.len() as _,
+            start: self.buf.len(),
             ..AuthMeta::default()
         });
     }
@@ -115,7 +115,7 @@ impl BuilderInner {
 
     fn push_host(&mut self, host: Host<'_>) {
         let auth_meta = self.meta.auth_meta.as_mut().unwrap();
-        auth_meta.host_bounds.0 = self.buf.len() as _;
+        auth_meta.host_bounds.0 = self.buf.len();
 
         match host {
             #[cfg(feature = "net")]
@@ -135,19 +135,19 @@ impl BuilderInner {
             _ => unreachable!(),
         }
 
-        auth_meta.host_bounds.1 = self.buf.len() as _;
+        auth_meta.host_bounds.1 = self.buf.len();
     }
 
     fn push_path(&mut self, v: &str) {
-        self.meta.path_bounds.0 = self.buf.len() as _;
+        self.meta.path_bounds.0 = self.buf.len();
         self.buf.push_str(v);
-        self.meta.path_bounds.1 = self.buf.len() as _;
+        self.meta.path_bounds.1 = self.buf.len();
     }
 
     fn push_query(&mut self, v: &str) {
         self.buf.push('?');
         self.buf.push_str(v);
-        self.meta.query_end = NonZeroU32::new(self.buf.len() as _);
+        self.meta.query_end = NonZeroUsize::new(self.buf.len());
     }
 
     fn push_fragment(&mut self, v: &str) {
@@ -156,16 +156,12 @@ impl BuilderInner {
     }
 
     fn validate(&self) -> Result<(), BuildError> {
-        if self.buf.len() > u32::MAX as usize {
-            return Err(BuildError(BuildErrorKind::OverlargeOutput));
-        }
-
         fn first_segment_contains_colon(path: &str) -> bool {
             path.split_once('/').map_or(path, |x| x.0).contains(':')
         }
 
         let (start, end) = self.meta.path_bounds;
-        let path = &self.buf[start as usize..end as usize];
+        let path = &self.buf[start..end];
 
         if self.meta.auth_meta.is_some() {
             if !path.is_empty() && !path.starts_with('/') {
@@ -420,7 +416,6 @@ impl<S: To<End>> Builder<S> {
     /// - When authority is present, the path must either be empty or start with `'/'`.
     /// - When authority is not present, the path cannot start with `"//"`.
     /// - In a [relative-path reference][rel-ref], the first path segment cannot contain `':'`.
-    /// - The output length cannot be greater than [`u32::MAX`].
     ///
     /// [rel-ref]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.2
     pub fn build(self) -> Result<Uri<String>, BuildError> {

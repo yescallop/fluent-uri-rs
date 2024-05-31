@@ -4,7 +4,7 @@ use crate::{
     parser, resolver, Uri,
 };
 use alloc::string::String;
-use core::{fmt::Write, num::NonZeroU32};
+use core::{fmt::Write, num::NonZeroUsize};
 
 pub(crate) fn normalize(u: Uri<&str>) -> Uri<String> {
     let mut buf = String::with_capacity(u.as_str().len());
@@ -26,7 +26,7 @@ pub(crate) fn normalize(u: Uri<&str>) -> Uri<String> {
     if let Some(scheme) = u.scheme() {
         buf.push_str(scheme.as_str());
         buf.make_ascii_lowercase();
-        meta.scheme_end = NonZeroU32::new(buf.len() as _);
+        meta.scheme_end = NonZeroUsize::new(buf.len());
         buf.push(':');
     }
 
@@ -39,7 +39,7 @@ pub(crate) fn normalize(u: Uri<&str>) -> Uri<String> {
         }
 
         let mut auth_meta = *auth.meta();
-        auth_meta.host_bounds.0 = buf.len() as _;
+        auth_meta.host_bounds.0 = buf.len();
         match auth_meta.host_meta {
             // An IPv4 address is always canonical.
             HostMeta::Ipv4(..) => buf.push_str(auth.host()),
@@ -68,7 +68,7 @@ pub(crate) fn normalize(u: Uri<&str>) -> Uri<String> {
                 }
             }
         }
-        auth_meta.host_bounds.1 = buf.len() as _;
+        auth_meta.host_bounds.1 = buf.len();
         meta.auth_meta = Some(auth_meta);
 
         if let Some(port) = auth.port() {
@@ -79,18 +79,18 @@ pub(crate) fn normalize(u: Uri<&str>) -> Uri<String> {
         }
     }
 
-    meta.path_bounds.0 = buf.len() as _;
+    meta.path_bounds.0 = buf.len();
     // Make sure that the output is a valid URI reference.
     if u.scheme_end.is_some() && u.auth_meta.is_none() && path_buf.starts_with("//") {
         buf.push_str("/.");
     }
     buf.push_str(&path_buf);
-    meta.path_bounds.1 = buf.len() as _;
+    meta.path_bounds.1 = buf.len();
 
     if let Some(query) = u.query() {
         buf.push('?');
         normalize_estr(&mut buf, query.as_str(), false);
-        meta.query_end = NonZeroU32::new(buf.len() as _);
+        meta.query_end = NonZeroUsize::new(buf.len());
     }
 
     if let Some(fragment) = u.fragment() {

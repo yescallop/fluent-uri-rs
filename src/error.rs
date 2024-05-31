@@ -17,16 +17,12 @@ pub(crate) enum ParseErrorKind {
     ///
     /// The error index points to the first byte of the address.
     InvalidIpv6Addr,
-    /// Input length greater than [`u32::MAX`].
-    ///
-    /// The error index equals `0`.
-    OverlargeInput,
 }
 
 /// An error occurred when parsing URI references.
 #[derive(Clone, Copy)]
 pub struct ParseError<I = ()> {
-    pub(crate) index: u32,
+    pub(crate) index: usize,
     pub(crate) kind: ParseErrorKind,
     pub(crate) input: I,
 }
@@ -70,7 +66,6 @@ pub(crate) enum BuildErrorKind {
     NonAbemptyPath,
     PathStartingWithDoubleSlash,
     ColonInFirstPathSegment,
-    OverlargeOutput,
 }
 
 /// An error occurred when building URI references.
@@ -85,7 +80,6 @@ impl std::error::Error for BuildError {}
 pub(crate) enum ResolveErrorKind {
     NonAbsoluteBase,
     NonHierarchicalBase,
-    OverlargeOutput,
     // PathUnderflow,
 }
 

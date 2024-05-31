@@ -48,7 +48,6 @@ impl<I> Display for ParseError<I> {
             ParseErrorKind::InvalidOctet => "invalid percent-encoded octet at index ",
             ParseErrorKind::UnexpectedChar => "unexpected character at index ",
             ParseErrorKind::InvalidIpv6Addr => "invalid IPv6 address at index ",
-            ParseErrorKind::OverlargeInput => return f.write_str("input larger than 4 GiB"),
         };
         write!(f, "{}{}", msg, self.index)
     }
@@ -66,7 +65,6 @@ impl Display for BuildError {
             BuildErrorKind::ColonInFirstPathSegment => {
                 "first path segment cannot contain ':' in relative-path reference"
             }
-            BuildErrorKind::OverlargeOutput => "output larger than 4 GiB",
         };
         f.write_str(msg)
     }
@@ -79,7 +77,6 @@ impl Display for ResolveError {
             ResolveErrorKind::NonHierarchicalBase => {
                 "resolving non-same-document relative reference against non-hierarchical base URI"
             }
-            ResolveErrorKind::OverlargeOutput => "output larger than 4 GiB",
         };
         f.write_str(msg)
     }
