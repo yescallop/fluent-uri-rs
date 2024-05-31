@@ -7,6 +7,8 @@ use alloc::string::String;
 use core::{fmt::Write, num::NonZeroUsize};
 
 pub(crate) fn normalize(u: Uri<&str>) -> Uri<String> {
+    // For "a://[::ffff:5:9]/" the capacity is not enough,
+    // but it's fine since this rarely happens.
     let mut buf = String::with_capacity(u.as_str().len());
 
     let path = u.path().as_str();
@@ -98,10 +100,6 @@ pub(crate) fn normalize(u: Uri<&str>) -> Uri<String> {
         normalize_estr(&mut buf, fragment.as_str(), false);
     }
 
-    // FIXME: This fails for "a://[::ffff:5:9]/".
-    debug_assert!(buf.len() <= u.as_str().len());
-
-    // No need to check the length because it cannot grow larger.
     Uri { val: buf, meta }
 }
 
