@@ -46,10 +46,10 @@ use state::*;
 /// );
 /// ```
 ///
-/// [`EStr::new`] *panics* on invalid input and is used above
-/// only for illustrative purposes.
-/// You should normally encode and append data to an [`EString`]
-/// which derefs to [`EStr`].
+/// Note that [`EStr::new`] *panics* on invalid input and should only be used
+/// when you know that the string is properly percent-encoded.
+/// If you want to build a percent-encoded string from scratch,
+/// use [`EString`] instead.
 ///
 /// [`EString`]: crate::encoding::EString
 ///

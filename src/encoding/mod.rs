@@ -18,7 +18,7 @@ use core::{cmp::Ordering, hash, iter::FusedIterator, marker::PhantomData, str};
 use encoder::Path;
 use ref_cast::{ref_cast_custom, RefCastCustom};
 
-/// A table determining the byte patterns allowed in a string.
+/// A table specifying the byte patterns allowed in a string.
 #[derive(Clone, Copy, Debug)]
 pub struct Table {
     arr: [u8; 256],
@@ -41,6 +41,19 @@ pub trait Encoder: 'static {
 }
 
 /// Percent-encoded string slices.
+///
+/// The owned variant of `EStr` is [`EString`]. See its documentation
+/// if you want to build a percent-encoded string from scratch.
+///
+/// # Type parameter
+///
+/// The `EStr<E>` type is parameterized over a type `E` that implements [`Encoder`].
+/// The associated constant `E::TABLE` of type [`Table`] specifies the byte patterns
+/// allowed in a string. In short, the underlying byte sequence of an `EStr<E>` slice
+/// can be formed by joining any number of the following byte sequences:
+///
+/// - `[x]` where `E::TABLE.allows(x)`.
+/// - `[b'%', hi, lo]` where `E::TABLE.allows_enc() && hi.is_ascii_hexdigit() && lo.is_ascii_hexdigit()`.
 ///
 /// # Comparison
 ///
@@ -92,9 +105,10 @@ impl<E: Encoder> EStr<E> {
 
     /// Converts a string slice to an `EStr` slice.
     ///
-    /// Only use this function when you have a percent-encoded string at hand.
-    /// You may otherwise encode and append data to an [`EString`]
-    /// which derefs to `EStr`.
+    /// This function *panics* on invalid input and should only be used
+    /// when you know that the string is properly percent-encoded.
+    /// If you want to build a percent-encoded string from scratch,
+    /// use [`EString`] instead.
     ///
     /// # Panics
     ///

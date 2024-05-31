@@ -25,6 +25,16 @@
 //! **Examples:** [Parsing](Uri#examples). [Building](Builder#examples).
 //! [Reference resolution](Uri::resolve). [Normalization](Uri::normalize).
 //!
+//! Advice for designers of new URI schemes can be found in [RFC 7595].
+//! Guidance on the specification of URI substructure in standards
+//! can be found in [RFC 8820]. The crate author recommends [RFC 9413]
+//! for further reading as the long-term interoperability
+//! of URI schemes may be of concern.
+//!
+//! [RFC 7595]: https://datatracker.ietf.org/doc/html/rfc7595/
+//! [RFC 8820]: https://datatracker.ietf.org/doc/html/rfc8820/
+//! [RFC 9413]: https://datatracker.ietf.org/doc/html/rfc9413/
+//!
 //! # Crate features
 //!
 //! - `net` (default): Enables [`std::net`] support.
@@ -110,7 +120,7 @@ use internal::{Meta, ToUri, Val};
 /// ```
 /// use fluent_uri::Uri;
 ///
-/// let s = "foo:bar";
+/// let s = "http://example.com/";
 ///
 /// // Parse into a `Uri<&str>` from a string slice.
 /// let uri: Uri<&str> = Uri::parse(s)?;
@@ -118,15 +128,42 @@ use internal::{Meta, ToUri, Val};
 /// // Parse into a `Uri<String>` from an owned string.
 /// let uri_owned: Uri<String> = Uri::parse(s.to_owned()).map_err(|e| e.plain())?;
 ///
-/// // When referencing a `Uri`, use `Uri<&str>`.
-/// fn foo(uri: Uri<&str>) {
-///     // Convert a `Uri<&str>` to `Uri<String>`.
-///     let uri_owned: Uri<String> = uri.to_owned();
-/// }
+/// // Convert a `Uri<&str>` to `Uri<String>`.
+/// let uri_owned: Uri<String> = uri.to_owned();
 ///
-/// foo(uri);
 /// // Borrow a `Uri<String>` as `Uri<&str>`.
-/// foo(uri_owned.borrow());
+/// let uri: Uri<&str> = uri_owned.borrow();
+/// # Ok::<_, fluent_uri::error::ParseError>(())
+/// ```
+///
+/// Parse and extract components from a URI reference:
+///
+/// ```
+/// use fluent_uri::{
+///     component::{Host, Scheme},
+///     encoding::EStr,
+///     Uri,
+/// };
+///
+/// let uri = Uri::parse("HTTP://user@example.com:8042/over/there?name=ferret#nose")?;
+///
+/// let scheme = uri.scheme().unwrap();
+/// // Case-sensitive comparison.
+/// assert_eq!(scheme.as_str(), "HTTP");
+/// // Case-insensitive comparison.
+/// assert_eq!(scheme, Scheme::new("http"));
+///
+/// let auth = uri.authority().unwrap();
+/// assert_eq!(auth.as_str(), "user@example.com:8042");
+/// assert_eq!(auth.userinfo().unwrap(), "user");
+/// assert_eq!(auth.host(), "example.com");
+/// assert_eq!(auth.host_parsed(), Host::RegName(EStr::new("example.com")));
+/// assert_eq!(auth.port(), Some("8042"));
+/// assert_eq!(auth.port_to_u16(), Ok(Some(8042)));
+///
+/// assert_eq!(uri.path(), "/over/there");
+/// assert_eq!(uri.query().unwrap(), "name=ferret");
+/// assert_eq!(uri.fragment().unwrap(), "nose");
 /// # Ok::<_, fluent_uri::error::ParseError>(())
 /// ```
 #[derive(Clone, Copy)]

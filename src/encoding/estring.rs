@@ -4,6 +4,9 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 
 /// A percent-encoded, growable string.
 ///
+/// The borrowed variant of `EString` is [`EStr`].
+/// See its documentation for the meaning of the type parameter `E`.
+///
 /// # Comparison
 ///
 /// `EString`s are compared [lexicographically](Ord#lexicographical-comparison)
