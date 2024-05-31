@@ -14,7 +14,7 @@ A full-featured URI handling library compliant with [RFC 3986]. It is:
 [Documentation](https://docs.rs/fluent-uri) | [Discussions](https://github.com/yescallop/fluent-uri-rs/discussions)
 
 [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
-[^bench-res]: It took 46ns for `fluent-uri`, 109ns for `iref`, and 119ns for `iri-string` to
+[^bench-res]: It took 49ns for `fluent-uri`, 89ns for `iref`, and 135ns for `iri-string` to
     parse the same URI in [a benchmark](https://github.com/yescallop/fluent-uri-rs/blob/main/bench/benches/bench.rs)
     on an Intel Core i5-11300H processor.
 
