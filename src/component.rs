@@ -111,8 +111,11 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
         self.uri.auth_meta.as_ref().unwrap()
     }
 
-    fn start(&self) -> usize {
-        self.meta().start
+    pub(crate) fn start(&self) -> usize {
+        match self.uri.scheme_end {
+            Some(i) => i.get() + 3,
+            None => 2,
+        }
     }
 
     fn end(&self) -> usize {

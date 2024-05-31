@@ -71,8 +71,6 @@ impl<T> ops::DerefMut for Uri<T> {
 
 #[derive(Clone, Copy, Default)]
 pub struct AuthMeta {
-    /// One byte past the preceding "//".
-    pub start: usize,
     pub host_bounds: (usize, usize),
     pub host_meta: HostMeta,
 }

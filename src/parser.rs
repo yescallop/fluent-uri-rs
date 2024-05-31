@@ -432,7 +432,6 @@ impl<'a> Parser<'a> {
 
     fn parse_from_authority(&mut self) -> Result<()> {
         let host;
-        let start = self.pos;
 
         let mut colon_cnt = 0;
         let mut colon_i = 0;
@@ -489,7 +488,6 @@ impl<'a> Parser<'a> {
         }
 
         self.out.auth_meta = Some(AuthMeta {
-            start,
             host_bounds: (host.0, host.1),
             host_meta: host.2,
         });
