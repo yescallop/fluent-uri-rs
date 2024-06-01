@@ -2,7 +2,7 @@
 
 A full-featured URI handling library compliant with [RFC 3986]. It is:
 
-- **Fast:** Zero-copy parsing. Benchmarked to be highly performant.[^bench-res].
+- **Fast:** Zero-copy parsing. Benchmarked to be highly performant.[^bench-res]
 - **Easy:** Carefully designed and documented APIs. Handy percent-encoding utilities.
 - **Correct:** Forbids unsafe code. Extensively fuzz-tested against other implementations.
 
