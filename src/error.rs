@@ -46,9 +46,9 @@ impl<I: ToUri> ParseError<I> {
         self.input
     }
 
-    /// Returns the error with input erased.
+    /// Returns the error with input stripped.
     #[must_use]
-    pub fn plain(&self) -> ParseError {
+    pub fn strip_input(&self) -> ParseError {
         ParseError {
             index: self.index,
             kind: self.kind,

@@ -103,12 +103,6 @@ impl<E: Encoder> EString<E> {
         Self::new_validated(String::new())
     }
 
-    /// Creates a new empty `EString` with a particular capacity.
-    #[must_use]
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self::new_validated(String::with_capacity(capacity))
-    }
-
     /// Coerces to an `EStr` slice.
     #[must_use]
     pub fn as_estr(&self) -> &EStr<E> {
@@ -161,39 +155,6 @@ impl<E: Encoder> EString<E> {
     #[must_use]
     pub fn into_string(self) -> String {
         self.buf
-    }
-
-    /// Invokes [`capacity`] on the underlying `String`.
-    ///
-    /// [`capacity`]: String::capacity
-    #[must_use]
-    pub fn capacity(&self) -> usize {
-        self.buf.capacity()
-    }
-
-    /// Invokes [`reserve`] on the underlying `String`.
-    ///
-    /// [`reserve`]: String::reserve
-    pub fn reserve(&mut self, additional: usize) {
-        self.buf.reserve(additional);
-    }
-
-    /// Invokes [`reserve_exact`] on the underlying `String`.
-    ///
-    /// [`reserve_exact`]: String::reserve_exact
-    pub fn reserve_exact(&mut self, additional: usize) {
-        self.buf.reserve_exact(additional);
-    }
-
-    /// Truncates this `EString` to zero length and casts it to
-    /// associate with another encoder, preserving the capacity.
-    #[must_use]
-    pub fn clear<F: Encoder>(mut self) -> EString<F> {
-        self.buf.clear();
-        EString {
-            buf: self.buf,
-            encoder: PhantomData,
-        }
     }
 }
 

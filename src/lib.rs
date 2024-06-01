@@ -23,8 +23,8 @@
 //! [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
 //!
 //! **Examples:** [Parsing](Uri#examples). [Building](Builder#examples).
-//! [Reference resolution](Uri::resolve). [Normalization](Uri::normalize).
-//! [Percent-decoding](crate::encoding::EStr::decode).
+//! [Reference resolution](Uri::resolve_against). [Normalization](Uri::normalize).
+//! [Percent-decoding](crate::encoding::EStr#examples).
 //! [Percent-encoding](crate::encoding::EString#examples).
 //!
 //! # Guidance for crate users
@@ -130,7 +130,7 @@ use internal::{Meta, ToUri, Val};
 /// let uri: Uri<&str> = Uri::parse(s)?;
 ///
 /// // Parse into a `Uri<String>` from an owned string.
-/// let uri_owned: Uri<String> = Uri::parse(s.to_owned()).map_err(|e| e.plain())?;
+/// let uri_owned: Uri<String> = Uri::parse(s.to_owned()).map_err(|e| e.strip_input())?;
 ///
 /// // Convert a `Uri<&str>` to `Uri<String>`.
 /// let uri_owned: Uri<String> = uri.to_owned();
@@ -407,8 +407,8 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// [`normalize`]: Self::normalize
     ///
     /// This method has the property that
-    /// `self.resolve(base).unwrap().normalize()` equals
-    /// `self.normalize().resolve(&base.normalize()).unwrap()`
+    /// `self.resolve_against(base).unwrap().normalize()` equals
+    /// `self.normalize().resolve_against(&base.normalize()).unwrap()`
     /// when no panic occurs.
     ///
     /// # Errors
@@ -422,12 +422,12 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     ///
     /// let base = Uri::parse("http://example.com/foo/bar")?;
     ///
-    /// assert_eq!(Uri::parse("baz")?.resolve(&base)?, "http://example.com/foo/baz");
-    /// assert_eq!(Uri::parse("../baz")?.resolve(&base)?, "http://example.com/baz");
-    /// assert_eq!(Uri::parse("?baz")?.resolve(&base)?, "http://example.com/foo/bar?baz");
+    /// assert_eq!(Uri::parse("baz")?.resolve_against(&base)?, "http://example.com/foo/baz");
+    /// assert_eq!(Uri::parse("../baz")?.resolve_against(&base)?, "http://example.com/baz");
+    /// assert_eq!(Uri::parse("?baz")?.resolve_against(&base)?, "http://example.com/foo/bar?baz");
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn resolve<U: Bos<str>>(&self, base: &Uri<U>) -> Result<Uri<String>, ResolveError> {
+    pub fn resolve_against<U: Bos<str>>(&self, base: &Uri<U>) -> Result<Uri<String>, ResolveError> {
         resolver::resolve(base.as_ref(), self.as_ref())
     }
 
@@ -445,14 +445,14 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// - If the port is empty, remove its `':'` delimiter.
     /// - If the URI reference contains a scheme and an absolute path,
     ///   apply the [`remove_dot_segments`] algorithm to the path, taking account of
-    ///   percent-encoded dot segments as described at [`resolve`].
+    ///   percent-encoded dot segments as described at [`resolve_against`].
     /// - If the URI reference contains no authority and its path would start with
     ///   `"//"`, prepend `"/."` to the path.
     ///
     /// This method is idempotent: `self.normalize()` equals `self.normalize().normalize()`.
     ///
     /// [`remove_dot_segments`]: https://datatracker.ietf.org/doc/html/rfc3986/#section-5.2.4
-    /// [`resolve`]: Self::resolve
+    /// [`resolve_against`]: Self::resolve_against
     ///
     /// # Examples
     ///
