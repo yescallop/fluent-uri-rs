@@ -27,9 +27,7 @@ use std::{
 ///
 /// # Comparison
 ///
-/// `Scheme`s are compared case-insensitively, as the generic URI syntax
-/// considers them to be case-insensitive. You may also restrict them
-/// to lower case by directly comparing the result of [`as_str`].
+/// `Scheme`s are compared case-insensitively, as the generic URI syntax requires.
 ///
 /// [`as_str`]: Self::as_str
 #[derive(RefCastCustom)]
@@ -76,7 +74,7 @@ impl Scheme {
         }
     }
 
-    /// Returns the scheme as a string slice.
+    /// Returns the scheme component as a string slice.
     ///
     /// # Examples
     ///

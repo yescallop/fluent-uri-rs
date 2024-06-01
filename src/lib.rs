@@ -24,6 +24,10 @@
 //!
 //! **Examples:** [Parsing](Uri#examples). [Building](Builder#examples).
 //! [Reference resolution](Uri::resolve). [Normalization](Uri::normalize).
+//! [Percent-decoding](crate::encoding::EStr::decode).
+//! [Percent-encoding](crate::encoding::EString#examples).
+//!
+//! # Guidance for crate users
 //!
 //! Advice for designers of new URI schemes can be found in [RFC 7595].
 //! Guidance on the specification of URI substructure in standards
@@ -42,7 +46,7 @@
 //!   Disabling this will not affect the behavior of [`Uri::parse`].
 //!
 //! - `std` (default): Enables [`std`] support. Includes [`Error`] implementations
-//!   and [`Authority::to_socket_addrs`]. Disabling this while enabling `net`
+//!   and [`Authority::to_socket_addrs`]. Disabling `std` while enabling `net`
 //!   requires [`core::net`] and a minimum Rust version of `1.77`.
 //!
 //! [`Error`]: std::error::Error
@@ -402,6 +406,11 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// [rootless]: EStr::<Path>::is_rootless
     /// [`normalize`]: Self::normalize
     ///
+    /// This method has the property that
+    /// `self.resolve(base).unwrap().normalize()` equals
+    /// `self.normalize().resolve(&base.normalize()).unwrap()`
+    /// when no panic occurs.
+    ///
     /// # Errors
     ///
     /// Returns `Err` if any of the above two **must**s is violated.
@@ -439,6 +448,8 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     ///   percent-encoded dot segments as described at [`resolve`].
     /// - If the URI reference contains no authority and its path would start with
     ///   `"//"`, prepend `"/."` to the path.
+    ///
+    /// This method is idempotent: `self.normalize()` equals `self.normalize().normalize()`.
     ///
     /// [`remove_dot_segments`]: https://datatracker.ietf.org/doc/html/rfc3986/#section-5.2.4
     /// [`resolve`]: Self::resolve

@@ -34,7 +34,7 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 ///         buf.push_byte(b'&');
 ///     }
 ///
-///     // WARNING: Be careful not to confuse data with delimiters! Use `Data`
+///     // WARNING: Absolutely do not confuse data with delimiters! Use `Data`
 ///     // to encode data contained in a URI unless you know what you're doing!
 ///     //
 ///     // `Data` preserves only unreserved characters and encodes the others,
@@ -117,14 +117,20 @@ impl<E: Encoder> EString<E> {
 
     /// Encodes a byte sequence with a sub-encoder and appends the result onto the end of this `EString`.
     ///
+    /// A byte will be percent-encoded if and only if `SubE::TABLE` does not [allow] it.
+    /// When encoding data, make sure that `SubE::TABLE` does not [allow] the component delimiters
+    /// that delimit the data.
+    ///
     /// Note that this method will **not** encode `0x20` (space) as `U+002B` (+).
+    ///
+    /// [allow]: super::Table::allows
     ///
     /// # Panics
     ///
     /// Panics at compile time if `SubE` is not a [sub-encoder](Encoder#sub-encoders) of `E`,
-    /// or if `SubE::TABLE` does not [allow percent-encoding].
+    /// or if `SubE::TABLE` does not [allow percent-encoded octets].
     ///
-    /// [allow percent-encoding]: super::Table::allows_enc
+    /// [allow percent-encoded octets]: super::Table::allows_enc
     pub fn encode<SubE: Encoder>(&mut self, s: &(impl AsRef<[u8]> + ?Sized)) {
         let () = Assert::<SubE, E>::LEFT_IS_SUB_ENCODER_OF_RIGHT;
         let () = EStr::<SubE>::ASSERT_ALLOWS_ENC;

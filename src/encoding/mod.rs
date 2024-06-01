@@ -96,7 +96,7 @@ impl<L: Encoder, R: Encoder> Assert<L, R> {
 impl<E: Encoder> EStr<E> {
     const ASSERT_ALLOWS_ENC: () = assert!(
         E::TABLE.allows_enc(),
-        "table does not allow percent-encoding"
+        "table does not allow percent-encoded octets"
     );
 
     /// Converts a string slice to an `EStr` slice assuming validity.
@@ -166,15 +166,18 @@ impl<E: Encoder> EStr<E> {
 
     /// Decodes the `EStr` slice.
     ///
-    /// Note that this method will **not** decode `U+002B` (+) as `0x20` (space).
+    /// Always **split** before decoding, as otherwise the data may be
+    /// mistaken for component delimiters.
     ///
-    /// This method allocates only when there is any percent-encoded octet in the slice.
+    /// This method allocates only when the slice contains any percent-encoded octet.
+    ///
+    /// Note that this method will **not** decode `U+002B` (+) as `0x20` (space).
     ///
     /// # Panics
     ///
-    /// Panics at compile time if `E::TABLE` does not [allow percent-encoding].
+    /// Panics at compile time if `E::TABLE` does not [allow percent-encoded octets].
     ///
-    /// [allow percent-encoding]: Table::allows_enc
+    /// [allow percent-encoded octets]: Table::allows_enc
     ///
     /// # Examples
     ///
