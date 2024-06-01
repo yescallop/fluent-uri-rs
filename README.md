@@ -2,7 +2,7 @@
 
 A full-featured URI handling library compliant with [RFC 3986]. It is:
 
-- **Fast:** Zero-copy parsing. Faster than several common URI parsers in Rust[^bench-res].
+- **Fast:** Zero-copy parsing. Benchmarked to be highly performant.[^bench-res].
 - **Easy:** Carefully designed and documented APIs. Handy percent-encoding utilities.
 - **Correct:** Forbids unsafe code. Extensively fuzz-tested against other implementations.
 
@@ -14,16 +14,9 @@ A full-featured URI handling library compliant with [RFC 3986]. It is:
 [Documentation](https://docs.rs/fluent-uri) | [Discussions](https://github.com/yescallop/fluent-uri-rs/discussions)
 
 [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
-[^bench-res]: It took 49ns for `fluent-uri`, 89ns for `iref`, and 135ns for `iri-string` to
-    parse the same URI in [a benchmark](https://github.com/yescallop/fluent-uri-rs/blob/main/bench/benches/bench.rs)
-    on an Intel Core i5-11300H processor.
-
-## Features
-
-- [x] Parsing.
-- [x] Building.
-- [x] Reference resolution.
-- [x] Normalization.
+[^bench-res]: In [a benchmark](https://github.com/yescallop/fluent-uri-rs/blob/main/bench/benches/bench.rs)
+    on an Intel Core i5-11300H processor, `fluent-uri` parsed a URI
+    in 49ns compared to 89ns for `iref` and 135ns for `iri-string`.
 
 ## Examples
 
@@ -80,7 +73,7 @@ A full-featured URI handling library compliant with [RFC 3986]. It is:
 - `EStr` (Percent-encoded string slices):
 
     All components in a URI that may be percent-encoded are parsed as `EStr`s,
-    which allows easy splitting and fast decoding:
+    which allows easy splitting and decoding:
 
     ```rust
     let query = "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21";
