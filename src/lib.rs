@@ -271,7 +271,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
         EStr::new_validated(self.slice(start, end))
     }
 
-    /// Returns the [scheme] component.
+    /// Returns the optional [scheme] component.
     ///
     /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
     #[must_use]
@@ -280,7 +280,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
             .map(|i| Scheme::new_validated(self.slice(0, i.get())))
     }
 
-    /// Returns the [authority] component.
+    /// Returns the optional [authority] component.
     ///
     /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
     #[must_use]
@@ -303,7 +303,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
         self.eslice(self.path_bounds.0, self.path_bounds.1)
     }
 
-    /// Returns the [query] component.
+    /// Returns the optional [query] component.
     ///
     /// [query]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.4
     #[must_use]
@@ -317,7 +317,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
         (query_or_path_end != self.len()).then_some(query_or_path_end + 1)
     }
 
-    /// Returns the [fragment] component.
+    /// Returns the optional [fragment] component.
     ///
     /// [fragment]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.5
     #[must_use]

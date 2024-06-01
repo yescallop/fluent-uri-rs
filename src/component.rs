@@ -27,9 +27,14 @@ use std::{
 ///
 /// # Comparison
 ///
-/// `Scheme`s are compared case-insensitively, as the generic URI syntax requires.
+/// `Scheme`s are compared case-insensitively, as required by the generic URI syntax.
+/// You should do a case-insensitive comparison if the scheme specification allows
+/// both letter cases in the scheme name.
 ///
-/// [`as_str`]: Self::as_str
+/// When designing a new scheme, you may find it helpful to restrict the scheme name
+/// to lowercase as it is normalized to lowercase in the generic URI syntax.
+/// Doing so reduces variations in URIs and may contribute to the long-term
+/// interoperability of the scheme.
 #[derive(RefCastCustom)]
 #[repr(transparent)]
 pub struct Scheme {
@@ -144,7 +149,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
         self.meta().host_bounds
     }
 
-    /// Returns the authority as a string slice.
+    /// Returns the authority component as a string slice.
     ///
     /// # Examples
     ///
@@ -161,7 +166,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
         self.uri.slice(self.start(), self.end())
     }
 
-    /// Returns the [userinfo] subcomponent.
+    /// Returns the optional [userinfo] subcomponent.
     ///
     /// [userinfo]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.1
     ///
@@ -183,7 +188,9 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
 
     /// Returns the [host] subcomponent as a string slice.
     ///
-    /// The square brackets enclosing an IP literal are included.
+    /// The square brackets enclosing an IPv6 or IPvFuture address are included.
+    /// 
+    /// Note that the host subcomponent is case-insensitive in the generic URI syntax.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
     ///
@@ -204,6 +211,8 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     }
 
     /// Returns the parsed [host] subcomponent.
+    /// 
+    /// Note that the host subcomponent is case-insensitive in the generic URI syntax.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
     ///
@@ -250,7 +259,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
         }
     }
 
-    /// Returns the [port] subcomponent.
+    /// Returns the optional [port] subcomponent.
     ///
     /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
     ///
@@ -275,9 +284,9 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// let authority = uri.authority().unwrap();
     /// assert_eq!(authority.port(), None);
     ///
-    /// let uri = Uri::parse("//localhost:66666/")?;
+    /// let uri = Uri::parse("//localhost:123456/")?;
     /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.port(), Some("66666"));
+    /// assert_eq!(authority.port(), Some("123456"));
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[must_use]
@@ -286,7 +295,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
         (host_end != end).then(|| self.uri.slice(host_end + 1, end))
     }
 
-    /// Converts the [port] subcomponent to `u16`.
+    /// Converts the [port] subcomponent to `u16`, if present.
     ///
     /// Leading zeros are ignored.
     /// Returns `Ok(None)` if the port is not present or is empty,
@@ -323,7 +332,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
             .transpose()
     }
 
-    /// Converts the authority to an iterator of resolved [`SocketAddr`]s.
+    /// Converts the authority component to an iterator of resolved [`SocketAddr`]s.
     ///
     /// The default port is used if the port component is not present or is empty.
     ///
