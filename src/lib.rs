@@ -151,7 +151,7 @@ use internal::{Meta, ToUri, Value};
 ///
 /// let uri = Uri::parse("http://user@example.com:8042/over/there?name=ferret#nose")?;
 ///
-/// assert_eq!(uri.scheme().unwrap(), Scheme::new("http"));
+/// assert_eq!(uri.scheme().unwrap(), Scheme::new_or_panic("http"));
 ///
 /// let auth = uri.authority().unwrap();
 /// assert_eq!(auth.as_str(), "user@example.com:8042");
@@ -283,7 +283,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// use fluent_uri::{component::Scheme, Uri};
     ///
     /// let uri = Uri::parse("http://example.com/")?;
-    /// assert_eq!(uri.scheme(), Some(Scheme::new("http")));
+    /// assert_eq!(uri.scheme(), Some(Scheme::new_or_panic("http")));
     ///
     /// let uri = Uri::parse("/path/to/file")?;
     /// assert_eq!(uri.scheme(), None);
@@ -359,7 +359,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// use fluent_uri::{encoding::EStr, Uri};
     ///
     /// let uri = Uri::parse("http://example.com/?lang=en")?;
-    /// assert_eq!(uri.query(), Some(EStr::new("lang=en")));
+    /// assert_eq!(uri.query(), Some(EStr::new_or_panic("lang=en")));
     ///
     /// let uri = Uri::parse("ftp://192.0.2.1/")?;
     /// assert_eq!(uri.query(), None);
@@ -386,7 +386,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// use fluent_uri::{encoding::EStr, Uri};
     ///
     /// let uri = Uri::parse("http://example.com/#usage")?;
-    /// assert_eq!(uri.fragment(), Some(EStr::new("usage")));
+    /// assert_eq!(uri.fragment(), Some(EStr::new_or_panic("usage")));
     ///
     /// let uri = Uri::parse("ftp://192.0.2.1/")?;
     /// assert_eq!(uri.fragment(), None);

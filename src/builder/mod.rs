@@ -28,15 +28,15 @@ use state::*;
 /// use fluent_uri::{component::Scheme, encoding::EStr, Uri};
 ///
 /// let uri: Uri<String> = Uri::builder()
-///     .scheme(Scheme::new("foo"))
+///     .scheme(Scheme::new_or_panic("foo"))
 ///     .authority(|b| {
-///         b.userinfo(EStr::new("user"))
-///             .host(EStr::new("example.com"))
+///         b.userinfo(EStr::new_or_panic("user"))
+///             .host(EStr::new_or_panic("example.com"))
 ///             .port(8042)
 ///     })
-///     .path(EStr::new("/over/there"))
-///     .query(EStr::new("name=ferret"))
-///     .fragment(EStr::new("nose"))
+///     .path(EStr::new_or_panic("/over/there"))
+///     .query(EStr::new_or_panic("name=ferret"))
+///     .fragment(EStr::new_or_panic("nose"))
 ///     .build()
 ///     .unwrap();
 ///
@@ -46,7 +46,7 @@ use state::*;
 /// );
 /// ```
 ///
-/// Note that [`EStr::new`] *panics* on invalid input and should only be used
+/// Note that [`EStr::new_or_panic`] *panics* on invalid input and should only be used
 /// when you know that the string is properly percent-encoded.
 /// If you want to build a percent-encoded string from scratch,
 /// use [`EString`] instead.
@@ -214,10 +214,10 @@ impl<S> Builder<S> {
     ///     let b = if relative {
     ///         b.advance()
     ///     } else {
-    ///         b.scheme(Scheme::new("http"))
-    ///             .authority(|b| b.host(EStr::new("example.com")))
+    ///         b.scheme(Scheme::new_or_panic("http"))
+    ///             .authority(|b| b.host(EStr::new_or_panic("example.com")))
     ///     };
-    ///     b.path(EStr::new("/foo")).build().unwrap()
+    ///     b.path(EStr::new_or_panic("/foo")).build().unwrap()
     /// }
     ///
     /// assert_eq!(build(false).as_str(), "http://example.com/foo");
@@ -237,8 +237,8 @@ impl<S> Builder<S> {
     /// use fluent_uri::{encoding::EStr, Builder, Uri};
     ///
     /// let uri = Uri::builder()
-    ///     .path(EStr::new("foo"))
-    ///     .optional(Builder::query, Some(EStr::new("bar")))
+    ///     .path(EStr::new_or_panic("foo"))
+    ///     .optional(Builder::query, Some(EStr::new_or_panic("bar")))
     ///     .optional(Builder::fragment, None)
     ///     .build()
     ///     .unwrap();
@@ -324,8 +324,8 @@ impl<S: To<HostEnd>> Builder<S> {
     /// use fluent_uri::{component::Host, encoding::EStr, Uri};
     ///
     /// let uri = Uri::builder()
-    ///     .authority(|b| b.host(EStr::new("127.0.0.1")))
-    ///     .path(EStr::new(""))
+    ///     .authority(|b| b.host(EStr::new_or_panic("127.0.0.1")))
+    ///     .path(EStr::EMPTY)
     ///     .build()
     ///     .unwrap();
     /// assert!(matches!(uri.authority().unwrap().host_parsed(), Host::Ipv4(_)));

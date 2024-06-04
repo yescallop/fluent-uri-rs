@@ -69,9 +69,9 @@ pub trait Encoder: 'static {
 /// use std::collections::HashMap;
 ///
 /// let query = "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21";
-/// let map: HashMap<_, _> = EStr::<Query>::new(query)
+/// let map: HashMap<_, _> = EStr::<Query>::new_or_panic(query)
 ///     .split('&')
-///     .map(|s| s.split_once('=').unwrap_or((s, EStr::new(""))))
+///     .map(|s| s.split_once('=').unwrap_or((s, EStr::EMPTY)))
 ///     .map(|(k, v)| (k.decode().into_string_lossy(), v.decode().into_string_lossy()))
 ///     .collect();
 /// assert_eq!(map["name"], "张三");
@@ -103,30 +103,26 @@ impl<E: Encoder> EStr<E> {
     #[ref_cast_custom]
     pub(crate) const fn new_validated(s: &str) -> &Self;
 
+    /// An empty `EStr` slice.
+    pub const EMPTY: &'static Self = Self::new_validated("");
+
     /// Converts a string slice to an `EStr` slice.
-    ///
-    /// This function *panics* on invalid input and should only be used
-    /// when you know that the string is properly percent-encoded.
-    /// If you want to build a percent-encoded string from scratch,
-    /// use [`EString`] instead.
     ///
     /// # Panics
     ///
     /// Panics if the string is not properly encoded with `E`.
-    /// For a non-panicking variant, use [`try_new`](Self::try_new).
+    /// For a non-panicking variant, use [`new`](Self::new).
     #[must_use]
-    pub const fn new(s: &str) -> &Self {
-        match Self::try_new(s) {
+    pub const fn new_or_panic(s: &str) -> &Self {
+        match Self::new(s) {
             Some(s) => s,
             None => panic!("improperly encoded string"),
         }
     }
 
     /// Converts a string slice to an `EStr` slice, returning `None` if the conversion fails.
-    ///
-    /// This is the non-panicking variant of [`new`](Self::new).
     #[must_use]
-    pub const fn try_new(s: &str) -> Option<&Self> {
+    pub const fn new(s: &str) -> Option<&Self> {
         if E::TABLE.validate(s.as_bytes()) {
             Some(EStr::new_validated(s))
         } else {
@@ -184,7 +180,7 @@ impl<E: Encoder> EStr<E> {
     /// ```
     /// use fluent_uri::encoding::{encoder::Path, EStr};
     ///
-    /// let dec = EStr::<Path>::new("%C2%A1Hola%21").decode();
+    /// let dec = EStr::<Path>::new_or_panic("%C2%A1Hola%21").decode();
     /// assert_eq!(dec.as_bytes(), &[0xc2, 0xa1, 0x48, 0x6f, 0x6c, 0x61, 0x21]);
     /// assert_eq!(dec.into_string()?, "¡Hola!");
     /// # Ok::<_, std::string::FromUtf8Error>(())
@@ -212,9 +208,9 @@ impl<E: Encoder> EStr<E> {
     /// ```
     /// use fluent_uri::encoding::{encoder::Path, EStr};
     ///
-    /// assert!(EStr::<Path>::new("a,b,c").split(',').eq(["a", "b", "c"]));
-    /// assert!(EStr::<Path>::new(",").split(',').eq(["", ""]));
-    /// assert!(EStr::<Path>::new("").split(',').eq([""]));
+    /// assert!(EStr::<Path>::new_or_panic("a,b,c").split(',').eq(["a", "b", "c"]));
+    /// assert!(EStr::<Path>::new_or_panic(",").split(',').eq(["", ""]));
+    /// assert!(EStr::<Path>::EMPTY.split(',').eq([""]));
     /// ```
     pub fn split(&self, delim: char) -> Split<'_, E> {
         assert!(
@@ -244,11 +240,11 @@ impl<E: Encoder> EStr<E> {
     /// use fluent_uri::encoding::{encoder::Path, EStr};
     ///
     /// assert_eq!(
-    ///     EStr::<Path>::new("foo;bar;baz").split_once(';'),
-    ///     Some((EStr::new("foo"), EStr::new("bar;baz")))
+    ///     EStr::<Path>::new_or_panic("foo;bar;baz").split_once(';'),
+    ///     Some((EStr::new_or_panic("foo"), EStr::new_or_panic("bar;baz")))
     /// );
     ///
-    /// assert_eq!(EStr::<Path>::new("foo").split_once(';'), None);
+    /// assert_eq!(EStr::<Path>::new_or_panic("foo").split_once(';'), None);
     /// ```
     #[must_use]
     pub fn split_once(&self, delim: char) -> Option<(&Self, &Self)> {
@@ -278,11 +274,11 @@ impl<E: Encoder> EStr<E> {
     /// use fluent_uri::encoding::{encoder::Path, EStr};
     ///
     /// assert_eq!(
-    ///     EStr::<Path>::new("foo;bar;baz").rsplit_once(';'),
-    ///     Some((EStr::new("foo;bar"), EStr::new("baz")))
+    ///     EStr::<Path>::new_or_panic("foo;bar;baz").rsplit_once(';'),
+    ///     Some((EStr::new_or_panic("foo;bar"), EStr::new_or_panic("baz")))
     /// );
     ///
-    /// assert_eq!(EStr::<Path>::new("foo").rsplit_once(';'), None);
+    /// assert_eq!(EStr::<Path>::new_or_panic("foo").rsplit_once(';'), None);
     /// ```
     #[must_use]
     pub fn rsplit_once(&self, delim: char) -> Option<(&Self, &Self)> {
@@ -349,7 +345,7 @@ impl<E: Encoder> Ord for EStr<E> {
 impl<E: Encoder> Default for &EStr<E> {
     /// Creates an empty `EStr` slice.
     fn default() -> Self {
-        EStr::new_validated("")
+        EStr::EMPTY
     }
 }
 

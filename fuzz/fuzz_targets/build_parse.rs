@@ -18,7 +18,7 @@ struct SchemeWrapper<'a>(&'a Scheme);
 
 impl<'a> Arbitrary<'a> for SchemeWrapper<'a> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        Scheme::try_new(u.arbitrary()?)
+        Scheme::new(u.arbitrary()?)
             .map(SchemeWrapper)
             .ok_or(Error::IncorrectFormat)
     }
@@ -42,7 +42,7 @@ impl<'a, E: Encoder> Copy for EStrWrapper<'a, E> {}
 
 impl<'a, E: Encoder> Arbitrary<'a> for EStrWrapper<'a, E> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        EStr::try_new(u.arbitrary()?)
+        EStr::new(u.arbitrary()?)
             .map(EStrWrapper)
             .ok_or(Error::IncorrectFormat)
     }

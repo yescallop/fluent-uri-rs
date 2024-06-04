@@ -55,7 +55,7 @@ fn parse_absolute() {
     ));
     assert_eq!(a.port(), None);
     assert_eq!(u.path(), "/c=GB");
-    assert_eq!(u.query(), Some(EStr::new("objectClass?one")));
+    assert_eq!(u.query(), Some(EStr::new_or_panic("objectClass?one")));
     assert_eq!(u.fragment(), None);
 
     let u = Uri::parse("mailto:John.Doe@example.com").unwrap();
@@ -108,8 +108,8 @@ fn parse_absolute() {
     assert!(matches!(a.host_parsed(), Host::RegName(name) if name == "example.com"));
     assert_eq!(a.port(), Some("8042"));
     assert_eq!(u.path(), "/over/there");
-    assert_eq!(u.query(), Some(EStr::new("name=ferret")));
-    assert_eq!(u.fragment(), Some(EStr::new("nose")));
+    assert_eq!(u.query(), Some(EStr::new_or_panic("name=ferret")));
+    assert_eq!(u.fragment(), Some(EStr::new_or_panic("nose")));
 
     let u = Uri::parse("ftp://cnn.example.com&story=breaking_news@10.0.0.1/top_story.htm").unwrap();
     assert_eq!(u.scheme().unwrap().as_str(), "ftp");
@@ -117,7 +117,7 @@ fn parse_absolute() {
     assert_eq!(a.as_str(), "cnn.example.com&story=breaking_news@10.0.0.1");
     assert_eq!(
         a.userinfo(),
-        Some(EStr::new("cnn.example.com&story=breaking_news"))
+        Some(EStr::new_or_panic("cnn.example.com&story=breaking_news"))
     );
     assert_eq!(a.host(), "10.0.0.1");
     #[cfg(feature = "net")]
@@ -225,7 +225,7 @@ fn parse_relative() {
     assert!(u.scheme().is_none());
     assert!(u.authority().is_none());
     assert_eq!(u.path(), "");
-    assert_eq!(u.query(), Some(EStr::new("query")));
+    assert_eq!(u.query(), Some(EStr::new_or_panic("query")));
     assert_eq!(u.fragment(), None);
 
     let u = Uri::parse("#fragment").unwrap();
@@ -233,7 +233,7 @@ fn parse_relative() {
     assert!(u.authority().is_none());
     assert_eq!(u.path(), "");
     assert_eq!(u.query(), None);
-    assert_eq!(u.fragment(), Some(EStr::new("fragment")));
+    assert_eq!(u.fragment(), Some(EStr::new_or_panic("fragment")));
 }
 
 #[test]

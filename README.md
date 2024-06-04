@@ -36,15 +36,15 @@ A full-featured URI handling library compliant with [RFC 3986]. It is:
 
     ```rust
     let uri: Uri<String> = Uri::builder()
-        .scheme(Scheme::new("foo"))
+        .scheme(Scheme::new_or_panic("foo"))
         .authority(|b| {
-            b.userinfo(EStr::new("user"))
-                .host(EStr::new("example.com"))
+            b.userinfo(EStr::new_or_panic("user"))
+                .host(EStr::new_or_panic("example.com"))
                 .port(8042)
         })
-        .path(EStr::new("/over/there"))
-        .query(EStr::new("name=ferret"))
-        .fragment(EStr::new("nose"))
+        .path(EStr::new_or_panic("/over/there"))
+        .query(EStr::new_or_panic("name=ferret"))
+        .fragment(EStr::new_or_panic("nose"))
         .build();
 
     assert_eq!(
@@ -79,7 +79,7 @@ A full-featured URI handling library compliant with [RFC 3986]. It is:
     let query = "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21";
     let map: HashMap<_, _> = EStr::<Query>::new(query)
         .split('&')
-        .map(|s| s.split_once('=').unwrap_or((s, EStr::new(""))))
+        .map(|s| s.split_once('=').unwrap_or((s, EStr::EMPTY)))
         .map(|(k, v)| (k.decode().into_string_lossy(), v.decode().into_string_lossy()))
         .collect();
     assert_eq!(map["name"], "张三");
@@ -105,7 +105,7 @@ A full-featured URI handling library compliant with [RFC 3986]. It is:
     assert_eq!(buf, "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
 
     let uri = Uri::builder()
-        .path(EStr::new(""))
+        .path(EStr::new_or_panic(""))
         .query(&buf)
         .build();
     assert_eq!(uri.as_str(), "?name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");

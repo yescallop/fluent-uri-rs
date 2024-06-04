@@ -61,15 +61,15 @@ fn bench_build(c: &mut Criterion) {
     c.bench_function("build", |b| {
         b.iter(|| {
             Uri::builder()
-                .scheme(Scheme::new("foo"))
+                .scheme(Scheme::new_or_panic("foo"))
                 .authority(|b| {
-                    b.userinfo(EStr::new("user"))
-                        .host(EStr::new("example.com"))
+                    b.userinfo(EStr::new_or_panic("user"))
+                        .host(EStr::new_or_panic("example.com"))
                         .port(8042)
                 })
-                .path(EStr::new("/over/there"))
-                .query(EStr::new("name=ferret"))
-                .fragment(EStr::new("nose"))
+                .path(EStr::new_or_panic("/over/there"))
+                .query(EStr::new_or_panic("name=ferret"))
+                .fragment(EStr::new_or_panic("nose"))
                 .build()
         })
     });

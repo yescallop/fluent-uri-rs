@@ -39,7 +39,7 @@ use std::{
 /// let scheme = uri.scheme().unwrap();
 ///
 /// // Case-insensitive comparison.
-/// assert_eq!(scheme, Scheme::new("http"));
+/// assert_eq!(scheme, Scheme::new_or_panic("http"));
 /// // Case-sensitive comparison.
 /// assert_eq!(scheme.as_str(), "HTTP");
 /// # Ok::<_, fluent_uri::error::ParseError>(())
@@ -61,24 +61,22 @@ impl Scheme {
     ///
     /// Panics if the string is not a valid scheme name according to
     /// [Section 3.1 of RFC 3986][scheme]. For a non-panicking variant,
-    /// use [`try_new`](Self::try_new).
+    /// use [`new`](Self::new).
     ///
     /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
     #[inline]
     #[must_use]
-    pub const fn new(s: &str) -> &Scheme {
-        match Self::try_new(s) {
+    pub const fn new_or_panic(s: &str) -> &Scheme {
+        match Self::new(s) {
             Some(scheme) => scheme,
             None => panic!("invalid scheme"),
         }
     }
 
     /// Converts a string slice to `&Scheme`, returning `None` if the conversion fails.
-    ///
-    /// This is the non-panicking variant of [`new`](Self::new).
     #[inline]
     #[must_use]
-    pub const fn try_new(s: &str) -> Option<&Scheme> {
+    pub const fn new(s: &str) -> Option<&Scheme> {
         if matches!(s.as_bytes(), [first, rem @ ..]
         if first.is_ascii_alphabetic() && table::SCHEME.validate(rem))
         {
@@ -186,7 +184,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     ///
     /// let uri = Uri::parse("http://user@example.com/")?;
     /// let auth = uri.authority().unwrap();
-    /// assert_eq!(auth.userinfo(), Some(EStr::new("user")));
+    /// assert_eq!(auth.userinfo(), Some(EStr::new_or_panic("user")));
     ///
     /// let uri = Uri::parse("http://example.com/")?;
     /// let auth = uri.authority().unwrap();

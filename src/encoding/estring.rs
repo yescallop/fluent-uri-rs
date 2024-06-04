@@ -50,7 +50,7 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 /// assert_eq!(buf, "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
 ///
 /// let uri = Uri::builder()
-///     .path(EStr::new(""))
+///     .path(EStr::EMPTY)
 ///     .query(&buf)
 ///     .build()
 ///     .unwrap();
