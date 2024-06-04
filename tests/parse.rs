@@ -12,7 +12,7 @@ fn parse_absolute() {
     assert_eq!(a.as_str(), "");
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "");
-    assert_eq!(a.host_parsed(), Host::RegName(EStr::new("")));
+    assert!(matches!(a.host_parsed(), Host::RegName(n) if n == ""));
     assert_eq!(a.port(), None);
     assert_eq!(u.path(), "/etc/hosts");
     assert_eq!(u.query(), None);
@@ -24,7 +24,7 @@ fn parse_absolute() {
     assert_eq!(a.as_str(), "ftp.is.co.za");
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "ftp.is.co.za");
-    assert_eq!(a.host_parsed(), Host::RegName(EStr::new("ftp.is.co.za")));
+    assert!(matches!(a.host_parsed(), Host::RegName(name) if name == "ftp.is.co.za"));
     assert_eq!(a.port(), None);
     assert_eq!(u.path(), "/rfc/rfc1808.txt");
     assert_eq!(u.query(), None);
@@ -36,7 +36,7 @@ fn parse_absolute() {
     assert_eq!(a.as_str(), "www.ietf.org");
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "www.ietf.org");
-    assert_eq!(a.host_parsed(), Host::RegName(EStr::new("www.ietf.org")));
+    assert!(matches!(a.host_parsed(), Host::RegName(name) if name == "www.ietf.org"));
     assert_eq!(a.port(), None);
     assert_eq!(u.path(), "/rfc/rfc2396.txt");
     assert_eq!(u.query(), None);
@@ -49,10 +49,10 @@ fn parse_absolute() {
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "[2001:db8::7]");
     #[cfg(feature = "net")]
-    assert_eq!(
+    assert!(matches!(
         a.host_parsed(),
-        Host::Ipv6(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 0x7))
-    );
+        Host::Ipv6(addr) if addr == Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 0x7)
+    ));
     assert_eq!(a.port(), None);
     assert_eq!(u.path(), "/c=GB");
     assert_eq!(u.query(), Some(EStr::new("objectClass?one")));
@@ -86,7 +86,7 @@ fn parse_absolute() {
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "192.0.2.16");
     #[cfg(feature = "net")]
-    assert_eq!(a.host_parsed(), Host::Ipv4(Ipv4Addr::new(192, 0, 2, 16)));
+    assert!(matches!(a.host_parsed(), Host::Ipv4(addr) if addr == Ipv4Addr::new(192, 0, 2, 16)));
     assert_eq!(a.port(), Some("80"));
     assert_eq!(u.path(), "/");
     assert_eq!(u.query(), None);
@@ -105,7 +105,7 @@ fn parse_absolute() {
     assert_eq!(a.as_str(), "example.com:8042");
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "example.com");
-    assert_eq!(a.host_parsed(), Host::RegName(EStr::new("example.com")));
+    assert!(matches!(a.host_parsed(), Host::RegName(name) if name == "example.com"));
     assert_eq!(a.port(), Some("8042"));
     assert_eq!(u.path(), "/over/there");
     assert_eq!(u.query(), Some(EStr::new("name=ferret")));
@@ -121,7 +121,7 @@ fn parse_absolute() {
     );
     assert_eq!(a.host(), "10.0.0.1");
     #[cfg(feature = "net")]
-    assert_eq!(a.host_parsed(), Host::Ipv4(Ipv4Addr::new(10, 0, 0, 1)));
+    assert!(matches!(a.host_parsed(), Host::Ipv4(addr) if addr == Ipv4Addr::new(10, 0, 0, 1)));
     assert_eq!(a.port(), None);
     assert_eq!(u.path(), "/top_story.htm");
     assert_eq!(u.query(), None);
@@ -146,7 +146,7 @@ fn parse_absolute() {
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "127.0.0.1");
     #[cfg(feature = "net")]
-    assert_eq!(a.host_parsed(), Host::Ipv4(Ipv4Addr::new(127, 0, 0, 1)));
+    assert!(matches!(a.host_parsed(), Host::Ipv4(addr) if addr == Ipv4Addr::new(127, 0, 0, 1)));
     assert_eq!(a.port(), Some(""));
     assert_eq!(u.path(), "/");
     assert_eq!(u.query(), None);
@@ -159,7 +159,7 @@ fn parse_absolute() {
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "127.0.0.1");
     #[cfg(feature = "net")]
-    assert_eq!(a.host_parsed(), Host::Ipv4(Ipv4Addr::new(127, 0, 0, 1)));
+    assert!(matches!(a.host_parsed(), Host::Ipv4(addr) if addr == Ipv4Addr::new(127, 0, 0, 1)));
     assert_eq!(a.port(), Some("8080"));
     assert_eq!(u.path(), "/");
     assert_eq!(u.query(), None);
@@ -172,7 +172,7 @@ fn parse_absolute() {
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "127.0.0.1");
     #[cfg(feature = "net")]
-    assert_eq!(a.host_parsed(), Host::Ipv4(Ipv4Addr::new(127, 0, 0, 1)));
+    assert!(matches!(a.host_parsed(), Host::Ipv4(addr) if addr == Ipv4Addr::new(127, 0, 0, 1)));
     assert_eq!(a.port(), Some("80808"));
     assert_eq!(u.path(), "/");
     assert_eq!(u.query(), None);
@@ -215,7 +215,7 @@ fn parse_relative() {
     assert_eq!(a.as_str(), "example.com");
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "example.com");
-    assert_eq!(a.host_parsed(), Host::RegName(EStr::new("example.com")));
+    assert!(matches!(a.host_parsed(), Host::RegName(name) if name == "example.com"));
     assert_eq!(a.port(), None);
     assert_eq!(u.path(), "");
     assert_eq!(u.query(), None);

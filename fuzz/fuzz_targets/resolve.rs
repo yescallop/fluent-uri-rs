@@ -7,7 +7,9 @@ fuzz_target!(|data: (&str, &str)| {
         return;
     };
 
-    let Ok(u1) = r.resolve(&base) else { return };
+    let Ok(u1) = r.resolve_against(&base) else {
+        return;
+    };
     let u2 = Uri::parse(u1.as_str()).unwrap();
 
     assert_eq!(
@@ -31,6 +33,6 @@ fuzz_target!(|data: (&str, &str)| {
 
     // Swapping the order of resolution and normalization does not change the result.
     let resolve_then_normalize = u1.normalize();
-    let normalize_then_resolve = r.normalize().resolve(&base.normalize()).unwrap();
+    let normalize_then_resolve = r.normalize().resolve_against(&base.normalize()).unwrap();
     assert_eq!(resolve_then_normalize, normalize_then_resolve);
 });

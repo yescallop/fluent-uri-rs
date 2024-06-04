@@ -90,7 +90,7 @@ use encoding::{
     EStr, Encoder,
 };
 use error::{ParseError, ResolveError};
-use internal::{Meta, ToUri, Val};
+use internal::{Meta, ToUri, Value};
 
 /// A [URI reference] defined in RFC 3986.
 ///
@@ -149,19 +149,15 @@ use internal::{Meta, ToUri, Val};
 ///     Uri,
 /// };
 ///
-/// let uri = Uri::parse("HTTP://user@example.com:8042/over/there?name=ferret#nose")?;
+/// let uri = Uri::parse("http://user@example.com:8042/over/there?name=ferret#nose")?;
 ///
-/// let scheme = uri.scheme().unwrap();
-/// // Case-sensitive comparison.
-/// assert_eq!(scheme.as_str(), "HTTP");
-/// // Case-insensitive comparison.
-/// assert_eq!(scheme, Scheme::new("http"));
+/// assert_eq!(uri.scheme().unwrap(), Scheme::new("http"));
 ///
 /// let auth = uri.authority().unwrap();
 /// assert_eq!(auth.as_str(), "user@example.com:8042");
 /// assert_eq!(auth.userinfo().unwrap(), "user");
 /// assert_eq!(auth.host(), "example.com");
-/// assert_eq!(auth.host_parsed(), Host::RegName(EStr::new("example.com")));
+/// assert!(matches!(auth.host_parsed(), Host::RegName(name) if name == "example.com"));
 /// assert_eq!(auth.port(), Some("8042"));
 /// assert_eq!(auth.port_to_u16(), Ok(Some(8042)));
 ///
@@ -192,9 +188,12 @@ impl<T> Uri<T> {
     /// Returns `Err` if the string does not match
     /// the [`URI-reference`] ABNF rule from RFC 3986.
     ///
-    /// You may recover an input [`String`] by calling [`ParseError::into_input`].
+    /// From a [`ParseError<String>`], you may recover or strip the input
+    /// by calling [`into_input`] or [`strip_input`].
     ///
     /// [`URI-reference`]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.1
+    /// [`into_input`]: ParseError::into_input
+    /// [`strip_input`]: ParseError::strip_input
     pub fn parse<I>(input: I) -> Result<Self, I::Err>
     where
         I: ToUri<Val = T>,
@@ -273,7 +272,23 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
 
     /// Returns the optional [scheme] component.
     ///
+    /// Note that the scheme component is **case-insensitive**.
+    /// See the documentation of [`Scheme`] for more details on comparison.
+    ///
     /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::{component::Scheme, Uri};
+    ///
+    /// let uri = Uri::parse("http://example.com/")?;
+    /// assert_eq!(uri.scheme(), Some(Scheme::new("http")));
+    ///
+    /// let uri = Uri::parse("/path/to/file")?;
+    /// assert_eq!(uri.scheme(), None);
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// ```
     #[must_use]
     pub fn scheme(&'i self) -> Option<&'o Scheme> {
         self.scheme_end
@@ -283,6 +298,19 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// Returns the optional [authority] component.
     ///
     /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::Uri;
+    ///
+    /// let uri = Uri::parse("http://example.com/")?;
+    /// assert!(uri.authority().is_some());
+    ///
+    /// let uri = Uri::parse("mailto:user@example.com")?;
+    /// assert!(uri.authority().is_none());
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// ```
     #[must_use]
     pub fn authority(&self) -> Option<&Authority<T>> {
         if self.auth_meta.is_some() {
@@ -294,10 +322,28 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
 
     /// Returns the [path] component.
     ///
+    /// The path component is always present, although it may be empty.
+    ///
     /// The returned [`EStr`] slice has [extension methods] for the path component.
     ///
     /// [path]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
     /// [extension methods]: EStr#impl-EStr<Path>
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::Uri;
+    ///
+    /// let uri = Uri::parse("http://example.com/")?;
+    /// assert_eq!(uri.path(), "/");
+    ///
+    /// let uri = Uri::parse("mailto:user@example.com")?;
+    /// assert_eq!(uri.path(), "user@example.com");
+    ///
+    /// let uri = Uri::parse("?lang=en")?;
+    /// assert_eq!(uri.path(), "");
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// ```
     #[must_use]
     pub fn path(&'i self) -> &'o EStr<Path> {
         self.eslice(self.path_bounds.0, self.path_bounds.1)
@@ -306,6 +352,19 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// Returns the optional [query] component.
     ///
     /// [query]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.4
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::{encoding::EStr, Uri};
+    ///
+    /// let uri = Uri::parse("http://example.com/?lang=en")?;
+    /// assert_eq!(uri.query(), Some(EStr::new("lang=en")));
+    ///
+    /// let uri = Uri::parse("ftp://192.0.2.1/")?;
+    /// assert_eq!(uri.query(), None);
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// ```
     #[must_use]
     pub fn query(&'i self) -> Option<&'o EStr<Query>> {
         self.query_end
@@ -320,6 +379,19 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// Returns the optional [fragment] component.
     ///
     /// [fragment]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.5
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::{encoding::EStr, Uri};
+    ///
+    /// let uri = Uri::parse("http://example.com/#usage")?;
+    /// assert_eq!(uri.fragment(), Some(EStr::new("usage")));
+    ///
+    /// let uri = Uri::parse("ftp://192.0.2.1/")?;
+    /// assert_eq!(uri.fragment(), None);
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// ```
     #[must_use]
     pub fn fragment(&'i self) -> Option<&'o EStr<Fragment>> {
         self.fragment_start().map(|i| self.eslice(i, self.len()))
@@ -469,7 +541,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     }
 }
 
-impl<T: Val> Default for Uri<T> {
+impl<T: Value> Default for Uri<T> {
     /// Creates an empty URI reference.
     fn default() -> Self {
         Uri {

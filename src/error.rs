@@ -1,6 +1,6 @@
 //! Error types.
 
-use crate::internal::ToUri;
+use crate::internal::{NoInput, ToUri};
 
 /// Detailed cause of a [`ParseError`].
 #[derive(Clone, Copy, Debug)]
@@ -21,7 +21,7 @@ pub(crate) enum ParseErrorKind {
 
 /// An error occurred when parsing URI references.
 #[derive(Clone, Copy)]
-pub struct ParseError<I = ()> {
+pub struct ParseError<I = NoInput> {
     pub(crate) index: usize,
     pub(crate) kind: ParseErrorKind,
     pub(crate) input: I,
@@ -52,7 +52,7 @@ impl<I: ToUri> ParseError<I> {
         ParseError {
             index: self.index,
             kind: self.kind,
-            input: (),
+            input: NoInput,
         }
     }
 }

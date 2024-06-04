@@ -261,6 +261,9 @@ impl<S> Builder<S> {
 impl<S: To<SchemeEnd>> Builder<S> {
     /// Sets the [scheme] component.
     ///
+    /// Note that the scheme component is **case-insensitive** and normalized to
+    /// lowercase. You should use only lowercase in scheme names for consistency.
+    ///
     /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
     pub fn scheme(mut self, scheme: &Scheme) -> Builder<SchemeEnd> {
         self.inner.push_scheme(scheme.as_str());
@@ -305,6 +308,9 @@ impl<S: To<HostEnd>> Builder<S> {
     /// If the contents of an input [`Host::RegName`] variant matches the
     /// `IPv4address` ABNF rule defined in [Section 3.2.2 of RFC 3986][host],
     /// the resulting [`Uri`] will output a [`Host::Ipv4`] variant instead.
+    ///
+    /// Note that the host subcomponent is **case-insensitive** and normalized to
+    /// lowercase. You should use only lowercase in registered names for consistency.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
     /// [`Ipv4Addr`]: std::net::Ipv4Addr

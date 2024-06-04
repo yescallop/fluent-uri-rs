@@ -1,6 +1,6 @@
 use crate::{
     encoding::{table::*, Table, OCTET_TABLE_LO},
-    internal::{AuthMeta, HostMeta, Meta},
+    internal::{AuthMeta, HostMeta, Meta, NoInput},
 };
 use core::{
     num::NonZeroUsize,
@@ -16,7 +16,7 @@ macro_rules! err {
         return Err(crate::error::ParseError {
             index: $index,
             kind: crate::error::ParseErrorKind::$kind,
-            input: (),
+            input: NoInput,
         })
     };
 }

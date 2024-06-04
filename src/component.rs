@@ -27,14 +27,23 @@ use std::{
 ///
 /// # Comparison
 ///
-/// `Scheme`s are compared case-insensitively, as required by the generic URI syntax.
-/// You should do a case-insensitive comparison if the scheme specification allows
-/// both letter cases in the scheme name.
+/// `Scheme`s are compared case-insensitively. You should do a case-insensitive
+/// comparison if the scheme specification allows both letter cases in the scheme name.
 ///
-/// When designing a new scheme, you may find it helpful to restrict the scheme name
-/// to lowercase as it is normalized to lowercase in the generic URI syntax.
-/// Doing so reduces variations in URIs and may contribute to the long-term
-/// interoperability of the scheme.
+/// # Examples
+///
+/// ```
+/// use fluent_uri::{component::Scheme, Uri};
+///
+/// let uri = Uri::parse("HTTP://EXAMPLE.COM/")?;
+/// let scheme = uri.scheme().unwrap();
+///
+/// // Case-insensitive comparison.
+/// assert_eq!(scheme, Scheme::new("http"));
+/// // Case-sensitive comparison.
+/// assert_eq!(scheme.as_str(), "HTTP");
+/// # Ok::<_, fluent_uri::error::ParseError>(())
+/// ```
 #[derive(RefCastCustom)]
 #[repr(transparent)]
 pub struct Scheme {
@@ -156,9 +165,9 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// ```
     /// use fluent_uri::Uri;
     ///
-    /// let uri = Uri::parse("ftp://user@[fe80::abcd]:6780/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.as_str(), "user@[fe80::abcd]:6780");
+    /// let uri = Uri::parse("http://user@example.com:8080/")?;
+    /// let auth = uri.authority().unwrap();
+    /// assert_eq!(auth.as_str(), "user@example.com:8080");
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[must_use]
@@ -173,11 +182,15 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::Uri;
+    /// use fluent_uri::{encoding::EStr, Uri};
     ///
-    /// let uri = Uri::parse("ftp://user@192.168.1.24/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.userinfo().unwrap(), "user");
+    /// let uri = Uri::parse("http://user@example.com/")?;
+    /// let auth = uri.authority().unwrap();
+    /// assert_eq!(auth.userinfo(), Some(EStr::new("user")));
+    ///
+    /// let uri = Uri::parse("http://example.com/")?;
+    /// let auth = uri.authority().unwrap();
+    /// assert_eq!(auth.userinfo(), None);
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[must_use]
@@ -188,9 +201,11 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
 
     /// Returns the [host] subcomponent as a string slice.
     ///
+    /// The host subcomponent is always present, although it may be empty.
+    ///
     /// The square brackets enclosing an IPv6 or IPvFuture address are included.
-    /// 
-    /// Note that the host subcomponent is case-insensitive in the generic URI syntax.
+    ///
+    /// Note that the host subcomponent is **case-insensitive**.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
     ///
@@ -199,9 +214,17 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// ```
     /// use fluent_uri::Uri;
     ///
-    /// let uri = Uri::parse("ftp://user@[::1]/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.host(), "[::1]");
+    /// let uri = Uri::parse("http://user@example.com:8080/")?;
+    /// let auth = uri.authority().unwrap();
+    /// assert_eq!(auth.host(), "example.com");
+    ///
+    /// let uri = Uri::parse("file:///path/to/file")?;
+    /// let auth = uri.authority().unwrap();
+    /// assert_eq!(auth.host(), "");
+    ///
+    /// let uri = Uri::parse("//[::1]")?;
+    /// let auth = uri.authority().unwrap();
+    /// assert_eq!(auth.host(), "[::1]");
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[must_use]
@@ -211,8 +234,8 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     }
 
     /// Returns the parsed [host] subcomponent.
-    /// 
-    /// Note that the host subcomponent is case-insensitive in the generic URI syntax.
+    ///
+    /// Note that the host subcomponent is **case-insensitive**.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
     ///
@@ -223,21 +246,21 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// use std::net::{Ipv4Addr, Ipv6Addr};
     ///
     /// let uri = Uri::parse("//127.0.0.1")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.host_parsed(), Host::Ipv4(Ipv4Addr::LOCALHOST));
+    /// let auth = uri.authority().unwrap();
+    /// assert!(matches!(auth.host_parsed(), Host::Ipv4(Ipv4Addr::LOCALHOST)));
     ///
     /// let uri = Uri::parse("//[::1]")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.host_parsed(), Host::Ipv6(Ipv6Addr::LOCALHOST));
+    /// let auth = uri.authority().unwrap();
+    /// assert!(matches!(auth.host_parsed(), Host::Ipv6(Ipv6Addr::LOCALHOST)));
     ///
     /// let uri = Uri::parse("//[v1.addr]")?;
-    /// let authority = uri.authority().unwrap();
+    /// let auth = uri.authority().unwrap();
     /// // The API design for IPvFuture addresses is to be determined.
-    /// assert!(matches!(authority.host_parsed(), Host::IpvFuture { .. }));
+    /// assert!(matches!(auth.host_parsed(), Host::IpvFuture { .. }));
     ///
     /// let uri = Uri::parse("//localhost")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.host_parsed(), Host::RegName(EStr::new("localhost")));
+    /// let auth = uri.authority().unwrap();
+    /// assert!(matches!(auth.host_parsed(), Host::RegName(name) if name == "localhost"));
     ///
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
@@ -263,9 +286,10 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     ///
     /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
     ///
-    /// Note that in the generic URI syntax, the port may be empty, with leading zeros, or very large.
-    /// It is up to you to decide whether to deny such a port, fallback to the scheme's default if it
-    /// is empty, ignore the leading zeros, or use a different addressing mechanism that allows a large port.
+    /// Note that the port may be empty, with leading zeros, or larger than [`u16::MAX`].
+    /// It is up to you to decide whether to deny such ports, fallback to the scheme's
+    /// default if it is empty, ignore the leading zeros, or use a different addressing
+    /// mechanism that allows ports larger than [`u16::MAX`].
     ///
     /// # Examples
     ///
@@ -273,20 +297,20 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// use fluent_uri::Uri;
     ///
     /// let uri = Uri::parse("//localhost:4673/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.port(), Some("4673"));
+    /// let auth = uri.authority().unwrap();
+    /// assert_eq!(auth.port(), Some("4673"));
     ///
     /// let uri = Uri::parse("//localhost:/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.port(), Some(""));
+    /// let auth = uri.authority().unwrap();
+    /// assert_eq!(auth.port(), Some(""));
     ///
     /// let uri = Uri::parse("//localhost/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.port(), None);
+    /// let auth = uri.authority().unwrap();
+    /// assert_eq!(auth.port(), None);
     ///
     /// let uri = Uri::parse("//localhost:123456/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.port(), Some("123456"));
+    /// let auth = uri.authority().unwrap();
+    /// assert_eq!(auth.port(), Some("123456"));
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[must_use]
@@ -309,20 +333,20 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// use fluent_uri::Uri;
     ///
     /// let uri = Uri::parse("//localhost:4673/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.port_to_u16(), Ok(Some(4673)));
+    /// let auth = uri.authority().unwrap();
+    /// assert_eq!(auth.port_to_u16(), Ok(Some(4673)));
     ///
     /// let uri = Uri::parse("//localhost:/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.port_to_u16(), Ok(None));
+    /// let auth = uri.authority().unwrap();
+    /// assert_eq!(auth.port_to_u16(), Ok(None));
     ///
     /// let uri = Uri::parse("//localhost/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.port_to_u16(), Ok(None));
+    /// let auth = uri.authority().unwrap();
+    /// assert_eq!(auth.port_to_u16(), Ok(None));
     ///
-    /// let uri = Uri::parse("//localhost:66666/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert!(authority.port_to_u16().is_err());
+    /// let uri = Uri::parse("//localhost:123456/")?;
+    /// let auth = uri.authority().unwrap();
+    /// assert!(auth.port_to_u16().is_err());
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     pub fn port_to_u16(&'i self) -> Result<Option<u16>, ParseIntError> {
@@ -370,7 +394,8 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
 /// The parsed [host] component of URI reference.
 ///
 /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(fuzzing, derive(PartialEq, Eq))]
 pub enum Host<'a> {
     /// An IPv4 address.
     #[cfg_attr(not(feature = "net"), non_exhaustive)]
@@ -393,6 +418,8 @@ pub enum Host<'a> {
     #[non_exhaustive]
     IpvFuture,
     /// A registered name.
+    ///
+    /// Note that registered names are **case-insensitive**.
     RegName(&'a EStr<RegName>),
 }
 

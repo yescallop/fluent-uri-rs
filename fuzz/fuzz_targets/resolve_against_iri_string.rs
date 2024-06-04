@@ -11,7 +11,9 @@ fuzz_target!(|data: (&str, &str)| {
         return;
     };
 
-    let Ok(u1) = r1.resolve(&base1) else { return };
+    let Ok(u1) = r1.resolve_against(&base1) else {
+        return;
+    };
 
     if r1.scheme().is_some() && r1.authority().is_none() && r1.path().is_rootless() {
         return;

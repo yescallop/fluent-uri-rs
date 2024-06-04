@@ -7,13 +7,15 @@ use core::{num::NonZeroUsize, ops, str};
 #[cfg(feature = "net")]
 use crate::net::{Ipv4Addr, Ipv6Addr};
 
-pub trait Val: Default {}
+pub trait Value: Default {}
 
-impl Val for &str {}
-impl Val for String {}
+impl Value for &str {}
+impl Value for String {}
+
+pub struct NoInput;
 
 pub trait ToUri {
-    type Val: Val;
+    type Val: Value;
     type Err;
 
     fn to_uri(self) -> Result<Uri<Self::Val>, Self::Err>;
