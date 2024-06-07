@@ -158,7 +158,7 @@ use internal::{Meta, ToUri, Value};
 /// assert_eq!(auth.userinfo().unwrap(), "user");
 /// assert_eq!(auth.host(), "example.com");
 /// assert!(matches!(auth.host_parsed(), Host::RegName(name) if name == "example.com"));
-/// assert_eq!(auth.port(), Some("8042"));
+/// assert_eq!(auth.port().unwrap(), "8042");
 /// assert_eq!(auth.port_to_u16(), Ok(Some(8042)));
 ///
 /// assert_eq!(uri.path(), "/over/there");

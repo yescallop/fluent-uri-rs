@@ -2,7 +2,7 @@
 
 use crate::{
     encoding::{
-        encoder::{RegName, Userinfo},
+        encoder::{Port, RegName, Userinfo},
         table, EStr, EString,
     },
     internal::{AuthMeta, HostMeta},
@@ -292,15 +292,15 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::Uri;
+    /// use fluent_uri::{encoding::EStr, Uri};
     ///
     /// let uri = Uri::parse("//localhost:4673/")?;
     /// let auth = uri.authority().unwrap();
-    /// assert_eq!(auth.port(), Some("4673"));
+    /// assert_eq!(auth.port(), Some(EStr::new_or_panic("4673")));
     ///
     /// let uri = Uri::parse("//localhost:/")?;
     /// let auth = uri.authority().unwrap();
-    /// assert_eq!(auth.port(), Some(""));
+    /// assert_eq!(auth.port(), Some(EStr::EMPTY));
     ///
     /// let uri = Uri::parse("//localhost/")?;
     /// let auth = uri.authority().unwrap();
@@ -308,13 +308,13 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     ///
     /// let uri = Uri::parse("//localhost:123456/")?;
     /// let auth = uri.authority().unwrap();
-    /// assert_eq!(auth.port(), Some("123456"));
+    /// assert_eq!(auth.port(), Some(EStr::new_or_panic("123456")));
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[must_use]
-    pub fn port(&'i self) -> Option<&'o str> {
+    pub fn port(&'i self) -> Option<&'o EStr<Port>> {
         let (host_end, end) = (self.host_bounds().1, self.end());
-        (host_end != end).then(|| self.uri.slice(host_end + 1, end))
+        (host_end != end).then(|| self.uri.eslice(host_end + 1, end))
     }
 
     /// Converts the [port] subcomponent to `u16`, if present.
@@ -350,7 +350,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     pub fn port_to_u16(&'i self) -> Result<Option<u16>, ParseIntError> {
         self.port()
             .filter(|port| !port.is_empty())
-            .map(str::parse)
+            .map(|port| port.as_str().parse())
             .transpose()
     }
 

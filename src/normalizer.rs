@@ -76,7 +76,7 @@ pub(crate) fn normalize(u: Uri<&str>) -> Uri<String> {
         if let Some(port) = auth.port() {
             if !port.is_empty() {
                 buf.push(':');
-                buf.push_str(port);
+                buf.push_str(port.as_str());
             }
         }
     }

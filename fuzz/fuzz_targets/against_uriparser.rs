@@ -61,7 +61,7 @@ unsafe fn check(data: &str, cstr: &CStr) {
                 }
             }
 
-            assert_text_eq(a.port(), uri1.portText);
+            assert_text_eq(a.port().map(|s| s.as_str()), uri1.portText);
         } else {
             assert_text_eq(None, uri1.userInfo);
             assert_text_eq(None, uri1.hostText);

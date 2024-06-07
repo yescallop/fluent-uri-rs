@@ -18,6 +18,13 @@ impl Encoder for RegName {
     const TABLE: &'static Table = REG_NAME;
 }
 
+/// An encoder for port.
+pub struct Port(());
+
+impl Encoder for Port {
+    const TABLE: &'static Table = DIGIT;
+}
+
 /// An encoder for path.
 ///
 /// [`EStr`] has [extension methods] for the path component.

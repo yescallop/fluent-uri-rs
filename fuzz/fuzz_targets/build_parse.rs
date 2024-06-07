@@ -65,25 +65,11 @@ impl<'a> HostWrapper<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-struct Port<'a>(&'a str);
-
-impl<'a> Arbitrary<'a> for Port<'a> {
-    fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        let s: &str = u.arbitrary()?;
-        if s.bytes().all(|x| x.is_ascii_digit()) {
-            Ok(Port(s))
-        } else {
-            Err(Error::IncorrectFormat)
-        }
-    }
-}
-
 #[derive(Arbitrary, Clone, Copy, Debug)]
 struct Authority<'a> {
     userinfo: Option<EStrWrapper<'a, Userinfo>>,
     host: HostWrapper<'a>,
-    port: Option<Port<'a>>,
+    port: Option<EStrWrapper<'a, Port>>,
 }
 
 #[derive(Arbitrary, Clone, Copy, Debug)]

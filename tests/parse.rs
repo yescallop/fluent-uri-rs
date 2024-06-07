@@ -87,7 +87,7 @@ fn parse_absolute() {
     assert_eq!(a.host(), "192.0.2.16");
     #[cfg(feature = "net")]
     assert!(matches!(a.host_parsed(), Host::Ipv4(addr) if addr == Ipv4Addr::new(192, 0, 2, 16)));
-    assert_eq!(a.port(), Some("80"));
+    assert_eq!(a.port(), Some(EStr::new_or_panic("80")));
     assert_eq!(u.path(), "/");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);
@@ -106,7 +106,7 @@ fn parse_absolute() {
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "example.com");
     assert!(matches!(a.host_parsed(), Host::RegName(name) if name == "example.com"));
-    assert_eq!(a.port(), Some("8042"));
+    assert_eq!(a.port(), Some(EStr::new_or_panic("8042")));
     assert_eq!(u.path(), "/over/there");
     assert_eq!(u.query(), Some(EStr::new_or_panic("name=ferret")));
     assert_eq!(u.fragment(), Some(EStr::new_or_panic("nose")));
@@ -147,7 +147,7 @@ fn parse_absolute() {
     assert_eq!(a.host(), "127.0.0.1");
     #[cfg(feature = "net")]
     assert!(matches!(a.host_parsed(), Host::Ipv4(addr) if addr == Ipv4Addr::new(127, 0, 0, 1)));
-    assert_eq!(a.port(), Some(""));
+    assert_eq!(a.port(), Some(EStr::EMPTY));
     assert_eq!(u.path(), "/");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);
@@ -160,7 +160,7 @@ fn parse_absolute() {
     assert_eq!(a.host(), "127.0.0.1");
     #[cfg(feature = "net")]
     assert!(matches!(a.host_parsed(), Host::Ipv4(addr) if addr == Ipv4Addr::new(127, 0, 0, 1)));
-    assert_eq!(a.port(), Some("8080"));
+    assert_eq!(a.port(), Some(EStr::new_or_panic("8080")));
     assert_eq!(u.path(), "/");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);
@@ -173,7 +173,7 @@ fn parse_absolute() {
     assert_eq!(a.host(), "127.0.0.1");
     #[cfg(feature = "net")]
     assert!(matches!(a.host_parsed(), Host::Ipv4(addr) if addr == Ipv4Addr::new(127, 0, 0, 1)));
-    assert_eq!(a.port(), Some("80808"));
+    assert_eq!(a.port(), Some(EStr::new_or_panic("80808")));
     assert_eq!(u.path(), "/");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);

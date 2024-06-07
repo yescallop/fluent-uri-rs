@@ -5,7 +5,7 @@ mod state;
 use crate::{
     component::{Host, Scheme},
     encoding::{
-        encoder::{Fragment, Path, Query, Userinfo},
+        encoder::{Fragment, Path, Port, Query, Userinfo},
         EStr,
     },
     error::{BuildError, BuildErrorKind},
@@ -336,36 +336,30 @@ impl<S: To<HostEnd>> Builder<S> {
     }
 }
 
-pub trait PortLike {
+pub trait AsPort {
     fn push_to(&self, buf: &mut String);
 }
 
-impl PortLike for u16 {
+impl AsPort for u16 {
     fn push_to(&self, buf: &mut String) {
         write!(buf, ":{self}").unwrap();
     }
 }
 
-impl PortLike for &str {
+impl AsPort for &EStr<Port> {
     fn push_to(&self, buf: &mut String) {
-        assert!(self.bytes().all(|x| x.is_ascii_digit()), "invalid port");
         buf.push(':');
-        buf.push_str(self);
+        buf.push_str(self.as_str());
     }
 }
 
 impl<S: To<PortEnd>> Builder<S> {
     /// Sets the [port] subcomponent of authority.
     ///
-    /// This method takes either a `u16` or `&str` as argument.
-    ///
-    /// # Panics
-    ///
-    /// Panics if an input string is not a valid port according to
-    /// [Section 3.2.3 of RFC 3986][port].
+    /// This method takes either a `u16` or `&EStr<Port>` as argument.
     ///
     /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
-    pub fn port<T: PortLike>(mut self, port: T) -> Builder<PortEnd> {
+    pub fn port<P: AsPort>(mut self, port: P) -> Builder<PortEnd> {
         port.push_to(&mut self.inner.buf);
         self.cast()
     }
