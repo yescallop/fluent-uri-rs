@@ -381,7 +381,12 @@ impl EStr<Path> {
 
     /// Returns an iterator over the [path segments].
     ///
+    /// The returned iterator does **not** uniquely identify a path
+    /// because it does not output the empty string before a preceding `'/'`.
+    /// You may need to check whether the path is [absolute] in addition to calling this method.
+    ///
     /// [path segments]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
+    /// [absolute]: Self::is_absolute
     ///
     /// # Examples
     ///
@@ -402,7 +407,6 @@ impl EStr<Path> {
     /// assert!(uri.path().segments().eq(["path", "to", "", "dir", ""]));
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
-    #[cfg(fluent_uri_unstable)]
     #[inline]
     pub fn segments(&self) -> Split<'_, Path> {
         let path_stripped = self.inner.strip_prefix('/').unwrap_or(&self.inner);
