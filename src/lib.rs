@@ -49,8 +49,11 @@
 //!   and [`Authority::to_socket_addrs`]. Disabling `std` while enabling `net`
 //!   requires [`core::net`] and a minimum Rust version of `1.77`.
 //!
-//! [`Error`]: std::error::Error
+//! - `serde`: Enables [`serde`] support. Required for [`Serialize`] and [`Deserialize`]
+//!   implementations on [`Uri`].
+//!
 //! [`Host`]: component::Host
+//! [`Error`]: std::error::Error
 
 mod builder;
 pub mod component;
@@ -91,6 +94,9 @@ use encoding::{
 };
 use error::{ParseError, ResolveError};
 use internal::{Meta, ToUri, Value};
+
+#[cfg(feature = "serde")]
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 /// A [URI reference] defined in RFC 3986.
 ///
@@ -628,5 +634,37 @@ impl FromStr for Uri<String> {
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Uri::parse(s).map(|uri| uri.to_owned())
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<T: Bos<str>> Serialize for Uri<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for Uri<&'de str> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = <&str>::deserialize(deserializer)?;
+        Uri::parse(s).map_err(de::Error::custom)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for Uri<String> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Uri::parse(s).map_err(de::Error::custom)
     }
 }
