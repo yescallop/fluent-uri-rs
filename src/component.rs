@@ -35,11 +35,13 @@ use std::{
 /// ```
 /// use fluent_uri::{component::Scheme, Uri};
 ///
+/// const SCHEME_HTTP: &Scheme = Scheme::new_or_panic("http");
+///
 /// let uri = Uri::parse("HTTP://EXAMPLE.COM/")?;
 /// let scheme = uri.scheme().unwrap();
 ///
 /// // Case-insensitive comparison.
-/// assert_eq!(scheme, Scheme::new_or_panic("http"));
+/// assert_eq!(scheme, SCHEME_HTTP);
 /// // Case-sensitive comparison.
 /// assert_eq!(scheme.as_str(), "HTTP");
 /// # Ok::<_, fluent_uri::error::ParseError>(())
@@ -203,7 +205,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     ///
     /// The square brackets enclosing an IPv6 or IPvFuture address are included.
     ///
-    /// Note that the host subcomponent is **case-insensitive**.
+    /// Note that the host subcomponent is *case-insensitive*.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
     ///
@@ -233,7 +235,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
 
     /// Returns the parsed [host] subcomponent.
     ///
-    /// Note that the host subcomponent is **case-insensitive**.
+    /// Note that the host subcomponent is *case-insensitive*.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
     ///
@@ -417,7 +419,7 @@ pub enum Host<'a> {
     IpvFuture,
     /// A registered name.
     ///
-    /// Note that registered names are **case-insensitive**.
+    /// Note that registered names are *case-insensitive*.
     RegName(&'a EStr<RegName>),
 }
 

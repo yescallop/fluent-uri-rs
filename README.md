@@ -35,8 +35,10 @@ A full-featured URI handling library compliant with [RFC 3986]. It is:
     You can build a `Uri<String>` using the builder pattern:
 
     ```rust
+    const SCHEME_FOO: &Scheme = Scheme::new_or_panic("foo");
+
     let uri: Uri<String> = Uri::builder()
-        .scheme(Scheme::new_or_panic("foo"))
+        .scheme(SCHEME_FOO)
         .authority(|b| {
             b.userinfo(EStr::new_or_panic("user"))
                 .host(EStr::new_or_panic("example.com"))
@@ -45,7 +47,8 @@ A full-featured URI handling library compliant with [RFC 3986]. It is:
         .path(EStr::new_or_panic("/over/there"))
         .query(EStr::new_or_panic("name=ferret"))
         .fragment(EStr::new_or_panic("nose"))
-        .build();
+        .build()
+        .unwrap();
 
     assert_eq!(
         uri.as_str(),
@@ -58,9 +61,9 @@ A full-featured URI handling library compliant with [RFC 3986]. It is:
     ```rust
     let base = Uri::parse("http://example.com/foo/bar")?;
 
-    assert_eq!(Uri::parse("baz")?.resolve(&base)?, "http://example.com/foo/baz");
-    assert_eq!(Uri::parse("../baz")?.resolve(&base)?, "http://example.com/baz");
-    assert_eq!(Uri::parse("?baz")?.resolve(&base)?, "http://example.com/foo/bar?baz");
+    assert_eq!(Uri::parse("baz")?.resolve_against(&base)?, "http://example.com/foo/baz");
+    assert_eq!(Uri::parse("../baz")?.resolve_against(&base)?, "http://example.com/baz");
+    assert_eq!(Uri::parse("?baz")?.resolve_against(&base)?, "http://example.com/foo/bar?baz");
     ```
 
     You can normalize a URI reference:

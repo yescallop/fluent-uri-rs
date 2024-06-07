@@ -27,8 +27,10 @@ use state::*;
 /// ```
 /// use fluent_uri::{component::Scheme, encoding::EStr, Uri};
 ///
+/// const SCHEME_FOO: &Scheme = Scheme::new_or_panic("foo");
+///
 /// let uri: Uri<String> = Uri::builder()
-///     .scheme(Scheme::new_or_panic("foo"))
+///     .scheme(SCHEME_FOO)
 ///     .authority(|b| {
 ///         b.userinfo(EStr::new_or_panic("user"))
 ///             .host(EStr::new_or_panic("example.com"))
@@ -46,8 +48,8 @@ use state::*;
 /// );
 /// ```
 ///
-/// Note that [`EStr::new_or_panic`] *panics* on invalid input and should only be used
-/// when you know that the string is properly percent-encoded.
+/// Note that [`EStr::new_or_panic`] *panics* on invalid input and
+/// should normally be used with constant strings.
 /// If you want to build a percent-encoded string from scratch,
 /// use [`EString`] instead.
 ///
@@ -261,8 +263,8 @@ impl<S> Builder<S> {
 impl<S: To<SchemeEnd>> Builder<S> {
     /// Sets the [scheme] component.
     ///
-    /// Note that the scheme component is **case-insensitive** and normalized to
-    /// lowercase. You should use only lowercase in scheme names for consistency.
+    /// Note that the scheme component is *case-insensitive* and normalized to
+    /// *lowercase*. You should use only lowercase in scheme names for consistency.
     ///
     /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
     pub fn scheme(mut self, scheme: &Scheme) -> Builder<SchemeEnd> {
@@ -303,20 +305,24 @@ impl<S: To<HostEnd>> Builder<S> {
     ///
     /// - [`Ipv4Addr`] and [`IpAddr::V4`] into [`Host::Ipv4`];
     /// - [`Ipv6Addr`] and [`IpAddr::V6`] into [`Host::Ipv6`];
-    /// - `&EStr<RegName>` and `&EString<RegName>` into [`Host::RegName`].
+    /// - <code>&amp;[EStr]&lt;[RegName]&gt;</code> and
+    ///   <code>&amp;[EString]&lt;[RegName]&gt;</code>
+    ///   into [`Host::RegName`].
     ///
     /// If the contents of an input [`Host::RegName`] variant matches the
     /// `IPv4address` ABNF rule defined in [Section 3.2.2 of RFC 3986][host],
     /// the resulting [`Uri`] will output a [`Host::Ipv4`] variant instead.
     ///
-    /// Note that the host subcomponent is **case-insensitive** and normalized to
-    /// lowercase. You should use only lowercase in registered names for consistency.
+    /// Note that the host subcomponent is *case-insensitive* and normalized to
+    /// *lowercase*. You should use only lowercase in registered names for consistency.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
     /// [`Ipv4Addr`]: std::net::Ipv4Addr
     /// [`IpAddr::V4`]: std::net::IpAddr::V4
     /// [`Ipv6Addr`]: std::net::Ipv6Addr
     /// [`IpAddr::V6`]: std::net::IpAddr::V6
+    /// [RegName]: crate::encoding::encoder::RegName
+    /// [EString]: crate::encoding::EString
     ///
     /// # Examples
     ///
@@ -354,11 +360,11 @@ impl AsPort for &EStr<Port> {
 }
 
 impl<S: To<PortEnd>> Builder<S> {
-    /// Sets the [port] subcomponent of authority.
+    /// Sets the [port][port-spec] subcomponent of authority.
     ///
-    /// This method takes either a `u16` or `&EStr<Port>` as argument.
+    /// This method takes either a `u16` or <code>&amp;[EStr]&lt;[Port]&gt;</code> as argument.
     ///
-    /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
+    /// [port-spec]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
     pub fn port<P: AsPort>(mut self, port: P) -> Builder<PortEnd> {
         port.push_to(&mut self.inner.buf);
         self.cast()

@@ -42,10 +42,10 @@
 //! # Crate features
 //!
 //! - `net` (default): Enables [`std::net`] support.
-//!   Includes IP address fields in [`Host`] and [`Authority::to_socket_addrs`].
-//!   Disabling this will not affect the behavior of [`Uri::parse`].
+//!   Required for IP address fields in [`Host`] and [`Authority::to_socket_addrs`].
+//!   Disabling `net` will not affect the behavior of [`Uri::parse`].
 //!
-//! - `std` (default): Enables [`std`] support. Includes [`Error`] implementations
+//! - `std` (default): Enables [`std`] support. Required for [`Error`] implementations
 //!   and [`Authority::to_socket_addrs`]. Disabling `std` while enabling `net`
 //!   requires [`core::net`] and a minimum Rust version of `1.77`.
 //!
@@ -189,7 +189,7 @@ impl<T> Uri<T> {
     /// the [`URI-reference`] ABNF rule from RFC 3986.
     ///
     /// From a [`ParseError<String>`], you may recover or strip the input
-    /// by calling [`into_input`] or [`strip_input`].
+    /// by calling [`into_input`] or [`strip_input`] on it.
     ///
     /// [`URI-reference`]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.1
     /// [`into_input`]: ParseError::into_input
@@ -272,7 +272,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
 
     /// Returns the optional [scheme] component.
     ///
-    /// Note that the scheme component is **case-insensitive**.
+    /// Note that the scheme component is *case-insensitive*.
     /// See the documentation of [`Scheme`] for more details on comparison.
     ///
     /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
@@ -282,8 +282,10 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// ```
     /// use fluent_uri::{component::Scheme, Uri};
     ///
+    /// const SCHEME_HTTP: &Scheme = Scheme::new_or_panic("http");
+    ///
     /// let uri = Uri::parse("http://example.com/")?;
-    /// assert_eq!(uri.scheme(), Some(Scheme::new_or_panic("http")));
+    /// assert_eq!(uri.scheme(), Some(SCHEME_HTTP));
     ///
     /// let uri = Uri::parse("/path/to/file")?;
     /// assert_eq!(uri.scheme(), None);
