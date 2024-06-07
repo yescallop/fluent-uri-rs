@@ -42,7 +42,7 @@ pub trait Encoder: 'static {
 
 /// Percent-encoded string slices.
 ///
-/// The owned variant of `EStr` is [`EString`]. See its documentation
+/// The owned counterpart of `EStr` is [`EString`]. See its documentation
 /// if you want to build a percent-encoded string from scratch.
 ///
 /// # Type parameter

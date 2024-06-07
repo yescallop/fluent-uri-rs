@@ -116,7 +116,7 @@ impl PartialEq for Scheme {
         let (a, b) = (self.inner.as_bytes(), other.inner.as_bytes());
 
         // The only characters allowed in a scheme are alphabets, digits, '+', '-' and '.'.
-        // Their ASCII codes allow us to simply set the sixth bit and compare.
+        // Their ASCII codes allow us to simply set the sixth bits and compare.
         a.len() == b.len()
             && iter::zip(a, b).all(|(a, b)| a | ASCII_CASE_MASK == b | ASCII_CASE_MASK)
     }
