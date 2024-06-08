@@ -13,9 +13,9 @@ pub(crate) fn resolve(
     if !base.is_absolute_uri() {
         return Err(ResolveError(ResolveErrorKind::NonAbsoluteBase));
     }
-    if base.auth_meta.is_none()
+    if base.meta.auth_meta.is_none()
         && base.path().is_rootless()
-        && r.scheme_end.is_none()
+        && r.meta.scheme_end.is_none()
         && !matches!(r.as_str().bytes().next(), None | Some(b'#'))
     {
         return Err(ResolveError(ResolveErrorKind::NonHierarchicalBase));

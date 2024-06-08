@@ -2,7 +2,7 @@
 
 use crate::{error::ParseError, parser, Uri};
 use alloc::string::String;
-use core::{num::NonZeroUsize, ops, str};
+use core::{num::NonZeroUsize, str};
 
 #[cfg(feature = "net")]
 use crate::net::{Ipv4Addr, Ipv6Addr};
@@ -55,26 +55,10 @@ pub struct Meta {
     pub query_end: Option<NonZeroUsize>,
 }
 
-#[doc(hidden)]
-impl<T> ops::Deref for Uri<T> {
-    type Target = Meta;
-
-    fn deref(&self) -> &Meta {
-        &self.meta
-    }
-}
-
-#[doc(hidden)]
-impl<T> ops::DerefMut for Uri<T> {
-    fn deref_mut(&mut self) -> &mut Meta {
-        &mut self.meta
-    }
-}
-
 #[derive(Clone, Copy, Default)]
 pub struct AuthMeta {
-    pub host_bounds: (usize, usize),
-    pub host_meta: HostMeta,
+    pub(crate) host_bounds: (usize, usize),
+    pub(crate) host_meta: HostMeta,
 }
 
 #[derive(Clone, Copy, Default)]

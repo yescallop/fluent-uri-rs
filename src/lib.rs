@@ -298,7 +298,8 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// ```
     #[must_use]
     pub fn scheme(&'i self) -> Option<&'o Scheme> {
-        self.scheme_end
+        self.meta
+            .scheme_end
             .map(|i| Scheme::new_validated(self.slice(0, i.get())))
     }
 
@@ -320,7 +321,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// ```
     #[must_use]
     pub fn authority(&self) -> Option<&Authority<T>> {
-        if self.auth_meta.is_some() {
+        if self.meta.auth_meta.is_some() {
             Some(Authority::new(self))
         } else {
             None
@@ -353,7 +354,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// ```
     #[must_use]
     pub fn path(&'i self) -> &'o EStr<Path> {
-        self.eslice(self.path_bounds.0, self.path_bounds.1)
+        self.eslice(self.meta.path_bounds.0, self.meta.path_bounds.1)
     }
 
     /// Returns the optional [query] component.
@@ -374,12 +375,16 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// ```
     #[must_use]
     pub fn query(&'i self) -> Option<&'o EStr<Query>> {
-        self.query_end
-            .map(|i| self.eslice(self.path_bounds.1 + 1, i.get()))
+        self.meta
+            .query_end
+            .map(|i| self.eslice(self.meta.path_bounds.1 + 1, i.get()))
     }
 
     fn fragment_start(&self) -> Option<usize> {
-        let query_or_path_end = self.query_end.map_or(self.path_bounds.1, |i| i.get());
+        let query_or_path_end = self
+            .meta
+            .query_end
+            .map_or(self.meta.path_bounds.1, |i| i.get());
         (query_or_path_end != self.len()).then_some(query_or_path_end + 1)
     }
 
@@ -425,7 +430,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// ```
     #[must_use]
     pub fn is_relative_reference(&self) -> bool {
-        self.scheme_end.is_none()
+        self.meta.scheme_end.is_none()
     }
 
     /// Checks whether the URI reference is an [absolute URI], i.e.,
@@ -451,7 +456,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// ```
     #[must_use]
     pub fn is_absolute_uri(&self) -> bool {
-        self.scheme_end.is_some() && self.fragment_start().is_none()
+        self.meta.scheme_end.is_some() && self.fragment_start().is_none()
     }
 
     /// Resolves the URI reference against the given base URI

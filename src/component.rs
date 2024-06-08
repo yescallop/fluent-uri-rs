@@ -140,18 +140,18 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     pub(crate) fn new(uri: &Uri<T>) -> &Authority<T>;
 
     pub(crate) fn meta(&self) -> &AuthMeta {
-        self.uri.auth_meta.as_ref().unwrap()
+        self.uri.meta.auth_meta.as_ref().unwrap()
     }
 
     pub(crate) fn start(&self) -> usize {
-        match self.uri.scheme_end {
+        match self.uri.meta.scheme_end {
             Some(i) => i.get() + 3,
             None => 2,
         }
     }
 
     fn end(&self) -> usize {
-        self.uri.path_bounds.0
+        self.uri.meta.path_bounds.0
     }
 
     fn host_bounds(&self) -> (usize, usize) {
