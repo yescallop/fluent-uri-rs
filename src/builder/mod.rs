@@ -263,7 +263,7 @@ impl<S> Builder<S> {
 impl<S: To<SchemeEnd>> Builder<S> {
     /// Sets the [scheme] component.
     ///
-    /// Note that the scheme component is *case-insensitive* and normalized to
+    /// Note that the scheme component is *case-insensitive* and is normalized to
     /// *lowercase*. For consistency, you should only produce lowercase scheme names.
     ///
     /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
@@ -313,7 +313,7 @@ impl<S: To<HostEnd>> Builder<S> {
     /// `IPv4address` ABNF rule defined in [Section 3.2.2 of RFC 3986][host],
     /// the resulting [`Uri`] will output a [`Host::Ipv4`] variant instead.
     ///
-    /// Note that the host subcomponent is *case-insensitive* and normalized to
+    /// Note that the host subcomponent is *case-insensitive* and is normalized to
     /// *lowercase*. For consistency, you should only produce lowercase registered names.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2

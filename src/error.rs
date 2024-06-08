@@ -46,7 +46,7 @@ impl<I: ToUri> ParseError<I> {
         self.input
     }
 
-    /// Returns the error with input stripped.
+    /// Returns the error with the input stripped.
     #[must_use]
     pub fn strip_input(&self) -> ParseError {
         ParseError {
