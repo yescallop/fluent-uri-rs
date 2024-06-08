@@ -42,7 +42,7 @@ fn test_parse_v4() {
     // octal zero
     assert!(parse_v4("255.0.0.00").is_none());
     assert!(parse_v4("255.0.00.0").is_none());
-    // preceding dot
+    // leading dot
     assert!(parse_v4(".0.0.0.0").is_none());
     // trailing dot
     assert!(parse_v4("0.0.0.0.").is_none());
@@ -103,7 +103,7 @@ fn test_parse_v6() {
     assert!(parse_v6("::1:2:3:4:5:6:7:8").is_none());
     assert!(parse_v6("1:2:3:4::5:6:7:8").is_none());
     assert!(parse_v6("1:2:3:4:5:6:7:8::").is_none());
-    // preceding colon
+    // leading colon
     assert!(parse_v6(":1:2:3:4:5:6:7:8").is_none());
     assert!(parse_v6(":1::1").is_none());
     assert!(parse_v6(":1").is_none());

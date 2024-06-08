@@ -381,8 +381,10 @@ impl EStr<Path> {
 
     /// Returns an iterator over the [path segments].
     ///
+    /// See the following examples for the exact behavior of this method.
+    ///
     /// The returned iterator does **not** uniquely identify a path
-    /// because it does not output the empty string before a preceding `'/'`.
+    /// because it does not output the empty string before a leading `'/'`.
     /// You may need to check whether the path is [absolute] in addition to calling this method.
     ///
     /// [path segments]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
@@ -393,18 +395,21 @@ impl EStr<Path> {
     /// ```
     /// use fluent_uri::Uri;
     ///
-    /// // An empty path has no segments.
-    /// let uri = Uri::parse("")?;
-    /// assert_eq!(uri.path().segments().next(), None);
-    ///
     /// // Segments are separated by '/'.
-    /// let uri = Uri::parse("a/b/c")?;
-    /// assert!(uri.path().segments().eq(["a", "b", "c"]));
-    ///
-    /// // The empty string before a preceding '/' is not a segment.
+    /// // The empty string before a leading '/' is not a segment.
     /// // However, segments can be empty in the other cases.
     /// let uri = Uri::parse("/path/to//dir/")?;
     /// assert!(uri.path().segments().eq(["path", "to", "", "dir", ""]));
+    ///
+    /// // Segments of an absolute path may equal those of a rootless path.
+    /// let uri_a = Uri::parse("/foo/bar")?;
+    /// let uri_b = Uri::parse("foo/bar")?;
+    /// assert!(uri_a.path().segments().eq(["foo", "bar"]));
+    /// assert!(uri_b.path().segments().eq(["foo", "bar"]));
+    ///
+    /// // An empty path has no segments.
+    /// let uri = Uri::parse("")?;
+    /// assert_eq!(uri.path().segments().next(), None);
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[inline]

@@ -188,7 +188,7 @@ impl<'a> Reader<'a> {
             match self.read_v6_segment() {
                 Some(Seg::Normal(seg, colon)) => {
                     if colon == (i == 0 || i == ellipsis_i) {
-                        // Preceding colon, triple colons, or no colon.
+                        // Leading colon, triple colons, or no colon.
                         return None;
                     }
                     segs[i] = seg;
