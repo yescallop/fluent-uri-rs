@@ -57,8 +57,8 @@ pub struct Meta {
 
 #[derive(Clone, Copy, Default)]
 pub struct AuthMeta {
-    pub(crate) host_bounds: (usize, usize),
-    pub(crate) host_meta: HostMeta,
+    pub host_bounds: (usize, usize),
+    pub host_meta: HostMeta,
 }
 
 #[derive(Clone, Copy, Default)]
