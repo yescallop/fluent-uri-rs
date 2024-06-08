@@ -264,7 +264,7 @@ impl<S: To<SchemeEnd>> Builder<S> {
     /// Sets the [scheme] component.
     ///
     /// Note that the scheme component is *case-insensitive* and normalized to
-    /// *lowercase*. You should use only lowercase in scheme names for consistency.
+    /// *lowercase*. For consistency, you should only produce lowercase scheme names.
     ///
     /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
     pub fn scheme(mut self, scheme: &Scheme) -> Builder<SchemeEnd> {
@@ -314,7 +314,7 @@ impl<S: To<HostEnd>> Builder<S> {
     /// the resulting [`Uri`] will output a [`Host::Ipv4`] variant instead.
     ///
     /// Note that the host subcomponent is *case-insensitive* and normalized to
-    /// *lowercase*. You should use only lowercase in registered names for consistency.
+    /// *lowercase*. For consistency, you should only produce lowercase registered names.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
     /// [`Ipv4Addr`]: std::net::Ipv4Addr
@@ -363,6 +363,8 @@ impl<S: To<PortEnd>> Builder<S> {
     /// Sets the [port][port-spec] subcomponent of authority.
     ///
     /// This method takes either a `u16` or <code>&amp;[EStr]&lt;[Port]&gt;</code> as argument.
+    ///
+    /// For consistency, you should not produce an empty port.
     ///
     /// [port-spec]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
     pub fn port<P: AsPort>(mut self, port: P) -> Builder<PortEnd> {

@@ -9,7 +9,7 @@ use crate::{
     Uri,
 };
 use borrow_or_share::BorrowOrShare;
-use core::{iter, num::ParseIntError};
+use core::iter;
 use ref_cast::{ref_cast_custom, RefCastCustom};
 
 #[cfg(feature = "net")]
@@ -284,12 +284,15 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
 
     /// Returns the optional [port] subcomponent.
     ///
-    /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
+    /// A scheme may define a default port to use when the port is
+    /// not present or is empty.
     ///
     /// Note that the port may be empty, with leading zeros, or larger than [`u16::MAX`].
     /// It is up to you to decide whether to deny such ports, fallback to the scheme's
     /// default if it is empty, ignore the leading zeros, or use a different addressing
     /// mechanism that allows ports larger than [`u16::MAX`].
+    ///
+    /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
     ///
     /// # Examples
     ///
@@ -321,11 +324,13 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
 
     /// Converts the [port] subcomponent to `u16`, if present.
     ///
-    /// Leading zeros are ignored.
-    /// Returns `Ok(None)` if the port is not present or is empty,
-    /// or `Err` if the port cannot be parsed into `u16`.
+    /// Returns `Ok(None)` if the port is not present. Leading zeros are ignored.
     ///
     /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` if the port cannot be parsed into `u16`.
     ///
     /// # Examples
     ///
@@ -336,36 +341,36 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// let auth = uri.authority().unwrap();
     /// assert_eq!(auth.port_to_u16(), Ok(Some(4673)));
     ///
-    /// let uri = Uri::parse("//localhost:/")?;
-    /// let auth = uri.authority().unwrap();
-    /// assert_eq!(auth.port_to_u16(), Ok(None));
-    ///
     /// let uri = Uri::parse("//localhost/")?;
     /// let auth = uri.authority().unwrap();
     /// assert_eq!(auth.port_to_u16(), Ok(None));
+    ///
+    /// let uri = Uri::parse("//localhost:/")?;
+    /// let auth = uri.authority().unwrap();
+    /// assert!(auth.port_to_u16().is_err());
     ///
     /// let uri = Uri::parse("//localhost:123456/")?;
     /// let auth = uri.authority().unwrap();
     /// assert!(auth.port_to_u16().is_err());
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
-    pub fn port_to_u16(&'i self) -> Result<Option<u16>, ParseIntError> {
-        self.port()
-            .filter(|port| !port.is_empty())
-            .map(|port| port.as_str().parse())
-            .transpose()
+    #[cfg(fluent_uri_unstable)]
+    pub fn port_to_u16(&'i self) -> Result<Option<u16>, core::num::ParseIntError> {
+        self.port().map(|s| s.as_str().parse()).transpose()
     }
 
     /// Converts the authority component to an iterator of resolved [`SocketAddr`]s.
     ///
-    /// The default port is used if the port component is not present or is empty.
+    /// The default port is used if the port component is not present.
     ///
     /// A registered name is **not** normalized prior to resolution and is resolved
-    /// with [`ToSocketAddrs`] as is.
+    /// with [`ToSocketAddrs`] as is. The port must **not** be empty.
+    /// Use [`Uri::normalize`] if necessary.
     ///
     /// # Errors
     ///
-    /// Returns `Err` if the port cannot be parsed into `u16`
+    /// Returns `Err` if the port cannot be parsed into `u16`,
+    /// if the host is an IPvFuture address,
     /// or if the resolution of a registered name fails.
     #[cfg(all(feature = "net", feature = "std"))]
     pub fn to_socket_addrs(
@@ -375,7 +380,9 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
         use std::vec;
 
         let port = self
-            .port_to_u16()
+            .port()
+            .map(|s| s.as_str().parse())
+            .transpose()
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid port value"))?
             .unwrap_or(default_port);
 

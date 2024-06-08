@@ -8,11 +8,11 @@
     clippy::if_not_else,
     clippy::ignored_unit_patterns,
     clippy::map_unwrap_or,
+    clippy::missing_errors_doc,
     clippy::must_use_candidate,
+    // clippy::redundant_closure_for_method_calls,
     clippy::semicolon_if_nothing_returned,
     clippy::single_match_else,
-    // clippy::missing_errors_doc,
-    // clippy::redundant_closure_for_method_calls,
 )]
 #![forbid(unsafe_code)]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
@@ -165,7 +165,6 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 /// assert_eq!(auth.host(), "example.com");
 /// assert!(matches!(auth.host_parsed(), Host::RegName(name) if name == "example.com"));
 /// assert_eq!(auth.port().unwrap(), "8042");
-/// assert_eq!(auth.port_to_u16(), Ok(Some(8042)));
 ///
 /// assert_eq!(uri.path(), "/over/there");
 /// assert_eq!(uri.query().unwrap(), "name=ferret");
@@ -480,7 +479,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     ///   normalizing the base URI and then resolving `"."` against it yields `"foo:/"`.
     ///
     /// No normalization except the removal of dot segments will be performed.
-    /// Use [`normalize`] if need be.
+    /// Use [`normalize`] if necessary.
     ///
     /// [absolute URI]: Self::is_absolute_uri
     /// [rootless]: EStr::<Path>::is_rootless

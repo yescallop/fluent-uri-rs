@@ -458,6 +458,8 @@ impl<'a> Decode<'a> {
 
     /// Converts the decoded bytes to a string.
     ///
+    /// # Errors
+    ///
     /// Returns `Err` if the bytes are not valid UTF-8.
     #[inline]
     pub fn into_string(self) -> Result<Cow<'a, str>, FromUtf8Error> {
