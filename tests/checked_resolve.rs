@@ -7,11 +7,11 @@ trait Test {
 
 impl Test for Uri<&str> {
     fn pass(&self, r: &str, res: &str) {
-        assert_eq!(Uri::parse(r).unwrap().checked_resolve(self).unwrap(), res)
+        assert_eq!(Uri::parse(r).unwrap().checked_resolve_against(self).unwrap(), res)
     }
 
     fn fail(&self, r: &str, msg: &str) {
-        let e = Uri::parse(r).unwrap().checked_resolve(self).unwrap_err();
+        let e = Uri::parse(r).unwrap().checked_resolve_against(self).unwrap_err();
         assert_eq!(e.to_string(), msg);
     }
 }
