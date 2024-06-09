@@ -6,9 +6,7 @@ use crate::{
         table, EStr, EString,
     },
     internal::{AuthMeta, HostMeta},
-    Uri,
 };
-use borrow_or_share::BorrowOrShare;
 use core::iter;
 use ref_cast::{ref_cast_custom, RefCastCustom};
 
@@ -127,35 +125,19 @@ impl Eq for Scheme {}
 /// The [authority] component of URI reference.
 ///
 /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
-#[derive(RefCastCustom)]
-#[repr(transparent)]
-pub struct Authority<T> {
-    uri: Uri<T>,
+#[derive(Clone, Copy)]
+pub struct Authority<'a> {
+    val: &'a str,
+    meta: AuthMeta,
 }
 
-impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
-    /// Converts from `&Uri<T>` to `&Authority<T>`,
-    /// assuming that authority is present.
-    #[ref_cast_custom]
-    pub(crate) fn new(uri: &Uri<T>) -> &Authority<T>;
-
-    pub(crate) fn meta(&self) -> &AuthMeta {
-        self.uri.meta.auth_meta.as_ref().unwrap()
+impl<'a> Authority<'a> {
+    pub(crate) fn new(val: &'a str, meta: AuthMeta) -> Self {
+        Self { val, meta }
     }
 
-    pub(crate) fn start(&self) -> usize {
-        match self.uri.meta.scheme_end {
-            Some(i) => i.get() + 3,
-            None => 2,
-        }
-    }
-
-    fn end(&self) -> usize {
-        self.uri.meta.path_bounds.0
-    }
-
-    fn host_bounds(&self) -> (usize, usize) {
-        self.meta().host_bounds
+    pub(crate) fn meta(&self) -> AuthMeta {
+        self.meta
     }
 
     /// Returns the authority component as a string slice.
@@ -170,9 +152,10 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// assert_eq!(auth.as_str(), "user@example.com:8080");
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
+    #[inline]
     #[must_use]
-    pub fn as_str(&'i self) -> &'o str {
-        self.uri.slice(self.start(), self.end())
+    pub fn as_str(&self) -> &'a str {
+        self.val
     }
 
     /// Returns the optional [userinfo] subcomponent.
@@ -194,9 +177,9 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[must_use]
-    pub fn userinfo(&'i self) -> Option<&'o EStr<Userinfo>> {
-        let (start, host_start) = (self.start(), self.host_bounds().0);
-        (start != host_start).then(|| self.uri.eslice(start, host_start - 1))
+    pub fn userinfo(&self) -> Option<&'a EStr<Userinfo>> {
+        let host_start = self.meta.host_bounds.0;
+        (host_start != 0).then(|| EStr::new_validated(&self.val[..host_start - 1]))
     }
 
     /// Returns the [host] subcomponent as a string slice.
@@ -228,9 +211,9 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[must_use]
-    pub fn host(&'i self) -> &'o str {
-        let (start, end) = self.host_bounds();
-        self.uri.slice(start, end)
+    pub fn host(&self) -> &'a str {
+        let (start, end) = self.meta.host_bounds;
+        &self.val[start..end]
     }
 
     /// Returns the parsed [host] subcomponent.
@@ -265,8 +248,8 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[must_use]
-    pub fn host_parsed(&'i self) -> Host<'o> {
-        match self.meta().host_meta {
+    pub fn host_parsed(&self) -> Host<'a> {
+        match self.meta.host_meta {
             #[cfg(feature = "net")]
             HostMeta::Ipv4(addr) => Host::Ipv4(addr),
             #[cfg(feature = "net")]
@@ -317,9 +300,9 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[must_use]
-    pub fn port(&'i self) -> Option<&'o EStr<Port>> {
-        let (host_end, end) = (self.host_bounds().1, self.end());
-        (host_end != end).then(|| self.uri.eslice(host_end + 1, end))
+    pub fn port(&self) -> Option<&'a EStr<Port>> {
+        let host_end = self.meta.host_bounds.1;
+        (host_end != self.val.len()).then(|| EStr::new_validated(&self.val[host_end + 1..]))
     }
 
     /// Converts the [port] subcomponent to `u16`, if present.
@@ -355,7 +338,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[cfg(fluent_uri_unstable)]
-    pub fn port_to_u16(&'i self) -> Result<Option<u16>, core::num::ParseIntError> {
+    pub fn port_to_u16(&self) -> Result<Option<u16>, core::num::ParseIntError> {
         self.port().map(|s| s.as_str().parse()).transpose()
     }
 
@@ -367,6 +350,8 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// with [`ToSocketAddrs`] as is. The port must **not** be empty.
     /// Use [`Uri::normalize`] if necessary.
     ///
+    /// [`Uri::normalize`]: crate::Uri::normalize
+    ///
     /// # Errors
     ///
     /// Returns `Err` if any of the following is true.
@@ -376,7 +361,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// - The resolution of a registered name fails.
     #[cfg(all(feature = "net", feature = "std"))]
     pub fn to_socket_addrs(
-        &'i self,
+        &self,
         default_port: u16,
     ) -> io::Result<impl Iterator<Item = SocketAddr>> {
         use std::vec;

@@ -320,9 +320,18 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[must_use]
-    pub fn authority(&self) -> Option<&Authority<T>> {
-        if self.meta.auth_meta.is_some() {
-            Some(Authority::new(self))
+    pub fn authority(&'i self) -> Option<Authority<'o>> {
+        if let Some(mut meta) = self.meta.auth_meta {
+            let start = match self.meta.scheme_end {
+                Some(i) => i.get() + 3,
+                None => 2,
+            };
+            let end = self.meta.path_bounds.0;
+
+            meta.host_bounds.0 -= start;
+            meta.host_bounds.1 -= start;
+
+            Some(Authority::new(self.slice(start, end), meta))
         } else {
             None
         }

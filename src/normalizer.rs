@@ -40,7 +40,7 @@ pub(crate) fn normalize(u: Uri<&str>) -> Uri<String> {
             buf.push('@');
         }
 
-        let mut auth_meta = *auth.meta();
+        let mut auth_meta = auth.meta();
         auth_meta.host_bounds.0 = buf.len();
         match auth_meta.host_meta {
             // An IPv4 address is always canonical.

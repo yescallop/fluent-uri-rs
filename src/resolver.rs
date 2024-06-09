@@ -108,17 +108,13 @@ pub(crate) fn resolve(
     buf.push(':');
 
     if let Some(authority) = t_authority {
-        let mut auth_meta = *authority.meta();
-        let auth_start = authority.start();
-        let host_offsets = (
-            auth_meta.host_bounds.0 - auth_start,
-            auth_meta.host_bounds.1 - auth_start,
-        );
-
+        let mut auth_meta = authority.meta();
         buf.push_str("//");
-        auth_meta.host_bounds = (buf.len() + host_offsets.0, buf.len() + host_offsets.1);
-        buf.push_str(authority.as_str());
 
+        auth_meta.host_bounds.0 += buf.len();
+        auth_meta.host_bounds.1 += buf.len();
+
+        buf.push_str(authority.as_str());
         meta.auth_meta = Some(auth_meta);
     }
 

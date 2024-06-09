@@ -114,7 +114,7 @@ impl Display for Scheme {
     }
 }
 
-impl<T: Bos<str>> Debug for Authority<T> {
+impl Debug for Authority<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_struct("Authority")
             .field("userinfo", &self.userinfo())
@@ -125,7 +125,7 @@ impl<T: Bos<str>> Debug for Authority<T> {
     }
 }
 
-impl<T: Bos<str>> Display for Authority<T> {
+impl Display for Authority<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         Display::fmt(self.as_str(), f)
     }
