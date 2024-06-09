@@ -77,37 +77,37 @@ fn normalize() {
     let u = Uri::parse("//127.0.0.1").unwrap();
     assert_eq!(u.normalize(), "//127.0.0.1");
     #[cfg(feature = "net")]
-    assert_eq!(
+    assert!(matches!(
         u.normalize().authority().unwrap().host_parsed(),
         Host::Ipv4(Ipv4Addr::LOCALHOST)
-    );
+    ));
 
     // Percent-encoded IPv4 address.
     let u = Uri::parse("//127.0.0.%31").unwrap();
     assert_eq!(u.normalize(), "//127.0.0.1");
     #[cfg(feature = "net")]
-    assert_eq!(
+    assert!(matches!(
         u.normalize().authority().unwrap().host_parsed(),
         Host::Ipv4(Ipv4Addr::LOCALHOST)
-    );
+    ));
 
     // Normal IPv6 address.
     let u = Uri::parse("//[::1]").unwrap();
     assert_eq!(u.normalize(), "//[::1]");
     #[cfg(feature = "net")]
-    assert_eq!(
+    assert!(matches!(
         u.normalize().authority().unwrap().host_parsed(),
         Host::Ipv6(Ipv6Addr::LOCALHOST)
-    );
+    ));
 
     // Verbose IPv6 address.
     let u = Uri::parse("//[0000:0000:0000::1]").unwrap();
     assert_eq!(u.normalize(), "//[::1]");
     #[cfg(feature = "net")]
-    assert_eq!(
+    assert!(matches!(
         u.normalize().authority().unwrap().host_parsed(),
         Host::Ipv6(Ipv6Addr::LOCALHOST)
-    );
+    ));
 
     // IPv4-mapped IPv6 address.
     let u = Uri::parse("//[0:0:0:0:0:ffff:192.0.2.1]").unwrap();

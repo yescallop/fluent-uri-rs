@@ -1,6 +1,6 @@
 //! Error types.
 
-use crate::internal::ToUri;
+use crate::internal::{NoInput, ToUri};
 
 /// Detailed cause of a [`ParseError`].
 #[derive(Clone, Copy, Debug)]
@@ -17,16 +17,12 @@ pub(crate) enum ParseErrorKind {
     ///
     /// The error index points to the first byte of the address.
     InvalidIpv6Addr,
-    /// The input length is greater than [`u32::MAX`].
-    ///
-    /// The error index equals `0`.
-    OverlongInput,
 }
 
 /// An error occurred when parsing URI references.
 #[derive(Clone, Copy)]
-pub struct ParseError<I = ()> {
-    pub(crate) index: u32,
+pub struct ParseError<I = NoInput> {
+    pub(crate) index: usize,
     pub(crate) kind: ParseErrorKind,
     pub(crate) input: I,
 }
@@ -45,22 +41,39 @@ impl<I: ToUri> ParseError<I> {
     /// Recovers the input that was attempted to parse into a [`Uri`].
     ///
     /// [`Uri`]: crate::Uri
+    #[must_use]
     pub fn into_input(self) -> I {
         self.input
     }
 
-    /// Returns the error with input erased.
-    pub fn plain(&self) -> ParseError {
+    /// Returns the error with the input stripped.
+    #[must_use]
+    pub fn strip_input(&self) -> ParseError {
         ParseError {
             index: self.index,
             kind: self.kind,
-            input: (),
+            input: NoInput,
         }
     }
 }
 
 #[cfg(feature = "std")]
 impl<I> std::error::Error for ParseError<I> {}
+
+/// Detailed cause of a [`BuildError`].
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum BuildErrorKind {
+    NonAbemptyPath,
+    PathStartingWithDoubleSlash,
+    ColonInFirstPathSegment,
+}
+
+/// An error occurred when building URI references.
+#[derive(Clone, Copy, Debug)]
+pub struct BuildError(pub(crate) BuildErrorKind);
+
+#[cfg(feature = "std")]
+impl std::error::Error for BuildError {}
 
 /// Detailed cause of a [`ResolveError`].
 #[derive(Clone, Copy, Debug)]

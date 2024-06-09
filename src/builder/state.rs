@@ -1,7 +1,7 @@
 //! Builder typestates.
 
 /// Start of URI reference.
-pub struct UriStart(());
+pub struct Start(());
 /// End of scheme.
 pub struct SchemeEnd(());
 /// Start of authority.
@@ -21,7 +21,7 @@ pub struct QueryEnd(());
 /// End of fragment
 pub struct FragmentEnd(());
 /// End of URI reference.
-pub struct UriEnd(());
+pub struct End(());
 
 /// Indicates the next possible state.
 pub trait To<T> {}
@@ -34,16 +34,16 @@ macro_rules! impl_to {
     };
 }
 
-impl_to!(UriStart => SchemeEnd, AuthorityStart, AuthorityEnd, PathEnd);
+impl_to!(Start => SchemeEnd, AuthorityStart, AuthorityEnd, PathEnd);
 impl_to!(SchemeEnd => AuthorityStart, AuthorityEnd, PathEnd);
 impl_to!(AuthorityStart => UserinfoEnd, HostEnd);
 impl_to!(UserinfoEnd => HostEnd);
 impl_to!(HostEnd => PortEnd, AuthorityEnd);
 impl_to!(PortEnd => AuthorityEnd);
 impl_to!(AuthorityEnd => PathEnd);
-impl_to!(PathEnd => QueryEnd, FragmentEnd, UriEnd);
-impl_to!(QueryEnd => FragmentEnd, UriEnd);
-impl_to!(FragmentEnd => UriEnd);
+impl_to!(PathEnd => QueryEnd, FragmentEnd, End);
+impl_to!(QueryEnd => FragmentEnd, End);
+impl_to!(FragmentEnd => End);
 
 /// Indicates that we may advance to this state.
 pub trait AdvanceDst {}

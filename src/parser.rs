@@ -1,9 +1,9 @@
 use crate::{
-    encoding::{table::*, OCTET_TABLE_LO},
-    internal::{AuthMeta, HostMeta, Meta},
+    encoding::{table::*, Table, OCTET_TABLE_LO},
+    internal::{AuthMeta, HostMeta, Meta, NoInput},
 };
 use core::{
-    num::NonZeroU32,
+    num::NonZeroUsize,
     ops::{Deref, DerefMut},
     str,
 };
@@ -14,18 +14,14 @@ type Result<T> = core::result::Result<T, crate::error::ParseError>;
 macro_rules! err {
     ($index:expr, $kind:ident) => {
         return Err(crate::error::ParseError {
-            index: $index as u32,
+            index: $index,
             kind: crate::error::ParseErrorKind::$kind,
-            input: (),
+            input: NoInput,
         })
     };
 }
 
 pub(crate) fn parse(bytes: &[u8]) -> Result<Meta> {
-    if bytes.len() > u32::MAX as usize {
-        err!(0, OverlongInput);
-    }
-
     let mut parser = Parser {
         reader: Reader::new(bytes),
         out: Meta::default(),
@@ -42,8 +38,7 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Meta> {
 ///
 /// # Preconditions and guarantees
 ///
-/// Before parsing, ensure that `len` is no larger than `u32::MAX`
-/// and that `pos` and `out` are default initialized.
+/// Before parsing, ensure that `pos` and `out` are default initialized.
 ///
 /// Start and finish parsing by calling `parse_from_scheme`.
 /// The following are guaranteed when parsing succeeds:
@@ -124,7 +119,7 @@ impl<'a> Reader<'a> {
     fn read(&mut self, table: &Table) -> Result<bool> {
         let start = self.pos;
         if table.allows_enc() {
-            self.read_enc(table, |_| {})?;
+            self.read_enc(table, |_, _| {})?;
         } else {
             let mut i = self.pos;
             while i < self.len() {
@@ -140,7 +135,7 @@ impl<'a> Reader<'a> {
         Ok(self.pos > start)
     }
 
-    fn read_enc(&mut self, table: &Table, mut f: impl FnMut(u8)) -> Result<()> {
+    fn read_enc(&mut self, table: &Table, mut f: impl FnMut(usize, u8)) -> Result<()> {
         let mut i = self.pos;
 
         while i < self.len() {
@@ -159,11 +154,10 @@ impl<'a> Reader<'a> {
                 // INVARIANT: Since `i + 2 < len`, it holds that `i + 3 <= len`.
                 i += 3;
             } else {
-                let v = table.get(x);
-                if v == 0 {
+                if !table.allows(x) {
                     break;
                 }
-                f(v);
+                f(i, x);
                 // INVARIANT: Since `i < len`, it holds that `i + 1 <= len`.
                 i += 1;
             }
@@ -194,7 +188,7 @@ impl<'a> Reader<'a> {
             match self.read_v6_segment() {
                 Some(Seg::Normal(seg, colon)) => {
                     if colon == (i == 0 || i == ellipsis_i) {
-                        // Preceding colon, triple colons, or no colon.
+                        // Leading colon, triple colons, or no colon.
                         return None;
                     }
                     segs[i] = seg;
@@ -269,20 +263,19 @@ impl<'a> Reader<'a> {
         let mut i = 1;
 
         while i < 4 {
-            if let Some(b) = self.peek(i) {
-                match OCTET_TABLE_LO[b as usize] {
-                    v if v < 128 => {
-                        x = (x << 4) | v as u16;
-                        i += 1;
-                        continue;
-                    }
-                    _ if b == b'.' => return Some(Seg::MaybeV4(colon)),
-                    _ => break,
-                }
-            } else {
+            let Some(b) = self.peek(i) else {
                 // INVARIANT: Skipping `i` hexadecimal digits is fine.
                 self.skip(i);
                 return None;
+            };
+            match OCTET_TABLE_LO[b as usize] {
+                v if v < 128 => {
+                    x = (x << 4) | v as u16;
+                    i += 1;
+                    continue;
+                }
+                _ if b == b'.' => return Some(Seg::MaybeV4(colon)),
+                _ => break,
             }
         }
         // INVARIANT: Skipping `i` hexadecimal digits is fine.
@@ -291,12 +284,8 @@ impl<'a> Reader<'a> {
     }
 
     fn read_v4_or_reg_name(&mut self) -> Result<HostMeta> {
-        let v4 = self.read_v4();
-        let v4_end = self.pos;
-        self.read(REG_NAME)?;
-
-        Ok(match v4 {
-            Some(_addr) if self.pos == v4_end => HostMeta::Ipv4(
+        Ok(match (self.read_v4(), self.read(REG_NAME)?) {
+            (Some(_addr), false) => HostMeta::Ipv4(
                 #[cfg(feature = "net")]
                 _addr.into(),
             ),
@@ -324,19 +313,17 @@ impl<'a> Reader<'a> {
         }
 
         for i in 1..3 {
-            match self.peek_digit(i) {
-                Some(x) => res = res * 10 + x,
-                None => {
-                    // INVARIANT: Skipping `i` digits is fine.
-                    self.skip(i);
-                    return Some(res);
-                }
-            }
+            let Some(x) = self.peek_digit(i) else {
+                // INVARIANT: Skipping `i` digits is fine.
+                self.skip(i);
+                return Some(res);
+            };
+            res = res * 10 + x;
         }
         // INVARIANT: Skipping 3 digits is fine.
         self.skip(3);
 
-        (res <= u8::MAX as u32).then_some(res)
+        u8::try_from(res).is_ok().then_some(res)
     }
 
     fn peek_digit(&self, i: usize) -> Option<u32> {
@@ -387,7 +374,7 @@ impl<'a> Reader<'a> {
     }
 
     fn read_ipv_future(&mut self) -> Result<()> {
-        if matches!(self.peek(0), Some(b'v' | b'V')) {
+        if let Some(b'v' | b'V') = self.peek(0) {
             // INVARIANT: Skipping "v" or "V" is fine.
             self.skip(1);
             if self.read(HEXDIG)? && self.read_str(".") && self.read(IPV_FUTURE)? {
@@ -421,7 +408,7 @@ impl<'a> Parser<'a> {
         if self.peek(0) == Some(b':') {
             // Scheme starts with a letter.
             if self.pos > 0 && self.get(0).is_ascii_alphabetic() {
-                self.out.scheme_end = NonZeroU32::new(self.pos as _);
+                self.out.scheme_end = NonZeroUsize::new(self.pos);
             } else {
                 err!(0, UnexpectedChar);
             }
@@ -445,19 +432,18 @@ impl<'a> Parser<'a> {
 
     fn parse_from_authority(&mut self) -> Result<()> {
         let host;
-        let start = self.pos;
 
-        // This table contains userinfo, reg-name, ":", and port
-        // and is equivalent to `USERINFO`.
-        const TABLE: &Table = &USERINFO.shl(1).or(&Table::gen(b":"));
-
-        // The number of colons read.
         let mut colon_cnt = 0;
+        let mut colon_i = 0;
 
         let auth_start = self.pos;
 
-        self.read_enc(TABLE, |v| {
-            colon_cnt += (v & 1) as u32;
+        // `USERINFO` contains userinfo, reg-name, ':', and port.
+        self.read_enc(USERINFO, |i, x| {
+            if x == b':' {
+                colon_cnt += 1;
+                colon_i = i;
+            }
         })?;
 
         if self.peek(0) == Some(b'@') {
@@ -486,63 +472,23 @@ impl<'a> Parser<'a> {
                 0 => self.pos,
                 // Host and port.
                 1 => {
-                    let mut i = self.pos - 1;
-                    loop {
-                        // There must be a colon in the way.
-                        let x = self.get(i);
-                        if !x.is_ascii_digit() {
-                            if x == b':' {
-                                break;
-                            } else {
-                                err!(i, UnexpectedChar);
-                            }
+                    for i in colon_i + 1..self.pos {
+                        if !self.get(i).is_ascii_digit() {
+                            err!(i, UnexpectedChar);
                         }
-                        i -= 1;
                     }
-                    i
+                    colon_i
                 }
                 // Multiple colons.
-                _ => {
-                    let mut i = auth_start;
-                    loop {
-                        // There must be a colon in the way.
-                        let x = self.get(i);
-                        if x == b':' {
-                            err!(i, UnexpectedChar)
-                        }
-                        i += 1;
-                    }
-                }
+                _ => err!(colon_i, UnexpectedChar),
             };
 
-            // Save the state.
-            let state = (self.bytes, self.pos);
-
-            // The entire host is already read so the index is within bounds.
-            self.bytes = &self.bytes[..host_end];
-            // INVARIANT: It holds that `auth_start <= pos <= len`.
-            // Here `pos` may decrease but will be restored later.
-            self.pos = auth_start;
-
-            let v4 = self.read_v4();
-            let meta = match v4 {
-                Some(_addr) if !self.has_remaining() => HostMeta::Ipv4(
-                    #[cfg(feature = "net")]
-                    _addr.into(),
-                ),
-                _ => HostMeta::RegName,
-            };
-
+            let meta = parse_v4_or_reg_name(&self.bytes[auth_start..host_end]);
             host = (auth_start, host_end, meta);
-
-            // Restore the state.
-            // INVARIANT: Restoring the state would not affect the invariants.
-            (self.bytes, self.pos) = state;
         }
 
         self.out.auth_meta = Some(AuthMeta {
-            start: start as _,
-            host_bounds: (host.0 as _, host.1 as _),
+            host_bounds: (host.0, host.1),
             host_meta: host.2,
         });
         self.parse_from_path(PathKind::AbEmpty)
@@ -553,7 +499,7 @@ impl<'a> Parser<'a> {
             PathKind::General => {
                 let start = self.pos;
                 self.read(PATH)?;
-                (start as _, self.pos as _)
+                (start, self.pos)
             }
             PathKind::AbEmpty => {
                 let start = self.pos;
@@ -561,7 +507,7 @@ impl<'a> Parser<'a> {
                 if self.read(PATH)? && self.get(start) != b'/' {
                     err!(start, UnexpectedChar);
                 }
-                (start as _, self.pos as _)
+                (start, self.pos)
             }
             PathKind::ContinuedNoScheme => {
                 self.read(SEGMENT_NZ_NC)?;
@@ -573,13 +519,13 @@ impl<'a> Parser<'a> {
                 }
 
                 self.read(PATH)?;
-                (0, self.pos as _)
+                (0, self.pos)
             }
         };
 
         if self.read_str("?") {
             self.read(QUERY)?;
-            self.out.query_end = NonZeroU32::new(self.pos as _);
+            self.out.query_end = NonZeroUsize::new(self.pos);
         }
 
         if self.read_str("#") {

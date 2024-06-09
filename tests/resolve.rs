@@ -7,11 +7,11 @@ trait Test {
 
 impl Test for Uri<&str> {
     fn pass(&self, r: &str, res: &str) {
-        assert_eq!(Uri::parse(r).unwrap().resolve(self).unwrap(), res)
+        assert_eq!(Uri::parse(r).unwrap().resolve_against(self).unwrap(), res)
     }
 
     fn fail(&self, r: &str, msg: &str) {
-        let e = Uri::parse(r).unwrap().resolve(self).unwrap_err();
+        let e = Uri::parse(r).unwrap().resolve_against(self).unwrap_err();
         assert_eq!(e.to_string(), msg);
     }
 }
@@ -77,6 +77,21 @@ fn resolve() {
     base.pass("http://example.com/", "http://example.com/");
     base.pass("foo:baz", "foo:baz");
     base.pass("bar:baz", "bar:baz");
+
+    let base = Uri::parse("foo:/").unwrap();
+    // The result would be "foo://@@" using the original algorithm.
+    base.pass(".//@@", "foo:/.//@@");
+
+    let base = Uri::parse("foo:/bar/.%2E/").unwrap();
+    // The result would be "foo:/bar/" using the original algorithm.
+    base.pass("..", "foo:/");
+
+    let base = Uri::parse("foo:/bar/..").unwrap();
+    // The result would be "foo:/bar/" using the original algorithm.
+    base.pass(".", "foo:/");
+
+    let base = base.normalize();
+    base.borrow().pass(".", "foo:/");
 }
 
 #[test]

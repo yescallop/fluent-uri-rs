@@ -1,7 +1,9 @@
 use crate::{
     component::{Authority, Scheme},
-    encoding::{encoder::Encoder, EStr, EString},
-    error::{ParseError, ParseErrorKind, ResolveError, ResolveErrorKind},
+    encoding::{EStr, EString, Encoder},
+    error::{
+        BuildError, BuildErrorKind, ParseError, ParseErrorKind, ResolveError, ResolveErrorKind,
+    },
     Uri,
 };
 use borrow_or_share::Bos;
@@ -46,9 +48,25 @@ impl<I> Display for ParseError<I> {
             ParseErrorKind::InvalidOctet => "invalid percent-encoded octet at index ",
             ParseErrorKind::UnexpectedChar => "unexpected character at index ",
             ParseErrorKind::InvalidIpv6Addr => "invalid IPv6 address at index ",
-            ParseErrorKind::OverlongInput => "overlong input at index ",
         };
         write!(f, "{}{}", msg, self.index)
+    }
+}
+
+impl Display for BuildError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        let msg = match self.0 {
+            BuildErrorKind::NonAbemptyPath => {
+                "path must either be empty or start with '/' when authority is present"
+            }
+            BuildErrorKind::PathStartingWithDoubleSlash => {
+                "path cannot start with \"//\" when authority is absent"
+            }
+            BuildErrorKind::ColonInFirstPathSegment => {
+                "first path segment cannot contain ':' in relative-path reference"
+            }
+        };
+        f.write_str(msg)
     }
 }
 
@@ -100,7 +118,7 @@ impl Display for Scheme {
     }
 }
 
-impl<T: Bos<str>> Debug for Authority<T> {
+impl Debug for Authority<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_struct("Authority")
             .field("userinfo", &self.userinfo())
@@ -111,7 +129,7 @@ impl<T: Bos<str>> Debug for Authority<T> {
     }
 }
 
-impl<T: Bos<str>> Display for Authority<T> {
+impl Display for Authority<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         Display::fmt(self.as_str(), f)
     }

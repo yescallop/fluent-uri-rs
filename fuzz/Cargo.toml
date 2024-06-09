@@ -100,3 +100,15 @@ name = "against_uriparser"
 path = "fuzz_targets/against_uriparser.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "resolve_against_iri_string"
+path = "fuzz_targets/resolve_against_iri_string.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "normalize_against_iri_string"
+path = "fuzz_targets/normalize_against_iri_string.rs"
+test = false
+doc = false

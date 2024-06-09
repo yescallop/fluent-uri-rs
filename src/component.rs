@@ -2,14 +2,12 @@
 
 use crate::{
     encoding::{
-        encoder::{RegName, Userinfo},
+        encoder::{Port, RegName, Userinfo},
         table, EStr, EString,
     },
     internal::{AuthMeta, HostMeta},
-    Uri,
 };
-use borrow_or_share::BorrowOrShare;
-use core::num::ParseIntError;
+use core::iter;
 use ref_cast::{ref_cast_custom, RefCastCustom};
 
 #[cfg(feature = "net")]
@@ -24,6 +22,28 @@ use std::{
 /// The [scheme] component of URI reference.
 ///
 /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
+///
+/// # Comparison
+///
+/// `Scheme`s are compared case-insensitively. You should do a case-insensitive
+/// comparison if the scheme specification allows both letter cases in the scheme name.
+///
+/// # Examples
+///
+/// ```
+/// use fluent_uri::{component::Scheme, Uri};
+///
+/// const SCHEME_HTTP: &Scheme = Scheme::new_or_panic("http");
+///
+/// let uri = Uri::parse("HTTP://EXAMPLE.COM/")?;
+/// let scheme = uri.scheme().unwrap();
+///
+/// // Case-insensitive comparison.
+/// assert_eq!(scheme, SCHEME_HTTP);
+/// // Case-sensitive comparison.
+/// assert_eq!(scheme.as_str(), "HTTP");
+/// # Ok::<_, fluent_uri::error::ParseError>(())
+/// ```
 #[derive(RefCastCustom)]
 #[repr(transparent)]
 pub struct Scheme {
@@ -41,22 +61,22 @@ impl Scheme {
     ///
     /// Panics if the string is not a valid scheme name according to
     /// [Section 3.1 of RFC 3986][scheme]. For a non-panicking variant,
-    /// use [`try_new`](Self::try_new).
+    /// use [`new`](Self::new).
     ///
     /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
     #[inline]
-    pub const fn new(s: &str) -> &Scheme {
-        match Self::try_new(s) {
+    #[must_use]
+    pub const fn new_or_panic(s: &str) -> &Scheme {
+        match Self::new(s) {
             Some(scheme) => scheme,
             None => panic!("invalid scheme"),
         }
     }
 
     /// Converts a string slice to `&Scheme`, returning `None` if the conversion fails.
-    ///
-    /// This is the non-panicking variant of [`new`](Self::new).
     #[inline]
-    pub const fn try_new(s: &str) -> Option<&Scheme> {
+    #[must_use]
+    pub const fn new(s: &str) -> Option<&Scheme> {
         if matches!(s.as_bytes(), [first, rem @ ..]
         if first.is_ascii_alphabetic() && table::SCHEME.validate(rem))
         {
@@ -66,11 +86,7 @@ impl Scheme {
         }
     }
 
-    /// Returns the scheme as a string slice.
-    ///
-    /// Note that the scheme is case-insensitive in the generic URI syntax.
-    /// You may want to use [`str::eq_ignore_ascii_case`]
-    /// for a case-insensitive comparison.
+    /// Returns the scheme component as a string slice.
     ///
     /// # Examples
     ///
@@ -84,80 +100,96 @@ impl Scheme {
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[inline]
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.inner
     }
 }
 
+impl PartialEq for Scheme {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        const ASCII_CASE_MASK: u8 = 0b0010_0000;
+
+        let (a, b) = (self.inner.as_bytes(), other.inner.as_bytes());
+
+        // The only characters allowed in a scheme are alphabets, digits, '+', '-' and '.'.
+        // Their ASCII codes allow us to simply set the sixth bits and compare.
+        a.len() == b.len()
+            && iter::zip(a, b).all(|(a, b)| a | ASCII_CASE_MASK == b | ASCII_CASE_MASK)
+    }
+}
+
+impl Eq for Scheme {}
+
 /// The [authority] component of URI reference.
 ///
 /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
-#[derive(RefCastCustom)]
-#[repr(transparent)]
-pub struct Authority<T> {
-    uri: Uri<T>,
+#[derive(Clone, Copy)]
+pub struct Authority<'a> {
+    val: &'a str,
+    meta: AuthMeta,
 }
 
-impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
-    /// Converts from `&Uri<T>` to `&Authority<T>`,
-    /// assuming that authority is present.
-    #[ref_cast_custom]
-    pub(crate) fn new(uri: &Uri<T>) -> &Authority<T>;
-
-    pub(crate) fn meta(&self) -> &AuthMeta {
-        self.uri.auth_meta.as_ref().unwrap()
+impl<'a> Authority<'a> {
+    #[inline]
+    pub(crate) fn new(val: &'a str, meta: AuthMeta) -> Self {
+        Self { val, meta }
     }
 
-    fn start(&self) -> u32 {
-        self.meta().start
+    pub(crate) fn meta(&self) -> AuthMeta {
+        self.meta
     }
 
-    fn end(&self) -> u32 {
-        self.uri.path_bounds.0
-    }
-
-    fn host_bounds(&self) -> (u32, u32) {
-        self.meta().host_bounds
-    }
-
-    /// Returns the authority as a string slice.
+    /// Returns the authority component as a string slice.
     ///
     /// # Examples
     ///
     /// ```
     /// use fluent_uri::Uri;
     ///
-    /// let uri = Uri::parse("ftp://user@[fe80::abcd]:6780/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.as_str(), "user@[fe80::abcd]:6780");
+    /// let uri = Uri::parse("http://user@example.com:8080/")?;
+    /// let auth = uri.authority().unwrap();
+    /// assert_eq!(auth.as_str(), "user@example.com:8080");
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
-    pub fn as_str(&'i self) -> &'o str {
-        self.uri.slice(self.start(), self.end())
+    #[inline]
+    #[must_use]
+    pub fn as_str(&self) -> &'a str {
+        self.val
     }
 
-    /// Returns the [userinfo] subcomponent.
+    /// Returns the optional [userinfo] subcomponent.
     ///
     /// [userinfo]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.1
     ///
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::Uri;
+    /// use fluent_uri::{encoding::EStr, Uri};
     ///
-    /// let uri = Uri::parse("ftp://user@192.168.1.24/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.userinfo().unwrap(), "user");
+    /// let uri = Uri::parse("http://user@example.com/")?;
+    /// let auth = uri.authority().unwrap();
+    /// assert_eq!(auth.userinfo(), Some(EStr::new_or_panic("user")));
+    ///
+    /// let uri = Uri::parse("http://example.com/")?;
+    /// let auth = uri.authority().unwrap();
+    /// assert_eq!(auth.userinfo(), None);
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
-    pub fn userinfo(&'i self) -> Option<&'o EStr<Userinfo>> {
-        let (start, host_start) = (self.start(), self.host_bounds().0);
-        (start != host_start).then(|| self.uri.eslice(start, host_start - 1))
+    #[must_use]
+    pub fn userinfo(&self) -> Option<&'a EStr<Userinfo>> {
+        let host_start = self.meta.host_bounds.0;
+        (host_start != 0).then(|| EStr::new_validated(&self.val[..host_start - 1]))
     }
 
     /// Returns the [host] subcomponent as a string slice.
     ///
-    /// The square brackets enclosing an IP literal are included.
+    /// The host subcomponent is always present, although it may be empty.
+    ///
+    /// The square brackets enclosing an IPv6 or IPvFuture address are included.
+    ///
+    /// Note that the host subcomponent is *case-insensitive*.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
     ///
@@ -166,17 +198,28 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// ```
     /// use fluent_uri::Uri;
     ///
-    /// let uri = Uri::parse("ftp://user@[::1]/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.host(), "[::1]");
+    /// let uri = Uri::parse("http://user@example.com:8080/")?;
+    /// let auth = uri.authority().unwrap();
+    /// assert_eq!(auth.host(), "example.com");
+    ///
+    /// let uri = Uri::parse("file:///path/to/file")?;
+    /// let auth = uri.authority().unwrap();
+    /// assert_eq!(auth.host(), "");
+    ///
+    /// let uri = Uri::parse("//[::1]")?;
+    /// let auth = uri.authority().unwrap();
+    /// assert_eq!(auth.host(), "[::1]");
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
-    pub fn host(&'i self) -> &'o str {
-        let (start, end) = self.host_bounds();
-        self.uri.slice(start, end)
+    #[must_use]
+    pub fn host(&self) -> &'a str {
+        let (start, end) = self.meta.host_bounds;
+        &self.val[start..end]
     }
 
     /// Returns the parsed [host] subcomponent.
+    ///
+    /// Note that the host subcomponent is *case-insensitive*.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
     ///
@@ -187,26 +230,27 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     /// use std::net::{Ipv4Addr, Ipv6Addr};
     ///
     /// let uri = Uri::parse("//127.0.0.1")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.host_parsed(), Host::Ipv4(Ipv4Addr::LOCALHOST));
+    /// let auth = uri.authority().unwrap();
+    /// assert!(matches!(auth.host_parsed(), Host::Ipv4(Ipv4Addr::LOCALHOST)));
     ///
     /// let uri = Uri::parse("//[::1]")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.host_parsed(), Host::Ipv6(Ipv6Addr::LOCALHOST));
+    /// let auth = uri.authority().unwrap();
+    /// assert!(matches!(auth.host_parsed(), Host::Ipv6(Ipv6Addr::LOCALHOST)));
     ///
     /// let uri = Uri::parse("//[v1.addr]")?;
-    /// let authority = uri.authority().unwrap();
+    /// let auth = uri.authority().unwrap();
     /// // The API design for IPvFuture addresses is to be determined.
-    /// assert!(matches!(authority.host_parsed(), Host::IpvFuture { .. }));
+    /// assert!(matches!(auth.host_parsed(), Host::IpvFuture { .. }));
     ///
     /// let uri = Uri::parse("//localhost")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.host_parsed(), Host::RegName(EStr::new("localhost")));
+    /// let auth = uri.authority().unwrap();
+    /// assert!(matches!(auth.host_parsed(), Host::RegName(name) if name == "localhost"));
     ///
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
-    pub fn host_parsed(&'i self) -> Host<'o> {
-        match self.meta().host_meta {
+    #[must_use]
+    pub fn host_parsed(&self) -> Host<'a> {
+        match self.meta.host_meta {
             #[cfg(feature = "net")]
             HostMeta::Ipv4(addr) => Host::Ipv4(addr),
             #[cfg(feature = "net")]
@@ -222,98 +266,111 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
         }
     }
 
-    /// Returns the [port] subcomponent.
+    /// Returns the optional [port] subcomponent.
     ///
-    /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
+    /// A scheme may define a default port to use when the port is
+    /// not present or is empty.
     ///
-    /// Note that in the generic URI syntax, the port may be empty, with leading zeros, or very large.
-    /// It is up to you to decide whether to deny such a port, fallback to the scheme's default if it
-    /// is empty, ignore the leading zeros, or use a different addressing mechanism that allows a large port.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use fluent_uri::Uri;
-    ///
-    /// let uri = Uri::parse("//localhost:4673/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.port(), Some("4673"));
-    ///
-    /// let uri = Uri::parse("//localhost:/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.port(), Some(""));
-    ///
-    /// let uri = Uri::parse("//localhost/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.port(), None);
-    ///
-    /// let uri = Uri::parse("//localhost:66666/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.port(), Some("66666"));
-    /// # Ok::<_, fluent_uri::error::ParseError>(())
-    /// ```
-    pub fn port(&'i self) -> Option<&'o str> {
-        let (host_end, end) = (self.host_bounds().1, self.end());
-        (host_end != end).then(|| self.uri.slice(host_end + 1, end))
-    }
-
-    /// Converts the [port] subcomponent to `u16`.
-    ///
-    /// Leading zeros are ignored.
-    /// Returns `Ok(None)` if the port is not present or is empty,
-    /// or `Err` if the port cannot be parsed into `u16`.
+    /// Note that the port may be empty, with leading zeros, or larger than [`u16::MAX`].
+    /// It is up to you to decide whether to deny such ports, fallback to the scheme's
+    /// default if it is empty, ignore the leading zeros, or use a different addressing
+    /// mechanism that allows ports larger than [`u16::MAX`].
     ///
     /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
     ///
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::Uri;
+    /// use fluent_uri::{encoding::EStr, Uri};
     ///
     /// let uri = Uri::parse("//localhost:4673/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.port_to_u16(), Ok(Some(4673)));
+    /// let auth = uri.authority().unwrap();
+    /// assert_eq!(auth.port(), Some(EStr::new_or_panic("4673")));
     ///
     /// let uri = Uri::parse("//localhost:/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.port_to_u16(), Ok(None));
+    /// let auth = uri.authority().unwrap();
+    /// assert_eq!(auth.port(), Some(EStr::EMPTY));
     ///
     /// let uri = Uri::parse("//localhost/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert_eq!(authority.port_to_u16(), Ok(None));
+    /// let auth = uri.authority().unwrap();
+    /// assert_eq!(auth.port(), None);
     ///
-    /// let uri = Uri::parse("//localhost:66666/")?;
-    /// let authority = uri.authority().unwrap();
-    /// assert!(authority.port_to_u16().is_err());
+    /// let uri = Uri::parse("//localhost:123456/")?;
+    /// let auth = uri.authority().unwrap();
+    /// assert_eq!(auth.port(), Some(EStr::new_or_panic("123456")));
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
-    pub fn port_to_u16(&'i self) -> Result<Option<u16>, ParseIntError> {
-        self.port()
-            .filter(|port| !port.is_empty())
-            .map(|port| port.parse())
-            .transpose()
+    #[must_use]
+    pub fn port(&self) -> Option<&'a EStr<Port>> {
+        let host_end = self.meta.host_bounds.1;
+        (host_end != self.val.len()).then(|| EStr::new_validated(&self.val[host_end + 1..]))
     }
 
-    /// Converts the authority to an iterator of resolved [`SocketAddr`]s.
+    /// Converts the [port] subcomponent to `u16`, if present.
     ///
-    /// The default port is used if the port component is not present or is empty.
+    /// Returns `Ok(None)` if the port is not present. Leading zeros are ignored.
     ///
-    /// A registered name is **not** normalized prior to resolution and is resolved
-    /// with [`ToSocketAddrs`] as is.
+    /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
     ///
     /// # Errors
     ///
-    /// Returns `Err` if the port cannot be parsed into `u16`
-    /// or if the resolution of a registered name fails.
+    /// Returns `Err` if the port cannot be parsed into `u16`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::Uri;
+    ///
+    /// let uri = Uri::parse("//localhost:4673/")?;
+    /// let auth = uri.authority().unwrap();
+    /// assert_eq!(auth.port_to_u16(), Ok(Some(4673)));
+    ///
+    /// let uri = Uri::parse("//localhost/")?;
+    /// let auth = uri.authority().unwrap();
+    /// assert_eq!(auth.port_to_u16(), Ok(None));
+    ///
+    /// let uri = Uri::parse("//localhost:/")?;
+    /// let auth = uri.authority().unwrap();
+    /// assert!(auth.port_to_u16().is_err());
+    ///
+    /// let uri = Uri::parse("//localhost:123456/")?;
+    /// let auth = uri.authority().unwrap();
+    /// assert!(auth.port_to_u16().is_err());
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// ```
+    #[cfg(fluent_uri_unstable)]
+    pub fn port_to_u16(&self) -> Result<Option<u16>, core::num::ParseIntError> {
+        self.port().map(|s| s.as_str().parse()).transpose()
+    }
+
+    /// Converts the authority component to an iterator of resolved [`SocketAddr`]s.
+    ///
+    /// The default port is used if the port component is not present.
+    ///
+    /// A registered name is **not** normalized prior to resolution and is resolved
+    /// with [`ToSocketAddrs`] as is. The port must **not** be empty.
+    /// Use [`Uri::normalize`] if necessary.
+    ///
+    /// [`Uri::normalize`]: crate::Uri::normalize
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` if any of the following is true.
+    ///
+    /// - The port cannot be parsed into `u16`.
+    /// - The host is an IPvFuture address.
+    /// - The resolution of a registered name fails.
     #[cfg(all(feature = "net", feature = "std"))]
     pub fn to_socket_addrs(
-        &'i self,
+        &self,
         default_port: u16,
     ) -> io::Result<impl Iterator<Item = SocketAddr>> {
         use std::vec;
 
         let port = self
-            .port_to_u16()
+            .port()
+            .map(|s| s.as_str().parse())
+            .transpose()
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid port value"))?
             .unwrap_or(default_port);
 
@@ -327,12 +384,55 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
             Host::RegName(name) => (name.as_str(), port).to_socket_addrs(),
         }
     }
+
+    /// Checks whether the authority component contains a userinfo subcomponent.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::Uri;
+    ///
+    /// let uri = Uri::parse("http://user@example.com/")?;
+    /// assert!(uri.authority().unwrap().has_userinfo());
+    ///
+    /// let uri = Uri::parse("http://example.com/")?;
+    /// assert!(!uri.authority().unwrap().has_userinfo());
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    #[must_use]
+    pub fn has_userinfo(&self) -> bool {
+        self.meta.host_bounds.0 != 0
+    }
+
+    /// Checks whether the authority component contains a port subcomponent.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::Uri;
+    ///
+    /// let uri = Uri::parse("//localhost:4673/")?;
+    /// assert!(uri.authority().unwrap().has_port());
+    ///
+    /// // The port subcomponent can be empty.
+    /// let uri = Uri::parse("//localhost:/")?;
+    /// assert!(uri.authority().unwrap().has_port());
+    ///
+    /// let uri = Uri::parse("//localhost/")?;
+    /// let auth = uri.authority().unwrap();
+    /// assert!(!uri.authority().unwrap().has_port());
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// ```
+    #[must_use]
+    pub fn has_port(&self) -> bool {
+        self.meta.host_bounds.1 != self.val.len()
+    }
 }
 
 /// The parsed [host] component of URI reference.
 ///
 /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(fuzzing, derive(PartialEq, Eq))]
 pub enum Host<'a> {
     /// An IPv4 address.
     #[cfg_attr(not(feature = "net"), non_exhaustive)]
@@ -355,6 +455,8 @@ pub enum Host<'a> {
     #[non_exhaustive]
     IpvFuture,
     /// A registered name.
+    ///
+    /// Note that registered names are *case-insensitive*.
     RegName(&'a EStr<RegName>),
 }
 

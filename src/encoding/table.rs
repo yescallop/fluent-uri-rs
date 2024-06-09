@@ -5,6 +5,7 @@
 //!
 //! [RFC 5234]: https://datatracker.ietf.org/doc/html/rfc5234/
 
+use super::Table;
 use alloc::string::String;
 
 const fn gen_hex_table() -> [u8; 512] {
@@ -22,19 +23,13 @@ const fn gen_hex_table() -> [u8; 512] {
 
 const HEX_TABLE: &[u8; 512] = &gen_hex_table();
 
-/// A table determining the byte patterns allowed in a string.
-#[derive(Clone, Copy, Debug)]
-pub struct Table {
-    arr: [u8; 256],
-    allows_enc: bool,
-}
-
 impl Table {
     /// Generates a table that only allows the given unencoded bytes.
     ///
     /// # Panics
     ///
     /// Panics if any of the bytes is not ASCII or equals `b'%'`.
+    #[must_use]
     pub const fn gen(mut bytes: &[u8]) -> Table {
         let mut arr = [0; 256];
         while let [cur, rem @ ..] = bytes {
@@ -52,6 +47,7 @@ impl Table {
     }
 
     /// Marks this table as allowing percent-encoded octets.
+    #[must_use]
     pub const fn enc(mut self) -> Table {
         self.allows_enc = true;
         self
@@ -61,6 +57,7 @@ impl Table {
     ///
     /// Returns a new table that allows all the byte patterns allowed
     /// by `self` or by `other`.
+    #[must_use]
     pub const fn or(mut self, other: &Table) -> Table {
         let mut i = 0;
         while i < 256 {
@@ -75,6 +72,7 @@ impl Table {
     ///
     /// Returns a new table that allows all the byte patterns allowed
     /// by `self` but not allowed by `other`.
+    #[must_use]
     pub const fn sub(mut self, other: &Table) -> Table {
         let mut i = 0;
         while i < 256 {
@@ -91,6 +89,7 @@ impl Table {
 
     /// Checks whether the table is a subset of another, i.e., `other`
     /// allows at least all the byte patterns allowed by `self`.
+    #[must_use]
     pub const fn is_subset(&self, other: &Table) -> bool {
         let mut i = 0;
         while i < 256 {
@@ -102,16 +101,6 @@ impl Table {
         !self.allows_enc || other.allows_enc
     }
 
-    /// Shifts the table values left.
-    pub(crate) const fn shl(mut self, n: u8) -> Table {
-        let mut i = 0;
-        while i < 256 {
-            self.arr[i] <<= n;
-            i += 1;
-        }
-        self
-    }
-
     /// Returns the specified table value.
     #[inline]
     pub(crate) const fn get(&self, x: u8) -> u8 {
@@ -120,12 +109,14 @@ impl Table {
 
     /// Checks whether the given unencoded byte is allowed by the table.
     #[inline]
+    #[must_use]
     pub const fn allows(&self, x: u8) -> bool {
         self.get(x) != 0
     }
 
     /// Checks whether percent-encoded octets are allowed by the table.
     #[inline]
+    #[must_use]
     pub const fn allows_enc(&self) -> bool {
         self.allows_enc
     }
@@ -144,14 +135,7 @@ impl Table {
     /// Validates the given byte sequence with the table.
     pub(crate) const fn validate(&self, s: &[u8]) -> bool {
         let mut i = 0;
-        if !self.allows_enc() {
-            while i < s.len() {
-                if !self.allows(s[i]) {
-                    return false;
-                }
-                i += 1;
-            }
-        } else {
+        if self.allows_enc() {
             while i < s.len() {
                 let x = s[i];
                 if x == b'%' {
@@ -170,6 +154,13 @@ impl Table {
                     }
                     i += 1;
                 }
+            }
+        } else {
+            while i < s.len() {
+                if !self.allows(s[i]) {
+                    return false;
+                }
+                i += 1;
             }
         }
         true

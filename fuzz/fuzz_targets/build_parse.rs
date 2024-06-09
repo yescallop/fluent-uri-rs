@@ -1,7 +1,7 @@
 #![no_main]
 use fluent_uri::{
     component::{Host, Scheme},
-    encoding::{encoder::*, EStr},
+    encoding::{encoder::*, EStr, Encoder},
     Builder, Uri,
 };
 use libfuzzer_sys::{
@@ -18,7 +18,7 @@ struct SchemeWrapper<'a>(&'a Scheme);
 
 impl<'a> Arbitrary<'a> for SchemeWrapper<'a> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        Scheme::try_new(u.arbitrary()?)
+        Scheme::new(u.arbitrary()?)
             .map(SchemeWrapper)
             .ok_or(Error::IncorrectFormat)
     }
@@ -42,7 +42,7 @@ impl<'a, E: Encoder> Copy for EStrWrapper<'a, E> {}
 
 impl<'a, E: Encoder> Arbitrary<'a> for EStrWrapper<'a, E> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        EStr::try_new(u.arbitrary()?)
+        EStr::new(u.arbitrary()?)
             .map(EStrWrapper)
             .ok_or(Error::IncorrectFormat)
     }
@@ -65,25 +65,11 @@ impl<'a> HostWrapper<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-struct Port<'a>(&'a str);
-
-impl<'a> Arbitrary<'a> for Port<'a> {
-    fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        let s: &str = u.arbitrary()?;
-        if s.bytes().all(|x| x.is_ascii_digit()) {
-            Ok(Port(s))
-        } else {
-            Err(Error::IncorrectFormat)
-        }
-    }
-}
-
 #[derive(Arbitrary, Clone, Copy, Debug)]
 struct Authority<'a> {
     userinfo: Option<EStrWrapper<'a, Userinfo>>,
     host: HostWrapper<'a>,
-    port: Option<Port<'a>>,
+    port: Option<EStrWrapper<'a, Port>>,
 }
 
 #[derive(Arbitrary, Clone, Copy, Debug)]
@@ -95,28 +81,8 @@ struct UriComponents<'a> {
     fragment: Option<EStrWrapper<'a, Fragment>>,
 }
 
-fn first_segment_contains_colon(path: &str) -> bool {
-    path.split_once('/')
-        .map(|x| x.0)
-        .unwrap_or(path)
-        .contains(':')
-}
-
 fuzz_target!(|c: UriComponents<'_>| {
-    if c.authority.is_some() {
-        if !c.path.0.is_empty() && c.path.0.is_rootless() {
-            return;
-        }
-    } else {
-        if c.path.0.as_str().starts_with("//") {
-            return;
-        }
-        if c.scheme.is_none() && first_segment_contains_colon(c.path.0.as_str()) {
-            return;
-        }
-    }
-
-    let u1 = Uri::builder()
+    let Ok(u1) = Uri::builder()
         .optional(Builder::scheme, c.scheme.map(|s| s.0))
         .optional(
             Builder::authority,
@@ -131,7 +97,10 @@ fuzz_target!(|c: UriComponents<'_>| {
         .path(c.path.0)
         .optional(Builder::query, c.query.map(|s| s.0))
         .optional(Builder::fragment, c.fragment.map(|s| s.0))
-        .build();
+        .build()
+    else {
+        return;
+    };
 
     assert_eq!(
         u1.scheme().map(|s| s.as_str()),

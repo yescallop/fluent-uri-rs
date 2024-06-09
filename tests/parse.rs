@@ -12,7 +12,7 @@ fn parse_absolute() {
     assert_eq!(a.as_str(), "");
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "");
-    assert_eq!(a.host_parsed(), Host::RegName(EStr::new("")));
+    assert!(matches!(a.host_parsed(), Host::RegName(n) if n == ""));
     assert_eq!(a.port(), None);
     assert_eq!(u.path(), "/etc/hosts");
     assert_eq!(u.query(), None);
@@ -24,7 +24,7 @@ fn parse_absolute() {
     assert_eq!(a.as_str(), "ftp.is.co.za");
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "ftp.is.co.za");
-    assert_eq!(a.host_parsed(), Host::RegName(EStr::new("ftp.is.co.za")));
+    assert!(matches!(a.host_parsed(), Host::RegName(name) if name == "ftp.is.co.za"));
     assert_eq!(a.port(), None);
     assert_eq!(u.path(), "/rfc/rfc1808.txt");
     assert_eq!(u.query(), None);
@@ -36,7 +36,7 @@ fn parse_absolute() {
     assert_eq!(a.as_str(), "www.ietf.org");
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "www.ietf.org");
-    assert_eq!(a.host_parsed(), Host::RegName(EStr::new("www.ietf.org")));
+    assert!(matches!(a.host_parsed(), Host::RegName(name) if name == "www.ietf.org"));
     assert_eq!(a.port(), None);
     assert_eq!(u.path(), "/rfc/rfc2396.txt");
     assert_eq!(u.query(), None);
@@ -49,13 +49,13 @@ fn parse_absolute() {
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "[2001:db8::7]");
     #[cfg(feature = "net")]
-    assert_eq!(
+    assert!(matches!(
         a.host_parsed(),
-        Host::Ipv6(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 0x7))
-    );
+        Host::Ipv6(addr) if addr == Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 0x7)
+    ));
     assert_eq!(a.port(), None);
     assert_eq!(u.path(), "/c=GB");
-    assert_eq!(u.query(), Some(EStr::new("objectClass?one")));
+    assert_eq!(u.query(), Some(EStr::new_or_panic("objectClass?one")));
     assert_eq!(u.fragment(), None);
 
     let u = Uri::parse("mailto:John.Doe@example.com").unwrap();
@@ -86,8 +86,8 @@ fn parse_absolute() {
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "192.0.2.16");
     #[cfg(feature = "net")]
-    assert_eq!(a.host_parsed(), Host::Ipv4(Ipv4Addr::new(192, 0, 2, 16)));
-    assert_eq!(a.port(), Some("80"));
+    assert!(matches!(a.host_parsed(), Host::Ipv4(addr) if addr == Ipv4Addr::new(192, 0, 2, 16)));
+    assert_eq!(a.port(), Some(EStr::new_or_panic("80")));
     assert_eq!(u.path(), "/");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);
@@ -105,11 +105,11 @@ fn parse_absolute() {
     assert_eq!(a.as_str(), "example.com:8042");
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "example.com");
-    assert_eq!(a.host_parsed(), Host::RegName(EStr::new("example.com")));
-    assert_eq!(a.port(), Some("8042"));
+    assert!(matches!(a.host_parsed(), Host::RegName(name) if name == "example.com"));
+    assert_eq!(a.port(), Some(EStr::new_or_panic("8042")));
     assert_eq!(u.path(), "/over/there");
-    assert_eq!(u.query(), Some(EStr::new("name=ferret")));
-    assert_eq!(u.fragment(), Some(EStr::new("nose")));
+    assert_eq!(u.query(), Some(EStr::new_or_panic("name=ferret")));
+    assert_eq!(u.fragment(), Some(EStr::new_or_panic("nose")));
 
     let u = Uri::parse("ftp://cnn.example.com&story=breaking_news@10.0.0.1/top_story.htm").unwrap();
     assert_eq!(u.scheme().unwrap().as_str(), "ftp");
@@ -117,11 +117,11 @@ fn parse_absolute() {
     assert_eq!(a.as_str(), "cnn.example.com&story=breaking_news@10.0.0.1");
     assert_eq!(
         a.userinfo(),
-        Some(EStr::new("cnn.example.com&story=breaking_news"))
+        Some(EStr::new_or_panic("cnn.example.com&story=breaking_news"))
     );
     assert_eq!(a.host(), "10.0.0.1");
     #[cfg(feature = "net")]
-    assert_eq!(a.host_parsed(), Host::Ipv4(Ipv4Addr::new(10, 0, 0, 1)));
+    assert!(matches!(a.host_parsed(), Host::Ipv4(addr) if addr == Ipv4Addr::new(10, 0, 0, 1)));
     assert_eq!(a.port(), None);
     assert_eq!(u.path(), "/top_story.htm");
     assert_eq!(u.query(), None);
@@ -146,8 +146,8 @@ fn parse_absolute() {
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "127.0.0.1");
     #[cfg(feature = "net")]
-    assert_eq!(a.host_parsed(), Host::Ipv4(Ipv4Addr::new(127, 0, 0, 1)));
-    assert_eq!(a.port(), Some(""));
+    assert!(matches!(a.host_parsed(), Host::Ipv4(addr) if addr == Ipv4Addr::new(127, 0, 0, 1)));
+    assert_eq!(a.port(), Some(EStr::EMPTY));
     assert_eq!(u.path(), "/");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);
@@ -159,8 +159,8 @@ fn parse_absolute() {
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "127.0.0.1");
     #[cfg(feature = "net")]
-    assert_eq!(a.host_parsed(), Host::Ipv4(Ipv4Addr::new(127, 0, 0, 1)));
-    assert_eq!(a.port(), Some("8080"));
+    assert!(matches!(a.host_parsed(), Host::Ipv4(addr) if addr == Ipv4Addr::new(127, 0, 0, 1)));
+    assert_eq!(a.port(), Some(EStr::new_or_panic("8080")));
     assert_eq!(u.path(), "/");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);
@@ -172,8 +172,8 @@ fn parse_absolute() {
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "127.0.0.1");
     #[cfg(feature = "net")]
-    assert_eq!(a.host_parsed(), Host::Ipv4(Ipv4Addr::new(127, 0, 0, 1)));
-    assert_eq!(a.port(), Some("80808"));
+    assert!(matches!(a.host_parsed(), Host::Ipv4(addr) if addr == Ipv4Addr::new(127, 0, 0, 1)));
+    assert_eq!(a.port(), Some(EStr::new_or_panic("80808")));
     assert_eq!(u.path(), "/");
     assert_eq!(u.query(), None);
     assert_eq!(u.fragment(), None);
@@ -215,7 +215,7 @@ fn parse_relative() {
     assert_eq!(a.as_str(), "example.com");
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "example.com");
-    assert_eq!(a.host_parsed(), Host::RegName(EStr::new("example.com")));
+    assert!(matches!(a.host_parsed(), Host::RegName(name) if name == "example.com"));
     assert_eq!(a.port(), None);
     assert_eq!(u.path(), "");
     assert_eq!(u.query(), None);
@@ -225,7 +225,7 @@ fn parse_relative() {
     assert!(u.scheme().is_none());
     assert!(u.authority().is_none());
     assert_eq!(u.path(), "");
-    assert_eq!(u.query(), Some(EStr::new("query")));
+    assert_eq!(u.query(), Some(EStr::new_or_panic("query")));
     assert_eq!(u.fragment(), None);
 
     let u = Uri::parse("#fragment").unwrap();
@@ -233,7 +233,7 @@ fn parse_relative() {
     assert!(u.authority().is_none());
     assert_eq!(u.path(), "");
     assert_eq!(u.query(), None);
-    assert_eq!(u.fragment(), Some(EStr::new("fragment")));
+    assert_eq!(u.fragment(), Some(EStr::new_or_panic("fragment")));
 }
 
 #[test]
@@ -277,16 +277,15 @@ fn parse_error() {
     assert_eq!(e.to_string(), "invalid percent-encoded octet at index 0");
 
     // Non-decimal port
-    // In this case the port is validated in reverse.
     let e = Uri::parse("http://example.com:80ab").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 22");
+    assert_eq!(e.to_string(), "unexpected character at index 21");
 
     let e = Uri::parse("http://user@example.com:80ab").unwrap_err();
     assert_eq!(e.to_string(), "unexpected character at index 26");
 
     // Multiple colons in authority
     let e = Uri::parse("http://user:pass:example.com/").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 11");
+    assert_eq!(e.to_string(), "unexpected character at index 16");
 
     // Unclosed bracket
     let e = Uri::parse("https://[::1/").unwrap_err();

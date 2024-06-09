@@ -20,7 +20,7 @@ fuzz_target!(|data: &str| {
         buf.push_str(a.host());
         if let Some(p) = a.port() {
             buf.push(':');
-            buf.push_str(p);
+            buf.push_str(p.as_str());
         }
         assert_eq!(&buf[start..], a.as_str());
     }

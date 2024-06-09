@@ -15,8 +15,11 @@ fuzz_target!(|data: &str| {
         u2.scheme().map(|s| s.as_str())
     );
     assert_eq!(
-        u1.authority()
-            .map(|a| (a.userinfo().map(|s| s.as_str()), a.host(), a.port())),
+        u1.authority().map(|a| (
+            a.userinfo().map(|s| s.as_str()),
+            a.host(),
+            a.port().map(|s| s.as_str())
+        )),
         u2.authority().map(|a| (
             a.user_info().map(|s| s.as_str()),
             a.host().as_str(),

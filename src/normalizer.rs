@@ -2,14 +2,17 @@ use crate::{
     encoding::{decode_octet, table::UNRESERVED}, error::ResolveError, internal::{HostMeta, Meta}, parser, resolver, Uri
 };
 use alloc::string::String;
-use core::{fmt::Write, num::NonZeroU32};
+use core::{fmt::Write, num::NonZeroUsize};
 
 pub(crate) fn normalize(u: Uri<&str>, pedantic: bool) -> Result<Uri<String>, ResolveError> {
-    let mut buf = String::new();
+    // For "a://[::ffff:5:9]/" the capacity is not enough,
+    // but it's fine since this rarely happens.
+    let mut buf = String::with_capacity(u.as_str().len());
 
     let path = u.path().as_str();
-    let mut path_buf = String::new();
-    if u.scheme_end.is_some() && path.starts_with('/') {
+    let mut path_buf = String::with_capacity(path.len());
+
+    if u.has_scheme() && path.starts_with('/') {
         normalize_estr(&mut buf, path, false);
         let result = resolver::remove_dot_segments(&mut path_buf, &buf, pedantic);
         match result {
@@ -27,7 +30,7 @@ pub(crate) fn normalize(u: Uri<&str>, pedantic: bool) -> Result<Uri<String>, Res
     if let Some(scheme) = u.scheme() {
         buf.push_str(scheme.as_str());
         buf.make_ascii_lowercase();
-        meta.scheme_end = NonZeroU32::new(buf.len() as _);
+        meta.scheme_end = NonZeroUsize::new(buf.len());
         buf.push(':');
     }
 
@@ -39,8 +42,8 @@ pub(crate) fn normalize(u: Uri<&str>, pedantic: bool) -> Result<Uri<String>, Res
             buf.push('@');
         }
 
-        let mut auth_meta = *auth.meta();
-        auth_meta.host_bounds.0 = buf.len() as _;
+        let mut auth_meta = auth.meta();
+        auth_meta.host_bounds.0 = buf.len();
         match auth_meta.host_meta {
             // An IPv4 address is always canonical.
             HostMeta::Ipv4(..) => buf.push_str(auth.host()),
@@ -69,29 +72,29 @@ pub(crate) fn normalize(u: Uri<&str>, pedantic: bool) -> Result<Uri<String>, Res
                 }
             }
         }
-        auth_meta.host_bounds.1 = buf.len() as _;
+        auth_meta.host_bounds.1 = buf.len();
         meta.auth_meta = Some(auth_meta);
 
         if let Some(port) = auth.port() {
             if !port.is_empty() {
                 buf.push(':');
-                buf.push_str(port);
+                buf.push_str(port.as_str());
             }
         }
     }
 
-    meta.path_bounds.0 = buf.len() as _;
+    meta.path_bounds.0 = buf.len();
     // Make sure that the output is a valid URI reference.
-    if u.scheme_end.is_some() && u.auth_meta.is_none() && path_buf.starts_with("//") {
+    if u.has_scheme() && !u.has_authority() && path_buf.starts_with("//") {
         buf.push_str("/.");
     }
     buf.push_str(&path_buf);
-    meta.path_bounds.1 = buf.len() as _;
+    meta.path_bounds.1 = buf.len();
 
     if let Some(query) = u.query() {
         buf.push('?');
         normalize_estr(&mut buf, query.as_str(), false);
-        meta.query_end = NonZeroU32::new(buf.len() as _);
+        meta.query_end = NonZeroUsize::new(buf.len());
     }
 
     if let Some(fragment) = u.fragment() {
@@ -99,7 +102,6 @@ pub(crate) fn normalize(u: Uri<&str>, pedantic: bool) -> Result<Uri<String>, Res
         normalize_estr(&mut buf, fragment.as_str(), false);
     }
 
-    // No need to check the length because it cannot grow larger.
     Ok(Uri { val: buf, meta })
 }
 
@@ -116,7 +118,7 @@ fn normalize_estr(buf: &mut String, s: &str, to_lowercase: bool) {
                 if to_lowercase {
                     octet = octet.to_ascii_lowercase();
                 }
-                buf.push(octet as char)
+                buf.push(octet as char);
             } else {
                 buf.push('%');
                 buf.push(hi.to_ascii_uppercase() as char);
@@ -133,13 +135,13 @@ fn normalize_estr(buf: &mut String, s: &str, to_lowercase: bool) {
     }
 }
 
-// Taken from `std`.
+// Taken from `impl Display for Ipv6Addr`.
 #[cfg(not(feature = "net"))]
 fn write_v6(buf: &mut String, segments: [u16; 8]) {
     if let [0, 0, 0, 0, 0, 0xffff, ab, cd] = segments {
         let [a, b] = ab.to_be_bytes();
         let [c, d] = cd.to_be_bytes();
-        write!(buf, "::ffff:{}.{}.{}.{}", a, b, c, d).unwrap()
+        write!(buf, "::ffff:{}.{}.{}.{}", a, b, c, d).unwrap();
     } else {
         #[derive(Copy, Clone, Default)]
         struct Span {

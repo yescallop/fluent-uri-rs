@@ -4,7 +4,7 @@ use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &str| {
     let u1 = Uri::parse(data);
-    let u2 = <&iri_string::types::UriReferenceStr>::try_from(data);
+    let u2 = iri_string::types::UriReferenceStr::new(data);
     assert_eq!(u1.is_ok(), u2.is_ok());
 
     let Ok(u1) = u1 else { return };
@@ -12,8 +12,11 @@ fuzz_target!(|data: &str| {
 
     assert_eq!(u1.scheme().map(|s| s.as_str()), u2.scheme_str());
     assert_eq!(
-        u1.authority()
-            .map(|a| (a.userinfo().map(|s| s.as_str()), a.host(), a.port())),
+        u1.authority().map(|a| (
+            a.userinfo().map(|s| s.as_str()),
+            a.host(),
+            a.port().map(|s| s.as_str())
+        )),
         u2.authority_components()
             .map(|a| (a.userinfo(), a.host(), a.port()))
     );

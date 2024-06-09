@@ -3,7 +3,7 @@
 pub mod encoder;
 mod estring;
 mod imp;
-pub mod table;
+pub(crate) mod table;
 
 pub use estring::EString;
 
@@ -15,10 +15,45 @@ use alloc::{
     vec::Vec,
 };
 use core::{cmp::Ordering, hash, iter::FusedIterator, marker::PhantomData, str};
-use encoder::{Encoder, Path};
+use encoder::Path;
 use ref_cast::{ref_cast_custom, RefCastCustom};
 
+/// A table specifying the byte patterns allowed in a string.
+#[derive(Clone, Copy, Debug)]
+pub struct Table {
+    arr: [u8; 256],
+    allows_enc: bool,
+}
+
+/// A trait used by [`EStr`] and [`EString`] to specify the table used for encoding.
+///
+/// [`EStr`]: EStr
+/// [`EString`]: EString
+///
+/// # Sub-encoders
+///
+/// A sub-encoder `SubE` of `E` is an encoder such that `SubE::TABLE` is a [subset] of `E::TABLE`.
+///
+/// [subset]: Table::is_subset
+pub trait Encoder: 'static {
+    /// The table used for encoding.
+    const TABLE: &'static Table;
+}
+
 /// Percent-encoded string slices.
+///
+/// The owned counterpart of `EStr` is [`EString`]. See its documentation
+/// if you want to build a percent-encoded string from scratch.
+///
+/// # Type parameter
+///
+/// The `EStr<E>` type is parameterized over a type `E` that implements [`Encoder`].
+/// The associated constant `E::TABLE` of type [`Table`] specifies the byte patterns
+/// allowed in a string. In short, the underlying byte sequence of an `EStr<E>` slice
+/// can be formed by joining any number of the following byte sequences:
+///
+/// - `[x]` where `E::TABLE.allows(x)`.
+/// - `[b'%', hi, lo]` where `E::TABLE.allows_enc() && hi.is_ascii_hexdigit() && lo.is_ascii_hexdigit()`.
 ///
 /// # Comparison
 ///
@@ -34,9 +69,9 @@ use ref_cast::{ref_cast_custom, RefCastCustom};
 /// use std::collections::HashMap;
 ///
 /// let query = "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21";
-/// let map: HashMap<_, _> = EStr::<Query>::new(query)
+/// let map: HashMap<_, _> = EStr::<Query>::new_or_panic(query)
 ///     .split('&')
-///     .map(|s| s.split_once('=').unwrap_or((s, EStr::new(""))))
+///     .map(|s| s.split_once('=').unwrap_or((s, EStr::EMPTY)))
 ///     .map(|(k, v)| (k.decode().into_string_lossy(), v.decode().into_string_lossy()))
 ///     .collect();
 /// assert_eq!(map["name"], "张三");
@@ -61,34 +96,33 @@ impl<L: Encoder, R: Encoder> Assert<L, R> {
 impl<E: Encoder> EStr<E> {
     const ASSERT_ALLOWS_ENC: () = assert!(
         E::TABLE.allows_enc(),
-        "table does not allow percent-encoding"
+        "table does not allow percent-encoded octets"
     );
 
     /// Converts a string slice to an `EStr` slice assuming validity.
     #[ref_cast_custom]
     pub(crate) const fn new_validated(s: &str) -> &Self;
 
+    /// An empty `EStr` slice.
+    pub const EMPTY: &'static Self = Self::new_validated("");
+
     /// Converts a string slice to an `EStr` slice.
-    ///
-    /// Only use this function when you have a percent-encoded string at hand.
-    /// You may otherwise encode and append data to an [`EString`]
-    /// which derefs to `EStr`.
     ///
     /// # Panics
     ///
     /// Panics if the string is not properly encoded with `E`.
-    /// For a non-panicking variant, use [`try_new`](Self::try_new).
-    pub const fn new(s: &str) -> &Self {
-        match Self::try_new(s) {
+    /// For a non-panicking variant, use [`new`](Self::new).
+    #[must_use]
+    pub const fn new_or_panic(s: &str) -> &Self {
+        match Self::new(s) {
             Some(s) => s,
             None => panic!("improperly encoded string"),
         }
     }
 
     /// Converts a string slice to an `EStr` slice, returning `None` if the conversion fails.
-    ///
-    /// This is the non-panicking variant of [`new`](Self::new).
-    pub const fn try_new(s: &str) -> Option<&Self> {
+    #[must_use]
+    pub const fn new(s: &str) -> Option<&Self> {
         if E::TABLE.validate(s.as_bytes()) {
             Some(EStr::new_validated(s))
         } else {
@@ -97,16 +131,19 @@ impl<E: Encoder> EStr<E> {
     }
 
     /// Yields the underlying string slice.
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.inner
     }
 
     /// Returns the length of the `EStr` slice in bytes.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.inner.len()
     }
 
     /// Checks whether the `EStr` slice is empty.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
@@ -117,35 +154,40 @@ impl<E: Encoder> EStr<E> {
     ///
     /// Panics at compile time if `E` is not a [sub-encoder](Encoder#sub-encoders) of `SuperE`.
     #[cfg(fluent_uri_unstable)]
+    #[must_use]
     pub fn upcast<SuperE: Encoder>(&self) -> &EStr<SuperE> {
-        let _ = Assert::<E, SuperE>::LEFT_IS_SUB_ENCODER_OF_RIGHT;
+        let () = Assert::<E, SuperE>::LEFT_IS_SUB_ENCODER_OF_RIGHT;
         EStr::new_validated(self.as_str())
     }
 
     /// Decodes the `EStr` slice.
     ///
-    /// Note that this method will **not** decode `U+002B` (+) as `0x20` (space).
+    /// Always **split** before decoding, as otherwise the data may be
+    /// mistaken for component delimiters.
     ///
-    /// This method allocates only when there is any percent-encoded octet in the slice.
+    /// This method allocates only when the slice contains any percent-encoded octet.
+    ///
+    /// Note that this method will **not** decode `U+002B` (+) as `0x20` (space).
     ///
     /// # Panics
     ///
-    /// Panics at compile time if `E::TABLE` does not [allow percent-encoding].
+    /// Panics at compile time if `E::TABLE` does not [allow percent-encoded octets].
     ///
-    /// [allow percent-encoding]: table::Table::allows_enc
+    /// [allow percent-encoded octets]: Table::allows_enc
     ///
     /// # Examples
     ///
     /// ```
     /// use fluent_uri::encoding::{encoder::Path, EStr};
     ///
-    /// let dec = EStr::<Path>::new("%C2%A1Hola%21").decode();
+    /// let dec = EStr::<Path>::new_or_panic("%C2%A1Hola%21").decode();
     /// assert_eq!(dec.as_bytes(), &[0xc2, 0xa1, 0x48, 0x6f, 0x6c, 0x61, 0x21]);
     /// assert_eq!(dec.into_string()?, "¡Hola!");
     /// # Ok::<_, std::string::FromUtf8Error>(())
     /// ```
+    #[must_use]
     pub fn decode(&self) -> Decode<'_> {
-        let _ = Self::ASSERT_ALLOWS_ENC;
+        let () = Self::ASSERT_ALLOWS_ENC;
 
         match imp::decode(self.inner.as_bytes()) {
             Some(vec) => Decode::Owned(vec),
@@ -166,9 +208,9 @@ impl<E: Encoder> EStr<E> {
     /// ```
     /// use fluent_uri::encoding::{encoder::Path, EStr};
     ///
-    /// assert!(EStr::<Path>::new("a,b,c").split(',').eq(["a", "b", "c"]));
-    /// assert!(EStr::<Path>::new(",").split(',').eq(["", ""]));
-    /// assert!(EStr::<Path>::new("").split(',').eq([""]));
+    /// assert!(EStr::<Path>::new_or_panic("a,b,c").split(',').eq(["a", "b", "c"]));
+    /// assert!(EStr::<Path>::new_or_panic(",").split(',').eq(["", ""]));
+    /// assert!(EStr::<Path>::EMPTY.split(',').eq([""]));
     /// ```
     pub fn split(&self, delim: char) -> Split<'_, E> {
         assert!(
@@ -198,12 +240,13 @@ impl<E: Encoder> EStr<E> {
     /// use fluent_uri::encoding::{encoder::Path, EStr};
     ///
     /// assert_eq!(
-    ///     EStr::<Path>::new("foo;bar;baz").split_once(';'),
-    ///     Some((EStr::new("foo"), EStr::new("bar;baz")))
+    ///     EStr::<Path>::new_or_panic("foo;bar;baz").split_once(';'),
+    ///     Some((EStr::new_or_panic("foo"), EStr::new_or_panic("bar;baz")))
     /// );
     ///
-    /// assert_eq!(EStr::<Path>::new("foo").split_once(';'), None);
+    /// assert_eq!(EStr::<Path>::new_or_panic("foo").split_once(';'), None);
     /// ```
+    #[must_use]
     pub fn split_once(&self, delim: char) -> Option<(&Self, &Self)> {
         assert!(
             delim.is_ascii() && table::RESERVED.allows(delim as u8),
@@ -231,12 +274,13 @@ impl<E: Encoder> EStr<E> {
     /// use fluent_uri::encoding::{encoder::Path, EStr};
     ///
     /// assert_eq!(
-    ///     EStr::<Path>::new("foo;bar;baz").rsplit_once(';'),
-    ///     Some((EStr::new("foo;bar"), EStr::new("baz")))
+    ///     EStr::<Path>::new_or_panic("foo;bar;baz").rsplit_once(';'),
+    ///     Some((EStr::new_or_panic("foo;bar"), EStr::new_or_panic("baz")))
     /// );
     ///
-    /// assert_eq!(EStr::<Path>::new("foo").rsplit_once(';'), None);
+    /// assert_eq!(EStr::<Path>::new_or_panic("foo").rsplit_once(';'), None);
     /// ```
+    #[must_use]
     pub fn rsplit_once(&self, delim: char) -> Option<(&Self, &Self)> {
         assert!(
             delim.is_ascii() && table::RESERVED.allows(delim as u8),
@@ -282,7 +326,7 @@ impl<E: Encoder> Eq for EStr<E> {}
 
 impl<E: Encoder> hash::Hash for EStr<E> {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        self.inner.hash(state)
+        self.inner.hash(state);
     }
 }
 
@@ -301,7 +345,7 @@ impl<E: Encoder> Ord for EStr<E> {
 impl<E: Encoder> Default for &EStr<E> {
     /// Creates an empty `EStr` slice.
     fn default() -> Self {
-        EStr::new_validated("")
+        EStr::EMPTY
     }
 }
 
@@ -313,7 +357,7 @@ impl<E: Encoder> ToOwned for EStr<E> {
     }
 
     fn clone_into(&self, target: &mut EString<E>) {
-        self.inner.clone_into(&mut target.buf)
+        self.inner.clone_into(&mut target.buf);
     }
 }
 
@@ -323,40 +367,51 @@ impl<E: Encoder> ToOwned for EStr<E> {
 impl EStr<Path> {
     /// Checks whether the path is absolute, i.e., starting with `'/'`.
     #[inline]
+    #[must_use]
     pub fn is_absolute(&self) -> bool {
         self.inner.starts_with('/')
     }
 
     /// Checks whether the path is rootless, i.e., not starting with `'/'`.
     #[inline]
+    #[must_use]
     pub fn is_rootless(&self) -> bool {
         !self.inner.starts_with('/')
     }
 
     /// Returns an iterator over the [path segments].
     ///
+    /// See the following examples for the exact behavior of this method.
+    ///
+    /// The returned iterator does **not** uniquely identify a path
+    /// because it does not output the empty string before a leading `'/'`.
+    /// You may need to check whether the path is [absolute] in addition to calling this method.
+    ///
     /// [path segments]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
+    /// [absolute]: Self::is_absolute
     ///
     /// # Examples
     ///
     /// ```
     /// use fluent_uri::Uri;
     ///
-    /// // An empty path has no segments.
-    /// let uri = Uri::parse("")?;
-    /// assert_eq!(uri.path().segments().next(), None);
-    ///
     /// // Segments are separated by '/'.
-    /// let uri = Uri::parse("a/b/c")?;
-    /// assert!(uri.path().segments().eq(["a", "b", "c"]));
-    ///
-    /// // The empty string before a preceding '/' is not a segment.
+    /// // The empty string before a leading '/' is not a segment.
     /// // However, segments can be empty in the other cases.
     /// let uri = Uri::parse("/path/to//dir/")?;
     /// assert!(uri.path().segments().eq(["path", "to", "", "dir", ""]));
+    ///
+    /// // Segments of an absolute path may equal those of a rootless path.
+    /// let uri_a = Uri::parse("/foo/bar")?;
+    /// let uri_b = Uri::parse("foo/bar")?;
+    /// assert!(uri_a.path().segments().eq(["foo", "bar"]));
+    /// assert!(uri_b.path().segments().eq(["foo", "bar"]));
+    ///
+    /// // An empty path has no segments.
+    /// let uri = Uri::parse("")?;
+    /// assert_eq!(uri.path().segments().next(), None);
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
-    #[cfg(fluent_uri_unstable)]
     #[inline]
     pub fn segments(&self) -> Split<'_, Path> {
         let path_stripped = self.inner.strip_prefix('/').unwrap_or(&self.inner);
@@ -383,6 +438,7 @@ pub enum Decode<'a> {
 impl<'a> Decode<'a> {
     /// Returns a reference to the decoded bytes.
     #[inline]
+    #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         match self {
             Self::Borrowed(s) => s.as_bytes(),
@@ -392,6 +448,7 @@ impl<'a> Decode<'a> {
 
     /// Consumes this `Decode` and yields the underlying decoded bytes.
     #[inline]
+    #[must_use]
     pub fn into_bytes(self) -> Cow<'a, [u8]> {
         match self {
             Self::Borrowed(s) => Cow::Borrowed(s.as_bytes()),
@@ -400,6 +457,8 @@ impl<'a> Decode<'a> {
     }
 
     /// Converts the decoded bytes to a string.
+    ///
+    /// # Errors
     ///
     /// Returns `Err` if the bytes are not valid UTF-8.
     #[inline]
@@ -413,6 +472,7 @@ impl<'a> Decode<'a> {
     /// Converts the decoded bytes to a string, including invalid characters.
     ///
     /// This calls [`String::from_utf8_lossy`] if the bytes are not valid UTF-8.
+    #[must_use]
     pub fn into_string_lossy(self) -> Cow<'a, str> {
         match self.into_string() {
             Ok(string) => string,

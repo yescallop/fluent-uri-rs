@@ -22,14 +22,6 @@ fn test_to_socket_addrs() {
         .unwrap()
         .eq([SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80).into()]));
 
-    let u = Uri::parse("//127.0.0.1:").unwrap();
-    assert!(u
-        .authority()
-        .unwrap()
-        .to_socket_addrs(80)
-        .unwrap()
-        .eq([SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80).into()]));
-
     let u = Uri::parse("//[::1]").unwrap();
     assert!(u
         .authority()
@@ -37,6 +29,17 @@ fn test_to_socket_addrs() {
         .to_socket_addrs(80)
         .unwrap()
         .eq([SocketAddrV6::new(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1), 80, 0, 0).into()]));
+
+    let u = Uri::parse("//127.0.0.1:").unwrap();
+    assert_eq!(
+        u.authority()
+            .unwrap()
+            .to_socket_addrs(80)
+            .err()
+            .unwrap()
+            .to_string(),
+        "invalid port value"
+    );
 
     let u = Uri::parse("//127.0.0.1:65537").unwrap();
     assert_eq!(

@@ -1,8 +1,11 @@
-use super::{encoder::Encoder, Assert, EStr};
+use super::{Assert, EStr, Encoder};
 use alloc::{borrow::ToOwned, string::String};
 use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref};
 
 /// A percent-encoded, growable string.
+///
+/// The borrowed counterpart of `EString` is [`EStr`].
+/// See its documentation for the meaning of the type parameter `E`.
 ///
 /// # Comparison
 ///
@@ -18,9 +21,8 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 /// ```
 /// use fluent_uri::{
 ///     encoding::{
-///         encoder::{Data, Encoder, Query},
-///         table::Table,
-///         EStr, EString,
+///         encoder::{Data, Query},
+///         EStr, EString, Encoder, Table,
 ///     },
 ///     Uri,
 /// };
@@ -32,7 +34,7 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 ///         buf.push_byte(b'&');
 ///     }
 ///
-///     // WARNING: Be careful not to confuse data with delimiters! Use `Data`
+///     // WARNING: Absolutely do not confuse data with delimiters! Use `Data`
 ///     // to encode data contained in a URI unless you know what you're doing!
 ///     //
 ///     // `Data` preserves only unreserved characters and encodes the others,
@@ -48,9 +50,10 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 /// assert_eq!(buf, "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
 ///
 /// let uri = Uri::builder()
-///     .path(EStr::new(""))
+///     .path(EStr::EMPTY)
 ///     .query(&buf)
-///     .build();
+///     .build()
+///     .unwrap();
 /// assert_eq!(uri.as_str(), "?name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
 /// ```
 ///
@@ -58,11 +61,7 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 /// by using a custom encoder:
 ///
 /// ```
-/// use fluent_uri::encoding::{
-///     encoder::{Encoder, Path},
-///     table::Table,
-///     EString,
-/// };
+/// use fluent_uri::encoding::{encoder::Path, EString, Encoder, Table};
 ///
 /// struct PathSegment;
 ///
@@ -99,36 +98,39 @@ impl<E: Encoder> EString<E> {
     }
 
     /// Creates a new empty `EString`.
+    #[must_use]
     pub fn new() -> Self {
         Self::new_validated(String::new())
     }
 
-    /// Creates a new empty `EString` with a particular capacity.
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self::new_validated(String::with_capacity(capacity))
-    }
-
     /// Coerces to an `EStr` slice.
+    #[must_use]
     pub fn as_estr(&self) -> &EStr<E> {
         self
     }
 
     /// Encodes a byte sequence with a sub-encoder and appends the result onto the end of this `EString`.
     ///
+    /// A byte will be percent-encoded if and only if `SubE::TABLE` does not [allow] it.
+    /// When encoding data, make sure that `SubE::TABLE` does not [allow] the component delimiters
+    /// that delimit the data.
+    ///
     /// Note that this method will **not** encode `0x20` (space) as `U+002B` (+).
+    ///
+    /// [allow]: super::Table::allows
     ///
     /// # Panics
     ///
     /// Panics at compile time if `SubE` is not a [sub-encoder](Encoder#sub-encoders) of `E`,
-    /// or if `SubE::TABLE` does not [allow percent-encoding].
+    /// or if `SubE::TABLE` does not [allow percent-encoded octets].
     ///
-    /// [allow percent-encoding]: super::table::Table::allows_enc
+    /// [allow percent-encoded octets]: super::Table::allows_enc
     pub fn encode<SubE: Encoder>(&mut self, s: &(impl AsRef<[u8]> + ?Sized)) {
-        let _ = Assert::<SubE, E>::LEFT_IS_SUB_ENCODER_OF_RIGHT;
-        let _ = EStr::<SubE>::ASSERT_ALLOWS_ENC;
+        let () = Assert::<SubE, E>::LEFT_IS_SUB_ENCODER_OF_RIGHT;
+        let () = EStr::<SubE>::ASSERT_ALLOWS_ENC;
 
         for &x in s.as_ref() {
-            SubE::TABLE.encode(x, &mut self.buf)
+            SubE::TABLE.encode(x, &mut self.buf);
         }
     }
 
@@ -138,7 +140,7 @@ impl<E: Encoder> EString<E> {
     ///
     /// Panics if `E::TABLE` does not [allow] the byte.
     ///
-    /// [allow]: super::table::Table::allows
+    /// [allow]: super::Table::allows
     pub fn push_byte(&mut self, x: u8) {
         assert!(E::TABLE.allows(x), "table does not allow the byte");
         self.buf.push(x as char);
@@ -146,43 +148,13 @@ impl<E: Encoder> EString<E> {
 
     /// Appends an `EStr` slice onto the end of this `EString`.
     pub fn push_estr(&mut self, s: &EStr<E>) {
-        self.buf.push_str(s.as_str())
+        self.buf.push_str(s.as_str());
     }
 
     /// Consumes this `EString` and yields the underlying `String`.
+    #[must_use]
     pub fn into_string(self) -> String {
         self.buf
-    }
-
-    /// Invokes [`capacity`] on the underlying `String`.
-    ///
-    /// [`capacity`]: String::capacity
-    pub fn capacity(&self) -> usize {
-        self.buf.capacity()
-    }
-
-    /// Invokes [`reserve`] on the underlying `String`.
-    ///
-    /// [`reserve`]: String::reserve
-    pub fn reserve(&mut self, additional: usize) {
-        self.buf.reserve(additional);
-    }
-
-    /// Invokes [`reserve_exact`] on the underlying `String`.
-    ///
-    /// [`reserve_exact`]: String::reserve_exact
-    pub fn reserve_exact(&mut self, additional: usize) {
-        self.buf.reserve_exact(additional);
-    }
-
-    /// Truncates this `EString` to zero length and casts it to
-    /// associate with another encoder, preserving the capacity.
-    pub fn clear<F: Encoder>(mut self) -> EString<F> {
-        self.buf.clear();
-        EString {
-            buf: self.buf,
-            encoder: PhantomData,
-        }
     }
 }
 
@@ -268,7 +240,7 @@ impl<E: Encoder> Eq for EString<E> {}
 
 impl<E: Encoder> hash::Hash for EString<E> {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        self.buf.hash(state)
+        self.buf.hash(state);
     }
 }
 
