@@ -422,6 +422,7 @@ impl<'a> Authority<'a> {
     /// assert!(!uri.authority().unwrap().has_port());
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
+    #[must_use]
     pub fn has_port(&self) -> bool {
         self.meta.host_bounds.1 != self.val.len()
     }
