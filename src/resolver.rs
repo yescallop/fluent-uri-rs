@@ -4,11 +4,81 @@ use crate::{
     Uri,
 };
 use alloc::string::String;
+use borrow_or_share::Bos;
 use core::num::NonZeroUsize;
+
+/// A configurable URI reference resolver against a fixed base URI.
+///
+/// # Examples
+///
+/// ```
+/// use fluent_uri::{Resolver, Uri};
+///
+/// let base = Uri::parse("http://example.com/foo/bar")?;
+/// let resolver = Resolver::with_base(base);
+///
+/// assert_eq!(resolver.resolve(&Uri::parse("baz")?)?, "http://example.com/foo/baz");
+/// assert_eq!(resolver.resolve(&Uri::parse("../baz")?)?, "http://example.com/baz");
+/// assert_eq!(resolver.resolve(&Uri::parse("?baz")?)?, "http://example.com/foo/bar?baz");
+/// # Ok::<_, Box<dyn std::error::Error>>(())
+/// ```
+#[derive(Clone, Copy, Debug)]
+#[must_use]
+pub struct Resolver<T: Bos<str>> {
+    base: Uri<T>,
+    no_path_underflow: bool,
+}
+
+impl<T: Bos<str>> Resolver<T> {
+    /// Creates a new `Resolver` with the given base URI.
+    pub fn with_base(base: Uri<T>) -> Self {
+        Self {
+            base,
+            no_path_underflow: false,
+        }
+    }
+
+    /// Makes reference resolution fail if an underflow occurs in path resolution.
+    ///
+    /// Note that this is a deviation from the reference resolution algorithm defined in
+    /// [Section 5 of RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986/#section-5).
+    ///
+    /// You can check whether an underflow occurred by calling [`ResolveError::is_path_underflow`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::{Resolver, Uri};
+    ///
+    /// let base = Uri::parse("http://example.com/foo/bar")?;
+    /// let resolver = Resolver::with_base(base).no_path_underflow();
+    ///
+    /// assert!(resolver.resolve(&Uri::parse("../../baz")?).unwrap_err().is_path_underflow());
+    /// assert!(resolver.resolve(&Uri::parse("../../../baz")?).unwrap_err().is_path_underflow());
+    /// assert!(resolver.resolve(&Uri::parse("/../baz")?).unwrap_err().is_path_underflow());
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// ```
+    pub fn no_path_underflow(mut self) -> Self {
+        self.no_path_underflow = true;
+        self
+    }
+
+    /// Resolves the given URI reference against the configured base URI.
+    ///
+    /// See [`Uri::resolve_against`] for the exact behavior of this method.
+    pub fn resolve<U: Bos<str>>(&self, reference: &Uri<U>) -> Result<Uri<String>, ResolveError> {
+        resolve(
+            self.base.as_ref(),
+            reference.as_ref(),
+            self.no_path_underflow,
+        )
+    }
+}
 
 pub(crate) fn resolve(
     base: Uri<&str>,
     /* reference */ r: Uri<&str>,
+    no_path_underflow: bool,
 ) -> Result<Uri<String>, ResolveError> {
     if !base.is_absolute_uri() {
         return Err(ResolveError(ResolveErrorKind::NonAbsoluteBase));
@@ -32,7 +102,7 @@ pub(crate) fn resolve(
         t_authority = r_authority;
         t_path = if r_path.is_absolute() {
             buf.reserve_exact(r_path.len());
-            remove_dot_segments(&mut buf, r_path.as_str())
+            remove_dot_segments(&mut buf, r_path.as_str(), no_path_underflow)?
         } else {
             r_path.as_str()
         };
@@ -41,7 +111,7 @@ pub(crate) fn resolve(
         if r_authority.is_some() {
             t_authority = r_authority;
             buf.reserve_exact(r_path.len());
-            t_path = remove_dot_segments(&mut buf, r_path.as_str());
+            t_path = remove_dot_segments(&mut buf, r_path.as_str(), no_path_underflow)?;
             t_query = r_query;
         } else {
             if r_path.is_empty() {
@@ -54,7 +124,7 @@ pub(crate) fn resolve(
             } else {
                 if r_path.is_absolute() {
                     buf.reserve_exact(r_path.len());
-                    t_path = remove_dot_segments(&mut buf, r_path.as_str());
+                    t_path = remove_dot_segments(&mut buf, r_path.as_str(), no_path_underflow)?;
                 } else {
                     // Instead of merging the paths, remove dot segments incrementally.
                     let base_path = base.path().as_str();
@@ -72,9 +142,9 @@ pub(crate) fn resolve(
                         };
 
                         buf.reserve_exact(base_path_stripped.len() + r_path.len());
-                        remove_dot_segments(&mut buf, base_path_stripped);
+                        remove_dot_segments(&mut buf, base_path_stripped, no_path_underflow)?;
                     }
-                    t_path = remove_dot_segments(&mut buf, r_path.as_str());
+                    t_path = remove_dot_segments(&mut buf, r_path.as_str(), no_path_underflow)?;
                 }
                 t_query = r_query;
             }
@@ -142,7 +212,11 @@ pub(crate) fn resolve(
     Ok(Uri { val: buf, meta })
 }
 
-pub(crate) fn remove_dot_segments<'a>(buf: &'a mut String, path: &str) -> &'a str {
+pub(crate) fn remove_dot_segments<'a>(
+    buf: &'a mut String,
+    path: &str,
+    no_underflow: bool,
+) -> Result<&'a str, ResolveError> {
     for seg in path.split_inclusive('/') {
         let seg_stripped = seg.strip_suffix('/').unwrap_or(seg);
         match classify_segment(seg_stripped) {
@@ -151,12 +225,14 @@ pub(crate) fn remove_dot_segments<'a>(buf: &'a mut String, path: &str) -> &'a st
                 if buf.len() != 1 {
                     buf.truncate(buf.rfind('/').unwrap());
                     buf.truncate(buf.rfind('/').unwrap() + 1);
+                } else if no_underflow {
+                    return Err(ResolveError(ResolveErrorKind::PathUnderflow));
                 }
             }
             SegKind::Normal => buf.push_str(seg),
         }
     }
-    buf
+    Ok(buf)
 }
 
 enum SegKind {

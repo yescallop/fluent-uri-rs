@@ -8,7 +8,7 @@
     clippy::if_not_else,
     clippy::ignored_unit_patterns,
     clippy::map_unwrap_or,
-    clippy::missing_errors_doc,
+    // clippy::missing_errors_doc,
     clippy::must_use_candidate,
     // clippy::redundant_closure_for_method_calls,
     clippy::semicolon_if_nothing_returned,
@@ -66,6 +66,7 @@ mod parser;
 mod resolver;
 
 pub use builder::Builder;
+pub use resolver::Resolver;
 
 #[cfg(feature = "std")]
 extern crate std;
@@ -445,14 +446,17 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// No normalization except the removal of dot segments will be performed.
     /// Use [`normalize`] if necessary.
     ///
-    /// [absolute URI]: Self::is_absolute_uri
-    /// [rootless]: EStr::<Path>::is_rootless
-    /// [`normalize`]: Self::normalize
-    ///
     /// This method has the property that
     /// `self.resolve_against(base).unwrap().normalize()` equals
     /// `self.normalize().resolve_against(&base.normalize()).unwrap()`
     /// when no panic occurs.
+    ///
+    /// If you need to resolve multiple references against a common base URI,
+    /// consider using [`Resolver`] instead.
+    ///
+    /// [absolute URI]: Self::is_absolute_uri
+    /// [rootless]: EStr::<Path>::is_rootless
+    /// [`normalize`]: Self::normalize
     ///
     /// # Errors
     ///
@@ -471,7 +475,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn resolve_against<U: Bos<str>>(&self, base: &Uri<U>) -> Result<Uri<String>, ResolveError> {
-        resolver::resolve(base.as_ref(), self.as_ref())
+        resolver::resolve(base.as_ref(), self.as_ref(), false)
     }
 
     /// Normalizes the URI reference.

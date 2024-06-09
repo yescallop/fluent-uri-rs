@@ -80,12 +80,24 @@ impl std::error::Error for BuildError {}
 pub(crate) enum ResolveErrorKind {
     NonAbsoluteBase,
     NonHierarchicalBase,
-    // PathUnderflow,
+    PathUnderflow,
 }
 
 /// An error occurred when resolving URI references.
 #[derive(Clone, Copy, Debug)]
 pub struct ResolveError(pub(crate) ResolveErrorKind);
+
+impl ResolveError {
+    /// Checks whether an underflow in path resolution caused the error.
+    ///
+    /// See [`Resolver::no_path_underflow`] for more details.
+    ///
+    /// [`Resolver::no_path_underflow`]: crate::Resolver::no_path_underflow
+    #[must_use]
+    pub fn is_path_underflow(&self) -> bool {
+        matches!(self.0, ResolveErrorKind::PathUnderflow)
+    }
+}
 
 #[cfg(feature = "std")]
 impl std::error::Error for ResolveError {}

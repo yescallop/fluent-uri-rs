@@ -1,4 +1,4 @@
-use fluent_uri::Uri;
+use fluent_uri::{Resolver, Uri};
 
 trait Test {
     fn pass(&self, r: &str, res: &str);
@@ -111,4 +111,19 @@ fn resolve_error() {
         "?baz",
         "resolving non-same-document relative reference against non-hierarchical base URI",
     );
+
+    let resolver =
+        Resolver::with_base(Uri::parse("http://a/b/c/d;p?q").unwrap()).no_path_underflow();
+    assert!(resolver
+        .resolve(&Uri::parse("../../../g").unwrap())
+        .unwrap_err()
+        .is_path_underflow());
+    assert!(resolver
+        .resolve(&Uri::parse("../../../../g").unwrap())
+        .unwrap_err()
+        .is_path_underflow());
+    assert!(resolver
+        .resolve(&Uri::parse("/../g").unwrap())
+        .unwrap_err()
+        .is_path_underflow());
 }

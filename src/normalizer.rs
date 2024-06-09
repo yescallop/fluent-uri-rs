@@ -16,7 +16,7 @@ pub(crate) fn normalize(u: Uri<&str>) -> Uri<String> {
 
     if u.has_scheme() && path.starts_with('/') {
         normalize_estr(&mut buf, path, false);
-        resolver::remove_dot_segments(&mut path_buf, &buf);
+        resolver::remove_dot_segments(&mut path_buf, &buf, false).unwrap();
         buf.clear();
     } else {
         // Don't remove dot segments from relative reference or rootless path.
