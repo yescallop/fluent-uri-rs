@@ -132,6 +132,7 @@ pub struct Authority<'a> {
 }
 
 impl<'a> Authority<'a> {
+    #[inline]
     pub(crate) fn new(val: &'a str, meta: AuthMeta) -> Self {
         Self { val, meta }
     }
