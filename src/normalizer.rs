@@ -14,7 +14,7 @@ pub(crate) fn normalize(u: Uri<&str>) -> Uri<String> {
     let path = u.path().as_str();
     let mut path_buf = String::with_capacity(path.len());
 
-    if u.meta.scheme_end.is_some() && path.starts_with('/') {
+    if u.has_scheme() && path.starts_with('/') {
         normalize_estr(&mut buf, path, false);
         resolver::remove_dot_segments(&mut path_buf, &buf);
         buf.clear();
@@ -83,7 +83,7 @@ pub(crate) fn normalize(u: Uri<&str>) -> Uri<String> {
 
     meta.path_bounds.0 = buf.len();
     // Make sure that the output is a valid URI reference.
-    if u.meta.scheme_end.is_some() && u.meta.auth_meta.is_none() && path_buf.starts_with("//") {
+    if u.has_scheme() && !u.has_authority() && path_buf.starts_with("//") {
         buf.push_str("/.");
     }
     buf.push_str(&path_buf);

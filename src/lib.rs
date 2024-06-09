@@ -418,56 +418,6 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
         self.fragment_start().map(|i| self.eslice(i, self.len()))
     }
 
-    /// Checks whether the URI reference is a [relative reference],
-    /// i.e., without a scheme.
-    ///
-    /// Note that this method is not the opposite of [`is_absolute_uri`].
-    ///
-    /// [relative reference]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.2
-    /// [`is_absolute_uri`]: Self::is_absolute_uri
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use fluent_uri::Uri;
-    ///
-    /// let uri = Uri::parse("/path/to/file")?;
-    /// assert!(uri.is_relative_reference());
-    /// let uri = Uri::parse("http://example.com/")?;
-    /// assert!(!uri.is_relative_reference());
-    /// # Ok::<_, fluent_uri::error::ParseError>(())
-    /// ```
-    #[must_use]
-    pub fn is_relative_reference(&self) -> bool {
-        self.meta.scheme_end.is_none()
-    }
-
-    /// Checks whether the URI reference is an [absolute URI], i.e.,
-    /// with a scheme and without a fragment.
-    ///
-    /// Note that this method is not the opposite of [`is_relative_reference`].
-    ///
-    /// [absolute URI]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.3
-    /// [`is_relative_reference`]: Self::is_relative_reference
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use fluent_uri::Uri;
-    ///
-    /// let uri = Uri::parse("http://example.com/")?;
-    /// assert!(uri.is_absolute_uri());
-    /// let uri = Uri::parse("http://example.com/#title1")?;
-    /// assert!(!uri.is_absolute_uri());
-    /// let uri = Uri::parse("/path/to/file")?;
-    /// assert!(!uri.is_absolute_uri());
-    /// # Ok::<_, fluent_uri::error::ParseError>(())
-    /// ```
-    #[must_use]
-    pub fn is_absolute_uri(&self) -> bool {
-        self.meta.scheme_end.is_some() && self.fragment_start().is_none()
-    }
-
     /// Resolves the URI reference against the given base URI
     /// and returns the target URI.
     ///
@@ -559,6 +509,93 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     #[must_use]
     pub fn normalize(&self) -> Uri<String> {
         normalizer::normalize(self.as_ref())
+    }
+
+    /// Checks whether the URI reference contains a scheme component.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::Uri;
+    ///
+    /// assert!(Uri::parse("http://example.com/")?.has_scheme());
+    /// assert!(!Uri::parse("/path/to/file")?.has_scheme());
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// ```
+    #[must_use]
+    pub fn has_scheme(&self) -> bool {
+        self.meta.scheme_end.is_some()
+    }
+
+    /// Checks whether the URI reference contains an authority component.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::Uri;
+    ///
+    /// assert!(Uri::parse("http://example.com/")?.has_authority());
+    /// assert!(!Uri::parse("mailto:user@example.com")?.has_authority());
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// ```
+    #[must_use]
+    pub fn has_authority(&self) -> bool {
+        self.meta.auth_meta.is_some()
+    }
+
+    /// Checks whether the URI reference contains a query component.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::Uri;
+    ///
+    /// assert!(Uri::parse("http://example.com/?lang=en")?.has_query());
+    /// assert!(!Uri::parse("ftp://192.0.2.1/")?.has_query());
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// ```
+    #[must_use]
+    pub fn has_query(&self) -> bool {
+        self.meta.query_end.is_some()
+    }
+
+    /// Checks whether the URI reference contains a fragment component.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::Uri;
+    ///
+    /// assert!(Uri::parse("http://example.com/#usage")?.has_fragment());
+    /// assert!(!Uri::parse("ftp://192.0.2.1/")?.has_fragment());
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// ```
+    #[must_use]
+    pub fn has_fragment(&self) -> bool {
+        self.fragment_start().is_some()
+    }
+
+    /// Checks whether the URI reference is an [absolute URI], i.e.,
+    /// with a scheme and without a fragment.
+    ///
+    /// [absolute URI]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.3
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::Uri;
+    ///
+    /// let uri = Uri::parse("http://example.com/")?;
+    /// assert!(uri.is_absolute_uri());
+    /// let uri = Uri::parse("http://example.com/#title1")?;
+    /// assert!(!uri.is_absolute_uri());
+    /// let uri = Uri::parse("/path/to/file")?;
+    /// assert!(!uri.is_absolute_uri());
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// ```
+    #[must_use]
+    pub fn is_absolute_uri(&self) -> bool {
+        self.has_scheme() && !self.has_fragment()
     }
 }
 

@@ -383,6 +383,47 @@ impl<'a> Authority<'a> {
             Host::RegName(name) => (name.as_str(), port).to_socket_addrs(),
         }
     }
+
+    /// Checks whether the authority component contains a userinfo subcomponent.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::Uri;
+    ///
+    /// let uri = Uri::parse("http://user@example.com/")?;
+    /// assert!(uri.authority().unwrap().has_userinfo());
+    ///
+    /// let uri = Uri::parse("http://example.com/")?;
+    /// assert!(!uri.authority().unwrap().has_userinfo());
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    #[must_use]
+    pub fn has_userinfo(&self) -> bool {
+        self.meta.host_bounds.0 != 0
+    }
+
+    /// Checks whether the authority component contains a port subcomponent.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::Uri;
+    ///
+    /// let uri = Uri::parse("//localhost:4673/")?;
+    /// assert!(uri.authority().unwrap().has_port());
+    ///
+    /// // The port subcomponent can be empty.
+    /// let uri = Uri::parse("//localhost:/")?;
+    /// assert!(uri.authority().unwrap().has_port());
+    ///
+    /// let uri = Uri::parse("//localhost/")?;
+    /// let auth = uri.authority().unwrap();
+    /// assert!(!uri.authority().unwrap().has_port());
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// ```
+    pub fn has_port(&self) -> bool {
+        self.meta.host_bounds.1 != self.val.len()
+    }
 }
 
 /// The parsed [host] component of URI reference.
