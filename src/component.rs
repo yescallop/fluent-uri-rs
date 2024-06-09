@@ -369,9 +369,11 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Authority<T> {
     ///
     /// # Errors
     ///
-    /// Returns `Err` if the port cannot be parsed into `u16`,
-    /// if the host is an IPvFuture address,
-    /// or if the resolution of a registered name fails.
+    /// Returns `Err` if any of the following is true.
+    ///
+    /// - The port cannot be parsed into `u16`.
+    /// - The host is an IPvFuture address.
+    /// - The resolution of a registered name fails.
     #[cfg(all(feature = "net", feature = "std"))]
     pub fn to_socket_addrs(
         &'i self,
