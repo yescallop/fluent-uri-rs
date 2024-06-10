@@ -602,7 +602,10 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// Checks whether the URI reference is an [absolute URI], i.e.,
     /// with a scheme and without a fragment.
     ///
+    /// Note that this method is not the opposite of [`is_relative_reference`].
+    ///
     /// [absolute URI]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.3
+    /// [`is_relative_reference`]: Self::is_relative_reference
     ///
     /// # Examples
     ///
