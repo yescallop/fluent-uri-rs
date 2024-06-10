@@ -575,6 +575,30 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
         self.fragment_start().is_some()
     }
 
+    /// Checks whether the URI reference is a [relative reference],
+    /// i.e., without a scheme.
+    ///
+    /// Note that this method is not the opposite of [`is_absolute_uri`].
+    ///
+    /// [relative reference]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.2
+    /// [`is_absolute_uri`]: Self::is_absolute_uri
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::Uri;
+    ///
+    /// let uri = Uri::parse("/path/to/file")?;
+    /// assert!(uri.is_relative_reference());
+    /// let uri = Uri::parse("http://example.com/")?;
+    /// assert!(!uri.is_relative_reference());
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// ```
+    #[must_use]
+    pub fn is_relative_reference(&self) -> bool {
+        !self.has_scheme()
+    }
+
     /// Checks whether the URI reference is an [absolute URI], i.e.,
     /// with a scheme and without a fragment.
     ///
