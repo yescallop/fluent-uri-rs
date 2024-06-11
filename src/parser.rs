@@ -240,24 +240,22 @@ impl<'a> Reader<'a> {
     fn read_v6_segment(&mut self) -> Option<Seg> {
         let colon = self.read_str(":");
         if !self.has_remaining() {
-            return if colon { Some(Seg::SingleColon) } else { None };
+            return colon.then_some(Seg::SingleColon);
         }
 
         let first = self.peek(0).unwrap();
         let mut x = match OCTET_TABLE_LO[first as usize] {
             v if v < 128 => v as u16,
             _ => {
-                return if colon {
+                return colon.then(|| {
                     if first == b':' {
                         // INVARIANT: Skipping ":" is fine.
                         self.skip(1);
-                        Some(Seg::Ellipsis)
+                        Seg::Ellipsis
                     } else {
-                        Some(Seg::SingleColon)
+                        Seg::SingleColon
                     }
-                } else {
-                    None
-                };
+                });
             }
         };
         let mut i = 1;
@@ -331,14 +329,14 @@ impl<'a> Reader<'a> {
     }
 
     fn read_port(&mut self) {
-        self.read_str(":").then(|| {
+        if self.read_str(":") {
             let mut i = 0;
             while self.peek_digit(i).is_some() {
                 i += 1;
             }
             // INVARIANT: Skipping `i` digits is fine.
             self.skip(i);
-        });
+        }
     }
 
     fn read_host(&mut self) -> Result<HostMeta> {

@@ -298,9 +298,8 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// ```
     #[must_use]
     pub fn scheme(&'i self) -> Option<&'o Scheme> {
-        self.meta
-            .scheme_end
-            .map(|i| Scheme::new_validated(self.slice(0, i.get())))
+        let end = self.meta.scheme_end?.get();
+        Some(Scheme::new_validated(self.slice(0, end)))
     }
 
     /// Returns the optional [authority] component.
@@ -321,20 +320,17 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// ```
     #[must_use]
     pub fn authority(&'i self) -> Option<Authority<'o>> {
-        if let Some(mut meta) = self.meta.auth_meta {
-            let start = match self.meta.scheme_end {
-                Some(i) => i.get() + 3,
-                None => 2,
-            };
-            let end = self.meta.path_bounds.0;
+        let mut meta = self.meta.auth_meta?;
+        let start = match self.meta.scheme_end {
+            Some(i) => i.get() + 3,
+            None => 2,
+        };
+        let end = self.meta.path_bounds.0;
 
-            meta.host_bounds.0 -= start;
-            meta.host_bounds.1 -= start;
+        meta.host_bounds.0 -= start;
+        meta.host_bounds.1 -= start;
 
-            Some(Authority::new(self.slice(start, end), meta))
-        } else {
-            None
-        }
+        Some(Authority::new(self.slice(start, end), meta))
     }
 
     /// Returns the [path] component.
@@ -384,16 +380,15 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// ```
     #[must_use]
     pub fn query(&'i self) -> Option<&'o EStr<Query>> {
-        self.meta
-            .query_end
-            .map(|i| self.eslice(self.meta.path_bounds.1 + 1, i.get()))
+        let end = self.meta.query_end?.get();
+        Some(self.eslice(self.meta.path_bounds.1 + 1, end))
     }
 
     fn fragment_start(&self) -> Option<usize> {
-        let query_or_path_end = self
-            .meta
-            .query_end
-            .map_or(self.meta.path_bounds.1, |i| i.get());
+        let query_or_path_end = match self.meta.query_end {
+            Some(i) => i.get(),
+            None => self.meta.path_bounds.1,
+        };
         (query_or_path_end != self.len()).then_some(query_or_path_end + 1)
     }
 

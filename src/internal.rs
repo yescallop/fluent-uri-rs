@@ -27,8 +27,7 @@ impl<'a> ToUri for &'a str {
 
     #[inline]
     fn to_uri(self) -> Result<Uri<Self::Val>, Self::Err> {
-        let meta = parser::parse(self.as_bytes())?;
-        Ok(Uri { val: self, meta })
+        parser::parse(self.as_bytes()).map(|meta| Uri { val: self, meta })
     }
 }
 
