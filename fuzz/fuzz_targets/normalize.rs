@@ -8,9 +8,6 @@ fuzz_target!(|data: &str| {
     let u1 = u.normalize();
     let u2 = Uri::parse(u1.as_str()).unwrap();
 
-    // The length cannot grow larger.
-    assert!(u1.as_str().len() <= u2.as_str().len());
-
     assert_eq!(
         u1.scheme().map(|s| s.as_str()),
         u2.scheme().map(|s| s.as_str())
