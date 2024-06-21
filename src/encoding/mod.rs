@@ -379,16 +379,17 @@ impl EStr<Path> {
         !self.inner.starts_with('/')
     }
 
-    /// Returns an iterator over the [path segments].
+    /// Returns an iterator over the path segments, separated by `'/'`.
     ///
-    /// See the following examples for the exact behavior of this method.
+    /// Returns `None` if the path is [`rootless`]. Use [`split`]
+    /// instead if you need to split a rootless path on occurrences of `'/'`.
     ///
-    /// The returned iterator does **not** uniquely identify a path
-    /// because it does not output the empty string before a leading `'/'`.
-    /// You may need to check whether the path is [absolute] in addition to calling this method.
+    /// Note that the path can be [`empty`] when authority is present,
+    /// in which case this method will return `None`.
     ///
-    /// [path segments]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
-    /// [absolute]: Self::is_absolute
+    /// [`rootless`]: Self::is_rootless
+    /// [`split`]: Self::split
+    /// [`empty`]: Self::is_empty
     ///
     /// # Examples
     ///
@@ -398,29 +399,24 @@ impl EStr<Path> {
     /// // Segments are separated by '/'.
     /// // The empty string before a leading '/' is not a segment.
     /// // However, segments can be empty in the other cases.
-    /// let uri = Uri::parse("/path/to//dir/")?;
-    /// assert!(uri.path().segments().eq(["path", "to", "", "dir", ""]));
+    /// let path = Uri::parse("file:///path/to//dir/")?.path();
+    /// assert_eq!(path, "/path/to//dir/");
+    /// assert!(path.segments().is_some_and(|iter| iter.eq(["path", "to", "", "dir", ""])));
     ///
-    /// // Segments of an absolute path may equal those of a rootless path.
-    /// let uri_a = Uri::parse("/foo/bar")?;
-    /// let uri_b = Uri::parse("foo/bar")?;
-    /// assert!(uri_a.path().segments().eq(["foo", "bar"]));
-    /// assert!(uri_b.path().segments().eq(["foo", "bar"]));
+    /// let path = Uri::parse("foo:bar/baz")?.path();
+    /// assert_eq!(path, "bar/baz");
+    /// assert!(path.segments().is_none());
     ///
-    /// // An empty path has no segments.
-    /// let uri = Uri::parse("")?;
-    /// assert_eq!(uri.path().segments().next(), None);
+    /// let path = Uri::parse("http://example.com")?.path();
+    /// assert!(path.is_empty());
+    /// assert!(path.segments().is_none());
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[inline]
-    pub fn segments(&self) -> Split<'_, Path> {
-        let path_stripped = self.inner.strip_prefix('/').unwrap_or(&self.inner);
-
-        let mut split = EStr::new_validated(path_stripped).split('/');
-        if self.inner.is_empty() {
-            split.next();
-        }
-        split
+    pub fn segments(&self) -> Option<Split<'_, Path>> {
+        self.inner
+            .strip_prefix('/')
+            .map(|s| EStr::new_validated(s).split('/'))
     }
 }
 
