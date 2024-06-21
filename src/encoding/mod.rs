@@ -381,15 +381,15 @@ impl EStr<Path> {
 
     /// Returns an iterator over the path segments, separated by `'/'`.
     ///
-    /// Returns `None` if the path is [`rootless`]. Use [`split`]
+    /// Returns `None` if the path is [rootless]. Use [`split`]
     /// instead if you need to split a rootless path on occurrences of `'/'`.
     ///
-    /// Note that the path can be [`empty`] when authority is present,
+    /// Note that the path can be [empty] when authority is present,
     /// in which case this method will return `None`.
     ///
-    /// [`rootless`]: Self::is_rootless
+    /// [rootless]: Self::is_rootless
     /// [`split`]: Self::split
-    /// [`empty`]: Self::is_empty
+    /// [empty]: Self::is_empty
     ///
     /// # Examples
     ///
@@ -401,7 +401,7 @@ impl EStr<Path> {
     /// // However, segments can be empty in the other cases.
     /// let path = Uri::parse("file:///path/to//dir/")?.path();
     /// assert_eq!(path, "/path/to//dir/");
-    /// assert!(path.segments().is_some_and(|iter| iter.eq(["path", "to", "", "dir", ""])));
+    /// assert!(path.segments().into_iter().flatten().eq(["path", "to", "", "dir", ""]));
     ///
     /// let path = Uri::parse("foo:bar/baz")?.path();
     /// assert_eq!(path, "bar/baz");
