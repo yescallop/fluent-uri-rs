@@ -121,6 +121,7 @@ A full-featured URI handling library compliant with [RFC 3986]. It is:
     let uri = Uri::builder()
         .path(EStr::EMPTY)
         .query(&buf)
-        .build();
+        .build()
+        .unwrap();
     assert_eq!(uri.as_str(), "?name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
     ```
