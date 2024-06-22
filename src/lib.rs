@@ -125,6 +125,35 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 ///
 /// # Examples
 ///
+/// Parse and extract components from a URI reference:
+///
+/// ```
+/// use fluent_uri::{
+///     component::{Host, Scheme},
+///     encoding::EStr,
+///     Uri,
+/// };
+///
+/// const SCHEME_FOO: &Scheme = Scheme::new_or_panic("foo");
+///
+/// let uri = Uri::parse("foo://user@example.com:8042/over/there?name=ferret#nose")?;
+///
+/// assert_eq!(uri.scheme().unwrap(), SCHEME_FOO);
+///
+/// let auth = uri.authority().unwrap();
+/// assert_eq!(auth.as_str(), "user@example.com:8042");
+/// assert_eq!(auth.userinfo().unwrap(), "user");
+/// assert_eq!(auth.host(), "example.com");
+/// assert!(matches!(auth.host_parsed(), Host::RegName(name) if name == "example.com"));
+/// assert_eq!(auth.port().unwrap(), "8042");
+/// assert_eq!(auth.port_to_u16(), Ok(Some(8042)));
+///
+/// assert_eq!(uri.path(), "/over/there");
+/// assert_eq!(uri.query().unwrap(), "name=ferret");
+/// assert_eq!(uri.fragment().unwrap(), "nose");
+/// # Ok::<_, fluent_uri::error::ParseError>(())
+/// ```
+///
 /// Parse into and convert between `Uri<&str>` and `Uri<String>`:
 ///
 /// ```
@@ -143,33 +172,6 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 ///
 /// // Borrow a `Uri<String>` as `Uri<&str>`.
 /// let uri: Uri<&str> = uri_owned.borrow();
-/// # Ok::<_, fluent_uri::error::ParseError>(())
-/// ```
-///
-/// Parse and extract components from a URI reference:
-///
-/// ```
-/// use fluent_uri::{
-///     component::{Host, Scheme},
-///     encoding::EStr,
-///     Uri,
-/// };
-///
-/// let uri = Uri::parse("http://user@example.com:8042/over/there?name=ferret#nose")?;
-///
-/// assert_eq!(uri.scheme().unwrap(), Scheme::new_or_panic("http"));
-///
-/// let auth = uri.authority().unwrap();
-/// assert_eq!(auth.as_str(), "user@example.com:8042");
-/// assert_eq!(auth.userinfo().unwrap(), "user");
-/// assert_eq!(auth.host(), "example.com");
-/// assert!(matches!(auth.host_parsed(), Host::RegName(name) if name == "example.com"));
-/// assert_eq!(auth.port().unwrap(), "8042");
-/// assert_eq!(auth.port_to_u16(), Ok(Some(8042)));
-///
-/// assert_eq!(uri.path(), "/over/there");
-/// assert_eq!(uri.query().unwrap(), "name=ferret");
-/// assert_eq!(uri.fragment().unwrap(), "nose");
 /// # Ok::<_, fluent_uri::error::ParseError>(())
 /// ```
 #[derive(Clone, Copy)]

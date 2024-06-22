@@ -65,11 +65,12 @@ pub trait Encoder: 'static {
 /// Parse key-value pairs from a query string into a hash map:
 ///
 /// ```
-/// use fluent_uri::encoding::{encoder::Query, EStr};
+/// use fluent_uri::{encoding::EStr, Uri};
 /// use std::collections::HashMap;
 ///
-/// let query = "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21";
-/// let map: HashMap<_, _> = EStr::<Query>::new_or_panic(query)
+/// let s = "?name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21";
+/// let query = Uri::parse(s).unwrap().query().unwrap();
+/// let map: HashMap<_, _> = query
 ///     .split('&')
 ///     .map(|s| s.split_once('=').unwrap_or((s, EStr::EMPTY)))
 ///     .map(|(k, v)| (k.decode().into_string_lossy(), v.decode().into_string_lossy()))

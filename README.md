@@ -20,24 +20,34 @@ A full-featured URI handling library compliant with [RFC 3986]. It is:
 
 ## Examples
 
-- `Uri<&str>` and `Uri<String>` (borrowed and owned variants of URI reference):
-
-    You can parse into a `Uri<&str>` from a string slice.
-    `Uri<&'a str>` outputs references with lifetime `'a` where possible
-    (thanks to [`borrow-or-share`](https://github.com/yescallop/borrow-or-share)):
-
-    ```rust
-    // Keep a reference to the path after dropping the `Uri`.
-    let path = Uri::parse("foo:bar")?.path();
-    assert_eq!(path, "bar");
-    ```
-
-    You can build a `Uri<String>` using the builder pattern:
+- Parse and extract components zero-copy from a URI reference:
 
     ```rust
     const SCHEME_FOO: &Scheme = Scheme::new_or_panic("foo");
 
-    let uri: Uri<String> = Uri::builder()
+    let uri = Uri::parse("foo://user@example.com:8042/over/there?name=ferret#nose")?;
+
+    assert_eq!(uri.scheme().unwrap(), SCHEME_FOO);
+
+    let auth = uri.authority().unwrap();
+    assert_eq!(auth.as_str(), "user@example.com:8042");
+    assert_eq!(auth.userinfo().unwrap(), "user");
+    assert_eq!(auth.host(), "example.com");
+    assert!(matches!(auth.host_parsed(), Host::RegName(name) if name == "example.com"));
+    assert_eq!(auth.port().unwrap(), "8042");
+    assert_eq!(auth.port_to_u16(), Ok(Some(8042)));
+
+    assert_eq!(uri.path(), "/over/there");
+    assert_eq!(uri.query().unwrap(), "name=ferret");
+    assert_eq!(uri.fragment().unwrap(), "nose");
+    ```
+
+- Build a URI reference using the builder pattern:
+
+    ```rust
+    const SCHEME_FOO: &Scheme = Scheme::new_or_panic("foo");
+
+    let uri = Uri::builder()
         .scheme(SCHEME_FOO)
         .authority(|b| {
             b.userinfo(EStr::new_or_panic("user"))
@@ -56,7 +66,7 @@ A full-featured URI handling library compliant with [RFC 3986]. It is:
     );
     ```
 
-    You can resolve a URI reference against a base URI:
+- Resolve a URI reference against a base URI:
 
     ```rust
     let base = Uri::parse("http://example.com/foo/bar")?;
@@ -66,7 +76,7 @@ A full-featured URI handling library compliant with [RFC 3986]. It is:
     assert_eq!(Uri::parse("?baz")?.resolve_against(&base)?, "http://example.com/foo/bar?baz");
     ```
 
-    You can normalize a URI reference:
+- Normalize a URI reference:
 
     ```rust
     let uri = Uri::parse("eXAMPLE://a/./b/../b/%63/%7bfoo%7d")?;
@@ -79,8 +89,9 @@ A full-featured URI handling library compliant with [RFC 3986]. It is:
     which allows easy splitting and decoding:
 
     ```rust
-    let query = "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21";
-    let map: HashMap<_, _> = EStr::<Query>::new_or_panic(query)
+    let s = "?name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21";
+    let query = Uri::parse(s).unwrap().query().unwrap();
+    let map: HashMap<_, _> = query
         .split('&')
         .map(|s| s.split_once('=').unwrap_or((s, EStr::EMPTY)))
         .map(|(k, v)| (k.decode().into_string_lossy(), v.decode().into_string_lossy()))
@@ -108,7 +119,7 @@ A full-featured URI handling library compliant with [RFC 3986]. It is:
     assert_eq!(buf, "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
 
     let uri = Uri::builder()
-        .path(EStr::new_or_panic(""))
+        .path(EStr::EMPTY)
         .query(&buf)
         .build();
     assert_eq!(uri.as_str(), "?name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");

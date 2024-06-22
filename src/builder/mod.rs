@@ -29,7 +29,7 @@ use state::*;
 ///
 /// const SCHEME_FOO: &Scheme = Scheme::new_or_panic("foo");
 ///
-/// let uri: Uri<String> = Uri::builder()
+/// let uri = Uri::builder()
 ///     .scheme(SCHEME_FOO)
 ///     .authority(|b| {
 ///         b.userinfo(EStr::new_or_panic("user"))
