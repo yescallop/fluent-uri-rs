@@ -7,7 +7,7 @@ use crate::{
     },
     internal::{AuthMeta, HostMeta},
 };
-use core::iter;
+use core::{iter, num::ParseIntError};
 use ref_cast::{ref_cast_custom, RefCastCustom};
 
 #[cfg(feature = "net")]
@@ -306,9 +306,9 @@ impl<'a> Authority<'a> {
         (host_end != self.val.len()).then(|| EStr::new_validated(&self.val[host_end + 1..]))
     }
 
-    /// Converts the [port] subcomponent to `u16`, if present.
+    /// Converts the [port] subcomponent to `u16`, if present and nonempty.
     ///
-    /// Returns `Ok(None)` if the port is not present. Leading zeros are ignored.
+    /// Returns `Ok(None)` if the port is not present or is empty. Leading zeros are ignored.
     ///
     /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
     ///
@@ -331,27 +331,26 @@ impl<'a> Authority<'a> {
     ///
     /// let uri = Uri::parse("//localhost:/")?;
     /// let auth = uri.authority().unwrap();
-    /// assert!(auth.port_to_u16().is_err());
+    /// assert_eq!(auth.port_to_u16(), Ok(None));
     ///
     /// let uri = Uri::parse("//localhost:123456/")?;
     /// let auth = uri.authority().unwrap();
     /// assert!(auth.port_to_u16().is_err());
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
-    #[cfg(fluent_uri_unstable)]
-    pub fn port_to_u16(&self) -> Result<Option<u16>, core::num::ParseIntError> {
-        self.port().map(|s| s.as_str().parse()).transpose()
+    pub fn port_to_u16(&self) -> Result<Option<u16>, ParseIntError> {
+        self.port()
+            .filter(|s| !s.is_empty())
+            .map(|s| s.as_str().parse())
+            .transpose()
     }
 
-    /// Converts the authority component to an iterator of resolved [`SocketAddr`]s.
+    /// Converts the host and the port subcomponent to an iterator of resolved [`SocketAddr`]s.
     ///
-    /// The default port is used if the port component is not present.
+    /// The default port is used if the port component is not present or is empty.
+    /// A registered name is first [decoded] and then resolved with [`ToSocketAddrs`].
     ///
-    /// A registered name is **not** normalized prior to resolution and is resolved
-    /// with [`ToSocketAddrs`] as is. The port must **not** be empty.
-    /// Use [`Uri::normalize`] if necessary.
-    ///
-    /// [`Uri::normalize`]: crate::Uri::normalize
+    /// [decoded]: EStr::decode
     ///
     /// # Errors
     ///
@@ -359,18 +358,13 @@ impl<'a> Authority<'a> {
     ///
     /// - The port cannot be parsed into `u16`.
     /// - The host is an IPvFuture address.
-    /// - The resolution of a registered name fails.
+    /// - A registered name does not decode to valid UTF-8 or fails to resolve.
     #[cfg(all(feature = "net", feature = "std"))]
-    pub fn to_socket_addrs(
-        &self,
-        default_port: u16,
-    ) -> io::Result<impl Iterator<Item = SocketAddr>> {
+    pub fn socket_addrs(&self, default_port: u16) -> io::Result<impl Iterator<Item = SocketAddr>> {
         use std::vec;
 
         let port = self
-            .port()
-            .map(|s| s.as_str().parse())
-            .transpose()
+            .port_to_u16()
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid port value"))?
             .unwrap_or(default_port);
 
@@ -381,7 +375,15 @@ impl<'a> Authority<'a> {
                 io::ErrorKind::InvalidInput,
                 "address mechanism not supported",
             )),
-            Host::RegName(name) => (name.as_str(), port).to_socket_addrs(),
+            Host::RegName(name) => {
+                let name = name.decode().into_string().map_err(|_| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "registered name does not decode to valid UTF-8",
+                    )
+                })?;
+                (&name[..], port).to_socket_addrs()
+            }
         }
     }
 

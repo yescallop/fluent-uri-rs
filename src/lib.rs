@@ -42,11 +42,11 @@
 //! # Crate features
 //!
 //! - `net` (default): Enables [`std::net`] support.
-//!   Required for IP address fields in [`Host`] and [`Authority::to_socket_addrs`].
+//!   Required for IP address fields in [`Host`] and [`Authority::socket_addrs`].
 //!   Disabling `net` will not affect the behavior of [`Uri::parse`].
 //!
 //! - `std` (default): Enables [`std`] support. Required for [`Error`] implementations
-//!   and [`Authority::to_socket_addrs`]. Disabling `std` while enabling `net`
+//!   and [`Authority::socket_addrs`]. Disabling `std` while enabling `net`
 //!   requires [`core::net`] and a minimum Rust version of `1.77`.
 //!
 //! - `serde`: Enables [`serde`] support. Required for [`Serialize`] and [`Deserialize`]
@@ -165,6 +165,7 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 /// assert_eq!(auth.host(), "example.com");
 /// assert!(matches!(auth.host_parsed(), Host::RegName(name) if name == "example.com"));
 /// assert_eq!(auth.port().unwrap(), "8042");
+/// assert_eq!(auth.port_to_u16(), Ok(Some(8042)));
 ///
 /// assert_eq!(uri.path(), "/over/there");
 /// assert_eq!(uri.query().unwrap(), "name=ferret");
