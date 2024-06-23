@@ -107,7 +107,6 @@ impl BuilderInner {
 
     fn start_authority(&mut self) {
         self.buf.push_str("//");
-        self.meta.auth_meta = Some(AuthMeta::default());
     }
 
     fn push_userinfo(&mut self, v: &str) {
