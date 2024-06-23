@@ -3,13 +3,13 @@
 mod state;
 
 use crate::{
-    component::{Host, Scheme},
+    component::Scheme,
     encoding::{
         encoder::{Fragment, Path, Port, Query, RegName, Userinfo},
         EStr,
     },
     error::{BuildError, BuildErrorKind},
-    internal::{AuthMeta, Meta},
+    internal::{AuthMeta, HostMeta, Meta},
     parser, Uri,
 };
 use alloc::string::String;
@@ -93,7 +93,7 @@ pub struct Builder<S> {
     state: PhantomData<S>,
 }
 
-struct BuilderInner {
+pub struct BuilderInner {
     buf: String,
     meta: Meta,
 }
@@ -115,29 +115,13 @@ impl BuilderInner {
         self.buf.push('@');
     }
 
-    fn push_host(&mut self, host: Host<'_>) {
-        let auth_meta = self.meta.auth_meta.as_mut().unwrap();
-        auth_meta.host_bounds.0 = self.buf.len();
-
-        match host {
-            #[cfg(feature = "net")]
-            Host::Ipv4(addr) => {
-                write!(self.buf, "{addr}").unwrap();
-                auth_meta.host_meta = crate::internal::HostMeta::Ipv4(addr);
-            }
-            #[cfg(feature = "net")]
-            Host::Ipv6(addr) => {
-                write!(self.buf, "[{addr}]").unwrap();
-                auth_meta.host_meta = crate::internal::HostMeta::Ipv6(addr);
-            }
-            Host::RegName(name) => {
-                auth_meta.host_meta = parser::parse_v4_or_reg_name(name.as_str().as_bytes());
-                self.buf.push_str(name.as_str());
-            }
-            _ => unreachable!(),
-        }
-
-        auth_meta.host_bounds.1 = self.buf.len();
+    fn push_host(&mut self, meta: HostMeta, f: impl FnOnce(&mut String)) {
+        let start = self.buf.len();
+        f(&mut self.buf);
+        self.meta.auth_meta = Some(AuthMeta {
+            host_bounds: (start, self.buf.len()),
+            host_meta: meta,
+        });
     }
 
     fn push_path(&mut self, v: &str) {
@@ -300,41 +284,44 @@ impl<S: To<UserinfoEnd>> Builder<S> {
     }
 }
 
-pub trait IntoHost<'a> {
-    fn into_host(self) -> Host<'a>;
+pub trait AsHost<'a> {
+    fn push_to(self, b: &mut BuilderInner);
 }
 
 #[cfg(feature = "net")]
-impl<'a> IntoHost<'a> for Ipv4Addr {
-    #[inline]
-    fn into_host(self) -> Host<'a> {
-        Host::Ipv4(self)
+impl<'a> AsHost<'a> for Ipv4Addr {
+    fn push_to(self, b: &mut BuilderInner) {
+        b.push_host(HostMeta::Ipv4(self), |buf| {
+            write!(buf, "{self}").unwrap();
+        });
     }
 }
 
 #[cfg(feature = "net")]
-impl<'a> IntoHost<'a> for Ipv6Addr {
-    #[inline]
-    fn into_host(self) -> Host<'a> {
-        Host::Ipv6(self)
+impl<'a> AsHost<'a> for Ipv6Addr {
+    fn push_to(self, b: &mut BuilderInner) {
+        b.push_host(HostMeta::Ipv6(self), |buf| {
+            write!(buf, "[{self}]").unwrap();
+        });
     }
 }
 
 #[cfg(feature = "net")]
-impl<'a> IntoHost<'a> for IpAddr {
-    #[inline]
-    fn into_host(self) -> Host<'a> {
+impl<'a> AsHost<'a> for IpAddr {
+    fn push_to(self, b: &mut BuilderInner) {
         match self {
-            IpAddr::V4(addr) => Host::Ipv4(addr),
-            IpAddr::V6(addr) => Host::Ipv6(addr),
+            IpAddr::V4(addr) => addr.push_to(b),
+            IpAddr::V6(addr) => addr.push_to(b),
         }
     }
 }
 
-impl<'a> IntoHost<'a> for &'a EStr<RegName> {
-    #[inline]
-    fn into_host(self) -> Host<'a> {
-        Host::RegName(self)
+impl<'a> AsHost<'a> for &'a EStr<RegName> {
+    fn push_to(self, b: &mut BuilderInner) {
+        let meta = parser::parse_v4_or_reg_name(self.as_str().as_bytes());
+        b.push_host(meta, |buf| {
+            buf.push_str(self.as_str());
+        });
     }
 }
 
@@ -365,24 +352,24 @@ impl<S: To<HostEnd>> Builder<S> {
     ///     .unwrap();
     /// assert!(matches!(uri.authority().unwrap().host_parsed(), Host::Ipv4(_)));
     /// ```
-    pub fn host<'a>(mut self, host: impl IntoHost<'a>) -> Builder<HostEnd> {
-        self.inner.push_host(host.into_host());
+    pub fn host<'a>(mut self, host: impl AsHost<'a>) -> Builder<HostEnd> {
+        host.push_to(&mut self.inner);
         self.cast()
     }
 }
 
 pub trait AsPort {
-    fn push_to(&self, buf: &mut String);
+    fn push_to(self, buf: &mut String);
 }
 
 impl AsPort for u16 {
-    fn push_to(&self, buf: &mut String) {
+    fn push_to(self, buf: &mut String) {
         write!(buf, ":{self}").unwrap();
     }
 }
 
 impl AsPort for &EStr<Port> {
-    fn push_to(&self, buf: &mut String) {
+    fn push_to(self, buf: &mut String) {
         buf.push(':');
         buf.push_str(self.as_str());
     }

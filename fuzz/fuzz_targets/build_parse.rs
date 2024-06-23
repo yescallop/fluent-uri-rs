@@ -88,9 +88,13 @@ fuzz_target!(|c: UriComponents<'_>| {
             Builder::authority,
             c.authority.map(|a| {
                 move |b: Builder<_>| {
-                    b.optional(Builder::userinfo, a.userinfo.map(|s| s.0))
-                        .host(a.host.unwrap())
-                        .optional(Builder::port, a.port.map(|s| s.0))
+                    let b = b.optional(Builder::userinfo, a.userinfo.map(|s| s.0));
+                    let b = match a.host {
+                        HostWrapper::Ipv4(addr) => b.host(addr),
+                        HostWrapper::Ipv6(addr) => b.host(addr),
+                        HostWrapper::RegName(name) => b.host(name.0),
+                    };
+                    b.optional(Builder::port, a.port.map(|s| s.0))
                 }
             }),
         )
