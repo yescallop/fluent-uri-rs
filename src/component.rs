@@ -3,7 +3,7 @@
 use crate::{
     encoding::{
         encoder::{Port, RegName, Userinfo},
-        table, EStr, EString,
+        table, EStr,
     },
     internal::{AuthMeta, HostMeta},
 };
@@ -11,7 +11,7 @@ use core::{iter, num::ParseIntError};
 use ref_cast::{ref_cast_custom, RefCastCustom};
 
 #[cfg(feature = "net")]
-use crate::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use crate::net::{Ipv4Addr, Ipv6Addr};
 
 #[cfg(all(feature = "net", feature = "std"))]
 use std::{
@@ -400,6 +400,7 @@ impl<'a> Authority<'a> {
     /// let uri = Uri::parse("http://example.com/")?;
     /// assert!(!uri.authority().unwrap().has_userinfo());
     /// # Ok::<_, fluent_uri::error::ParseError>(())
+    #[inline]
     #[must_use]
     pub fn has_userinfo(&self) -> bool {
         self.meta.host_bounds.0 != 0
@@ -424,6 +425,7 @@ impl<'a> Authority<'a> {
     /// assert!(!uri.authority().unwrap().has_port());
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
+    #[inline]
     #[must_use]
     pub fn has_port(&self) -> bool {
         self.meta.host_bounds.1 != self.val.len()
@@ -460,45 +462,4 @@ pub enum Host<'a> {
     ///
     /// Note that registered names are *case-insensitive*.
     RegName(&'a EStr<RegName>),
-}
-
-#[cfg(feature = "net")]
-impl<'a> From<Ipv4Addr> for Host<'a> {
-    #[inline]
-    fn from(value: Ipv4Addr) -> Self {
-        Self::Ipv4(value)
-    }
-}
-
-#[cfg(feature = "net")]
-impl<'a> From<Ipv6Addr> for Host<'a> {
-    #[inline]
-    fn from(value: Ipv6Addr) -> Self {
-        Self::Ipv6(value)
-    }
-}
-
-#[cfg(feature = "net")]
-impl<'a> From<IpAddr> for Host<'a> {
-    #[inline]
-    fn from(value: IpAddr) -> Self {
-        match value {
-            IpAddr::V4(addr) => Self::Ipv4(addr),
-            IpAddr::V6(addr) => Self::Ipv6(addr),
-        }
-    }
-}
-
-impl<'a> From<&'a EStr<RegName>> for Host<'a> {
-    #[inline]
-    fn from(value: &'a EStr<RegName>) -> Self {
-        Self::RegName(value)
-    }
-}
-
-impl<'a> From<&'a EString<RegName>> for Host<'a> {
-    #[inline]
-    fn from(value: &'a EString<RegName>) -> Self {
-        Self::RegName(value)
-    }
 }

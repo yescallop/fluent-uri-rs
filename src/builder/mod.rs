@@ -5,7 +5,7 @@ mod state;
 use crate::{
     component::{Host, Scheme},
     encoding::{
-        encoder::{Fragment, Path, Port, Query, Userinfo},
+        encoder::{Fragment, Path, Port, Query, RegName, Userinfo},
         EStr,
     },
     error::{BuildError, BuildErrorKind},
@@ -15,6 +15,9 @@ use crate::{
 use alloc::string::String;
 use core::{fmt::Write, marker::PhantomData, num::NonZeroUsize};
 use state::*;
+
+#[cfg(feature = "net")]
+use crate::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 /// A builder for URI reference.
 ///
@@ -297,19 +300,51 @@ impl<S: To<UserinfoEnd>> Builder<S> {
     }
 }
 
+pub trait AsHost<'a> {
+    fn as_host(self) -> Host<'a>;
+}
+
+#[cfg(feature = "net")]
+impl<'a> AsHost<'a> for Ipv4Addr {
+    #[inline]
+    fn as_host(self) -> Host<'a> {
+        Host::Ipv4(self)
+    }
+}
+
+#[cfg(feature = "net")]
+impl<'a> AsHost<'a> for Ipv6Addr {
+    #[inline]
+    fn as_host(self) -> Host<'a> {
+        Host::Ipv6(self)
+    }
+}
+
+#[cfg(feature = "net")]
+impl<'a> AsHost<'a> for IpAddr {
+    #[inline]
+    fn as_host(self) -> Host<'a> {
+        match self {
+            IpAddr::V4(addr) => Host::Ipv4(addr),
+            IpAddr::V6(addr) => Host::Ipv6(addr),
+        }
+    }
+}
+
+impl<'a> AsHost<'a> for &'a EStr<RegName> {
+    #[inline]
+    fn as_host(self) -> Host<'a> {
+        Host::RegName(self)
+    }
+}
+
 impl<S: To<HostEnd>> Builder<S> {
     /// Sets the [host] subcomponent of authority.
     ///
-    /// This method takes any value whose type implements `Into<Host<'_>>` as argument.
-    /// [`Into::into`] converts
+    /// This method takes either an [`Ipv4Addr`], [`Ipv6Addr`], [`IpAddr`],
+    /// or <code>&amp;[EStr]&lt;[RegName]&gt;</code> as argument.
     ///
-    /// - [`Ipv4Addr`] and [`IpAddr::V4`] into [`Host::Ipv4`];
-    /// - [`Ipv6Addr`] and [`IpAddr::V6`] into [`Host::Ipv6`];
-    /// - <code>&amp;[EStr]&lt;[RegName]&gt;</code> and
-    ///   <code>&amp;[EString]&lt;[RegName]&gt;</code>
-    ///   into [`Host::RegName`].
-    ///
-    /// If the contents of an input [`Host::RegName`] variant matches the
+    /// If the contents of an input `&EStr<RegName>` matches the
     /// `IPv4address` ABNF rule defined in [Section 3.2.2 of RFC 3986][host],
     /// the resulting [`Uri`] will output a [`Host::Ipv4`] variant instead.
     ///
@@ -317,12 +352,6 @@ impl<S: To<HostEnd>> Builder<S> {
     /// *lowercase*. For consistency, you should only produce lowercase registered names.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
-    /// [`Ipv4Addr`]: std::net::Ipv4Addr
-    /// [`IpAddr::V4`]: std::net::IpAddr::V4
-    /// [`Ipv6Addr`]: std::net::Ipv6Addr
-    /// [`IpAddr::V6`]: std::net::IpAddr::V6
-    /// [RegName]: crate::encoding::encoder::RegName
-    /// [EString]: crate::encoding::EString
     ///
     /// # Examples
     ///
@@ -336,8 +365,8 @@ impl<S: To<HostEnd>> Builder<S> {
     ///     .unwrap();
     /// assert!(matches!(uri.authority().unwrap().host_parsed(), Host::Ipv4(_)));
     /// ```
-    pub fn host<'a>(mut self, host: impl Into<Host<'a>>) -> Builder<HostEnd> {
-        self.inner.push_host(host.into());
+    pub fn host<'a>(mut self, host: impl AsHost<'a>) -> Builder<HostEnd> {
+        self.inner.push_host(host.as_host());
         self.cast()
     }
 }
