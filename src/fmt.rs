@@ -126,6 +126,7 @@ impl Debug for Authority<'_> {
 }
 
 impl Display for Authority<'_> {
+    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         Display::fmt(self.as_str(), f)
     }
