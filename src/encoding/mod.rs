@@ -414,6 +414,7 @@ impl EStr<Path> {
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[inline]
+    #[must_use]
     pub fn segments(&self) -> Option<Split<'_, Path>> {
         self.inner
             .strip_prefix('/')

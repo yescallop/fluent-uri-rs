@@ -300,30 +300,30 @@ impl<S: To<UserinfoEnd>> Builder<S> {
     }
 }
 
-pub trait AsHost<'a> {
-    fn as_host(self) -> Host<'a>;
+pub trait IntoHost<'a> {
+    fn into_host(self) -> Host<'a>;
 }
 
 #[cfg(feature = "net")]
-impl<'a> AsHost<'a> for Ipv4Addr {
+impl<'a> IntoHost<'a> for Ipv4Addr {
     #[inline]
-    fn as_host(self) -> Host<'a> {
+    fn into_host(self) -> Host<'a> {
         Host::Ipv4(self)
     }
 }
 
 #[cfg(feature = "net")]
-impl<'a> AsHost<'a> for Ipv6Addr {
+impl<'a> IntoHost<'a> for Ipv6Addr {
     #[inline]
-    fn as_host(self) -> Host<'a> {
+    fn into_host(self) -> Host<'a> {
         Host::Ipv6(self)
     }
 }
 
 #[cfg(feature = "net")]
-impl<'a> AsHost<'a> for IpAddr {
+impl<'a> IntoHost<'a> for IpAddr {
     #[inline]
-    fn as_host(self) -> Host<'a> {
+    fn into_host(self) -> Host<'a> {
         match self {
             IpAddr::V4(addr) => Host::Ipv4(addr),
             IpAddr::V6(addr) => Host::Ipv6(addr),
@@ -331,9 +331,9 @@ impl<'a> AsHost<'a> for IpAddr {
     }
 }
 
-impl<'a> AsHost<'a> for &'a EStr<RegName> {
+impl<'a> IntoHost<'a> for &'a EStr<RegName> {
     #[inline]
-    fn as_host(self) -> Host<'a> {
+    fn into_host(self) -> Host<'a> {
         Host::RegName(self)
     }
 }
@@ -365,8 +365,8 @@ impl<S: To<HostEnd>> Builder<S> {
     ///     .unwrap();
     /// assert!(matches!(uri.authority().unwrap().host_parsed(), Host::Ipv4(_)));
     /// ```
-    pub fn host<'a>(mut self, host: impl AsHost<'a>) -> Builder<HostEnd> {
-        self.inner.push_host(host.as_host());
+    pub fn host<'a>(mut self, host: impl IntoHost<'a>) -> Builder<HostEnd> {
+        self.inner.push_host(host.into_host());
         self.cast()
     }
 }
