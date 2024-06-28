@@ -419,7 +419,8 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// Resolves the URI reference against the given base URI
     /// and returns the target URI.
     ///
-    /// The base URI **must** be an [absolute URI] in the first place.
+    /// The base URI **must** contain a scheme and no fragment, i.e.,
+    /// match the [`absolute-URI`] ABNF rule from RFC 3986.
     ///
     /// This method applies the reference resolution algorithm defined in
     /// [Section 5 of RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986/#section-5),
@@ -443,7 +444,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// No normalization except the removal of dot segments will be performed.
     /// Use [`normalize`] if necessary.
     ///
-    /// [absolute URI]: Self::is_absolute_uri
+    /// [`absolute-URI`]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.3
     /// [rootless]: EStr::<Path>::is_rootless
     /// [`normalize`]: Self::normalize
     ///
