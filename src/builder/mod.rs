@@ -338,6 +338,7 @@ impl<S: To<HostEnd>> Builder<S> {
     /// *lowercase*. For consistency, you should only produce lowercase registered names.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
+    /// [`Host::Ipv4`]: crate::component::Host::Ipv4
     ///
     /// # Examples
     ///
