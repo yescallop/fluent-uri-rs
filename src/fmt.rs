@@ -73,9 +73,9 @@ impl Display for BuildError {
 impl Display for ResolveError {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         let msg = match self.0 {
-            ResolveErrorKind::NonAbsoluteBase => "non-absolute base URI",
-            ResolveErrorKind::NonHierarchicalBase => {
-                "resolving non-same-document relative reference against non-hierarchical base URI"
+            ResolveErrorKind::InvalidBase => "base URI without scheme or with fragment",
+            ResolveErrorKind::OpaqueBase => {
+                "relative reference must be empty or start with '#' when resolved against base URI with rootless path"
             }
         };
         f.write_str(msg)

@@ -78,8 +78,8 @@ impl std::error::Error for BuildError {}
 /// Detailed cause of a [`ResolveError`].
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ResolveErrorKind {
-    NonAbsoluteBase,
-    NonHierarchicalBase,
+    InvalidBase,
+    OpaqueBase,
     // PathUnderflow,
 }
 

@@ -10,15 +10,15 @@ pub(crate) fn resolve(
     base: Uri<&str>,
     /* reference */ r: Uri<&str>,
 ) -> Result<Uri<String>, ResolveError> {
-    if !base.is_absolute_uri() {
-        return Err(ResolveError(ResolveErrorKind::NonAbsoluteBase));
+    if !base.has_scheme() || base.has_fragment() {
+        return Err(ResolveError(ResolveErrorKind::InvalidBase));
     }
     if !base.has_authority()
         && base.path().is_rootless()
         && !r.has_scheme()
         && !matches!(r.as_str().bytes().next(), None | Some(b'#'))
     {
-        return Err(ResolveError(ResolveErrorKind::NonHierarchicalBase));
+        return Err(ResolveError(ResolveErrorKind::OpaqueBase));
     }
 
     let (t_scheme, t_authority, t_path, t_query, t_fragment);

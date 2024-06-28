@@ -97,18 +97,18 @@ fn resolve() {
 #[test]
 fn resolve_error() {
     let base = Uri::parse("http://example.com/#title1").unwrap();
-    base.fail("foo", "non-absolute base URI");
+    base.fail("foo", "base URI without scheme or with fragment");
 
     let base = Uri::parse("path/to/file").unwrap();
-    base.fail("foo", "non-absolute base URI");
+    base.fail("foo", "base URI without scheme or with fragment");
 
     let base = Uri::parse("foo:bar").unwrap();
     base.fail(
         "baz",
-        "resolving non-same-document relative reference against non-hierarchical base URI",
+        "relative reference must be empty or start with '#' when resolved against base URI with rootless path",
     );
     base.fail(
         "?baz",
-        "resolving non-same-document relative reference against non-hierarchical base URI",
+        "relative reference must be empty or start with '#' when resolved against base URI with rootless path",
     );
 }
