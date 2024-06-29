@@ -75,7 +75,7 @@ impl Display for ResolveError {
         let msg = match self.0 {
             ResolveErrorKind::InvalidBase => "base URI without scheme or with fragment",
             ResolveErrorKind::OpaqueBase => {
-                "relative reference must be empty or start with '#' when resolved against base URI with rootless path"
+                "relative reference must be empty or start with '#' when resolved against authority-less base URI with rootless path"
             }
         };
         f.write_str(msg)

@@ -105,10 +105,10 @@ fn resolve_error() {
     let base = Uri::parse("foo:bar").unwrap();
     base.fail(
         "baz",
-        "relative reference must be empty or start with '#' when resolved against base URI with rootless path",
+        "relative reference must be empty or start with '#' when resolved against authority-less base URI with rootless path",
     );
     base.fail(
         "?baz",
-        "relative reference must be empty or start with '#' when resolved against base URI with rootless path",
+        "relative reference must be empty or start with '#' when resolved against authority-less base URI with rootless path",
     );
 }
