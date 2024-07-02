@@ -22,8 +22,8 @@
 //!
 //! [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
 //!
-//! **Examples:** [Parsing](Uri#examples). [Building](Builder#examples).
-//! [Reference resolution](Uri::resolve_against). [Normalization](Uri::normalize).
+//! **Examples:** [Parsing](UriRef#examples). [Building](Builder#examples).
+//! [Reference resolution](UriRef::resolve_against). [Normalization](UriRef::normalize).
 //! [Percent-decoding](crate::encoding::EStr#examples).
 //! [Percent-encoding](crate::encoding::EString#examples).
 //!
@@ -43,14 +43,14 @@
 //!
 //! - `net` (default): Enables [`std::net`] support.
 //!   Required for IP address fields in [`Host`] and [`Authority::socket_addrs`].
-//!   Disabling `net` will not affect the behavior of [`Uri::parse`].
+//!   Disabling `net` will not affect the behavior of [`UriRef::parse`].
 //!
 //! - `std` (default): Enables [`std`] support. Required for [`Error`] implementations
 //!   and [`Authority::socket_addrs`]. Disabling `std` while enabling `net`
 //!   requires [`core::net`] and a minimum Rust version of `1.77`.
 //!
 //! - `serde`: Enables [`serde`] support. Required for [`Serialize`] and [`Deserialize`]
-//!   implementations on [`Uri`].
+//!   implementations on [`UriRef`].
 //!
 //! [`Host`]: component::Host
 //! [`Error`]: std::error::Error
@@ -93,7 +93,7 @@ use encoding::{
     EStr, Encoder,
 };
 use error::{ParseError, ResolveError};
-use internal::{Meta, ToUri, Value};
+use internal::{Meta, ToUriRef, Value};
 
 #[cfg(feature = "serde")]
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
@@ -105,23 +105,23 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 ///
 /// # Variants
 ///
-/// Two variants of `Uri` are available: `Uri<&str>` (borrowed) and `Uri<String>` (owned).
+/// Two variants of `UriRef` are available: `UriRef<&str>` (borrowed) and `UriRef<String>` (owned).
 ///
-/// `Uri<&'a str>` outputs references with lifetime `'a` where possible
+/// `UriRef<&'a str>` outputs references with lifetime `'a` where possible
 /// (thanks to [`borrow-or-share`](borrow_or_share)):
 ///
 /// ```
-/// use fluent_uri::Uri;
+/// use fluent_uri::UriRef;
 ///
-/// // Keep a reference to the path after dropping the `Uri`.
-/// let path = Uri::parse("foo:bar")?.path();
+/// // Keep a reference to the path after dropping the `UriRef`.
+/// let path = UriRef::parse("foo:bar")?.path();
 /// assert_eq!(path, "bar");
 /// # Ok::<_, fluent_uri::error::ParseError>(())
 /// ```
 ///
 /// # Comparison
 ///
-/// `Uri`s are compared [lexicographically](Ord#lexicographical-comparison)
+/// `UriRef`s are compared [lexicographically](Ord#lexicographical-comparison)
 /// by their byte values. Normalization is **not** performed prior to comparison.
 ///
 /// # Examples
@@ -132,16 +132,16 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 /// use fluent_uri::{
 ///     component::{Host, Scheme},
 ///     encoding::EStr,
-///     Uri,
+///     UriRef,
 /// };
 ///
 /// const SCHEME_FOO: &Scheme = Scheme::new_or_panic("foo");
 ///
-/// let uri = Uri::parse("foo://user@example.com:8042/over/there?name=ferret#nose")?;
+/// let uri_ref = UriRef::parse("foo://user@example.com:8042/over/there?name=ferret#nose")?;
 ///
-/// assert_eq!(uri.scheme().unwrap(), SCHEME_FOO);
+/// assert_eq!(uri_ref.scheme().unwrap(), SCHEME_FOO);
 ///
-/// let auth = uri.authority().unwrap();
+/// let auth = uri_ref.authority().unwrap();
 /// assert_eq!(auth.as_str(), "user@example.com:8042");
 /// assert_eq!(auth.userinfo().unwrap(), "user");
 /// assert_eq!(auth.host(), "example.com");
@@ -149,30 +149,30 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 /// assert_eq!(auth.port().unwrap(), "8042");
 /// assert_eq!(auth.port_to_u16(), Ok(Some(8042)));
 ///
-/// assert_eq!(uri.path(), "/over/there");
-/// assert_eq!(uri.query().unwrap(), "name=ferret");
-/// assert_eq!(uri.fragment().unwrap(), "nose");
+/// assert_eq!(uri_ref.path(), "/over/there");
+/// assert_eq!(uri_ref.query().unwrap(), "name=ferret");
+/// assert_eq!(uri_ref.fragment().unwrap(), "nose");
 /// # Ok::<_, fluent_uri::error::ParseError>(())
 /// ```
 ///
-/// Parse into and convert between `Uri<&str>` and `Uri<String>`:
+/// Parse into and convert between `UriRef<&str>` and `UriRef<String>`:
 ///
 /// ```
-/// use fluent_uri::Uri;
+/// use fluent_uri::UriRef;
 ///
 /// let s = "http://example.com/";
 ///
-/// // Parse into a `Uri<&str>` from a string slice.
-/// let uri: Uri<&str> = Uri::parse(s)?;
+/// // Parse into a `UriRef<&str>` from a string slice.
+/// let uri_ref: UriRef<&str> = UriRef::parse(s)?;
 ///
-/// // Parse into a `Uri<String>` from an owned string.
-/// let uri_owned: Uri<String> = Uri::parse(s.to_owned()).map_err(|e| e.strip_input())?;
+/// // Parse into a `UriRef<String>` from an owned string.
+/// let uri_ref_owned: UriRef<String> = UriRef::parse(s.to_owned()).map_err(|e| e.strip_input())?;
 ///
-/// // Convert a `Uri<&str>` to `Uri<String>`.
-/// let uri_owned: Uri<String> = uri.to_owned();
+/// // Convert a `UriRef<&str>` to `UriRef<String>`.
+/// let uri_ref_owned: UriRef<String> = uri_ref.to_owned();
 ///
-/// // Borrow a `Uri<String>` as `Uri<&str>`.
-/// let uri: Uri<&str> = uri_owned.borrow();
+/// // Borrow a `UriRef<String>` as `UriRef<&str>`.
+/// let uri_ref: UriRef<&str> = uri_ref_owned.borrow();
 /// # Ok::<_, fluent_uri::error::ParseError>(())
 /// ```
 /// 
@@ -190,7 +190,7 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 /// assert!(!is_valid_uri2);
 /// ```
 #[derive(Clone, Copy)]
-pub struct Uri<T> {
+pub struct UriRef<T> {
     /// Value of the URI reference.
     val: T,
     /// Metadata of the URI reference.
@@ -198,13 +198,13 @@ pub struct Uri<T> {
     meta: Meta,
 }
 
-impl<T> Uri<T> {
-    /// Parses a URI reference from a string into a `Uri`.
+impl<T> UriRef<T> {
+    /// Parses a URI reference from a string into a `UriRef`.
     ///
     /// The return type is
     ///
-    /// - `Result<Uri<&str>, ParseError>` for `I = &str`;
-    /// - `Result<Uri<String>, ParseError<String>>` for `I = String`.
+    /// - `Result<UriRef<&str>, ParseError>` for `I = &str`;
+    /// - `Result<UriRef<String>, ParseError<String>>` for `I = String`.
     ///
     /// # Errors
     ///
@@ -219,31 +219,31 @@ impl<T> Uri<T> {
     /// [`strip_input`]: ParseError::strip_input
     pub fn parse<I>(input: I) -> Result<Self, I::Err>
     where
-        I: ToUri<Val = T>,
+        I: ToUriRef<Val = T>,
     {
-        input.to_uri()
+        input.to_uri_ref()
     }
 }
 
-impl Uri<String> {
+impl UriRef<String> {
     /// Creates a new builder for URI reference.
     #[inline]
     pub fn builder() -> BuilderStart {
         Builder::new()
     }
 
-    /// Borrows this `Uri<String>` as `Uri<&str>`.
+    /// Borrows this `UriRef<String>` as `UriRef<&str>`.
     #[allow(clippy::should_implement_trait)]
     #[inline]
     #[must_use]
-    pub fn borrow(&self) -> Uri<&str> {
-        Uri {
+    pub fn borrow(&self) -> UriRef<&str> {
+        UriRef {
             val: &self.val,
             meta: self.meta,
         }
     }
 
-    /// Consumes this `Uri<String>` and yields the underlying [`String`].
+    /// Consumes this `UriRef<String>` and yields the underlying [`String`].
     #[inline]
     #[must_use]
     pub fn into_string(self) -> String {
@@ -251,44 +251,44 @@ impl Uri<String> {
     }
 }
 
-impl Uri<&str> {
-    /// Creates a new `Uri<String>` by cloning the contents of this `Uri<&str>`.
+impl UriRef<&str> {
+    /// Creates a new `UriRef<String>` by cloning the contents of this `UriRef<&str>`.
     #[inline]
     #[must_use]
-    pub fn to_owned(&self) -> Uri<String> {
-        Uri {
+    pub fn to_owned(&self) -> UriRef<String> {
+        UriRef {
             val: self.val.to_owned(),
             meta: self.meta,
         }
     }
 }
 
-impl<T: Bos<str>> Uri<T> {
+impl<T: Bos<str>> UriRef<T> {
     fn len(&self) -> usize {
         self.as_str().len()
     }
 
-    fn as_ref(&self) -> Uri<&str> {
-        Uri {
+    fn as_ref(&self) -> UriRef<&str> {
+        UriRef {
             val: self.as_str(),
             meta: self.meta,
         }
     }
 }
 
-impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
+impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> UriRef<T> {
     /// Returns the URI reference as a string slice.
     #[must_use]
     pub fn as_str(&'i self) -> &'o str {
         self.val.borrow_or_share()
     }
 
-    /// Returns a string slice of the `Uri` between the given indexes.
+    /// Returns a string slice of the `UriRef` between the given indexes.
     fn slice(&'i self, start: usize, end: usize) -> &'o str {
         &self.as_str()[start..end]
     }
 
-    /// Returns an `EStr` slice of the `Uri` between the given indexes.
+    /// Returns an `EStr` slice of the `UriRef` between the given indexes.
     fn eslice<E: Encoder>(&'i self, start: usize, end: usize) -> &'o EStr<E> {
         EStr::new_validated(self.slice(start, end))
     }
@@ -303,15 +303,15 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::{component::Scheme, Uri};
+    /// use fluent_uri::{component::Scheme, UriRef};
     ///
     /// const SCHEME_HTTP: &Scheme = Scheme::new_or_panic("http");
     ///
-    /// let uri = Uri::parse("http://example.com/")?;
-    /// assert_eq!(uri.scheme(), Some(SCHEME_HTTP));
+    /// let uri_ref = UriRef::parse("http://example.com/")?;
+    /// assert_eq!(uri_ref.scheme(), Some(SCHEME_HTTP));
     ///
-    /// let uri = Uri::parse("/path/to/file")?;
-    /// assert_eq!(uri.scheme(), None);
+    /// let uri_ref = UriRef::parse("/path/to/file")?;
+    /// assert_eq!(uri_ref.scheme(), None);
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[must_use]
@@ -327,13 +327,13 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::Uri;
+    /// use fluent_uri::UriRef;
     ///
-    /// let uri = Uri::parse("http://example.com/")?;
-    /// assert!(uri.authority().is_some());
+    /// let uri_ref = UriRef::parse("http://example.com/")?;
+    /// assert!(uri_ref.authority().is_some());
     ///
-    /// let uri = Uri::parse("mailto:user@example.com")?;
-    /// assert!(uri.authority().is_none());
+    /// let uri_ref = UriRef::parse("mailto:user@example.com")?;
+    /// assert!(uri_ref.authority().is_none());
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[must_use]
@@ -363,16 +363,16 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::Uri;
+    /// use fluent_uri::UriRef;
     ///
-    /// let uri = Uri::parse("http://example.com/")?;
-    /// assert_eq!(uri.path(), "/");
+    /// let uri_ref = UriRef::parse("http://example.com/")?;
+    /// assert_eq!(uri_ref.path(), "/");
     ///
-    /// let uri = Uri::parse("mailto:user@example.com")?;
-    /// assert_eq!(uri.path(), "user@example.com");
+    /// let uri_ref = UriRef::parse("mailto:user@example.com")?;
+    /// assert_eq!(uri_ref.path(), "user@example.com");
     ///
-    /// let uri = Uri::parse("?lang=en")?;
-    /// assert_eq!(uri.path(), "");
+    /// let uri_ref = UriRef::parse("?lang=en")?;
+    /// assert_eq!(uri_ref.path(), "");
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[must_use]
@@ -387,13 +387,13 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::{encoding::EStr, Uri};
+    /// use fluent_uri::{encoding::EStr, UriRef};
     ///
-    /// let uri = Uri::parse("http://example.com/?lang=en")?;
-    /// assert_eq!(uri.query(), Some(EStr::new_or_panic("lang=en")));
+    /// let uri_ref = UriRef::parse("http://example.com/?lang=en")?;
+    /// assert_eq!(uri_ref.query(), Some(EStr::new_or_panic("lang=en")));
     ///
-    /// let uri = Uri::parse("ftp://192.0.2.1/")?;
-    /// assert_eq!(uri.query(), None);
+    /// let uri_ref = UriRef::parse("ftp://192.0.2.1/")?;
+    /// assert_eq!(uri_ref.query(), None);
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[must_use]
@@ -417,13 +417,13 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::{encoding::EStr, Uri};
+    /// use fluent_uri::{encoding::EStr, UriRef};
     ///
-    /// let uri = Uri::parse("http://example.com/#usage")?;
-    /// assert_eq!(uri.fragment(), Some(EStr::new_or_panic("usage")));
+    /// let uri_ref = UriRef::parse("http://example.com/#usage")?;
+    /// assert_eq!(uri_ref.fragment(), Some(EStr::new_or_panic("usage")));
     ///
-    /// let uri = Uri::parse("ftp://192.0.2.1/")?;
-    /// assert_eq!(uri.fragment(), None);
+    /// let uri_ref = UriRef::parse("ftp://192.0.2.1/")?;
+    /// assert_eq!(uri_ref.fragment(), None);
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[must_use]
@@ -475,16 +475,19 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::Uri;
+    /// use fluent_uri::UriRef;
     ///
-    /// let base = Uri::parse("http://example.com/foo/bar")?;
+    /// let base = UriRef::parse("http://example.com/foo/bar")?;
     ///
-    /// assert_eq!(Uri::parse("baz")?.resolve_against(&base)?, "http://example.com/foo/baz");
-    /// assert_eq!(Uri::parse("../baz")?.resolve_against(&base)?, "http://example.com/baz");
-    /// assert_eq!(Uri::parse("?baz")?.resolve_against(&base)?, "http://example.com/foo/bar?baz");
+    /// assert_eq!(UriRef::parse("baz")?.resolve_against(&base)?, "http://example.com/foo/baz");
+    /// assert_eq!(UriRef::parse("../baz")?.resolve_against(&base)?, "http://example.com/baz");
+    /// assert_eq!(UriRef::parse("?baz")?.resolve_against(&base)?, "http://example.com/foo/bar?baz");
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn resolve_against<U: Bos<str>>(&self, base: &Uri<U>) -> Result<Uri<String>, ResolveError> {
+    pub fn resolve_against<U: Bos<str>>(
+        &self,
+        base: &UriRef<U>,
+    ) -> Result<UriRef<String>, ResolveError> {
         resolver::resolve(base.as_ref(), self.as_ref())
     }
 
@@ -514,14 +517,14 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::Uri;
+    /// use fluent_uri::UriRef;
     ///
-    /// let uri = Uri::parse("eXAMPLE://a/./b/../b/%63/%7bfoo%7d")?;
-    /// assert_eq!(uri.normalize(), "example://a/b/c/%7Bfoo%7D");
+    /// let uri_ref = UriRef::parse("eXAMPLE://a/./b/../b/%63/%7bfoo%7d")?;
+    /// assert_eq!(uri_ref.normalize(), "example://a/b/c/%7Bfoo%7D");
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[must_use]
-    pub fn normalize(&self) -> Uri<String> {
+    pub fn normalize(&self) -> UriRef<String> {
         normalizer::normalize(self.as_ref())
     }
 
@@ -530,10 +533,10 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::Uri;
+    /// use fluent_uri::UriRef;
     ///
-    /// assert!(Uri::parse("http://example.com/")?.has_scheme());
-    /// assert!(!Uri::parse("/path/to/file")?.has_scheme());
+    /// assert!(UriRef::parse("http://example.com/")?.has_scheme());
+    /// assert!(!UriRef::parse("/path/to/file")?.has_scheme());
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[must_use]
@@ -546,10 +549,10 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::Uri;
+    /// use fluent_uri::UriRef;
     ///
-    /// assert!(Uri::parse("http://example.com/")?.has_authority());
-    /// assert!(!Uri::parse("mailto:user@example.com")?.has_authority());
+    /// assert!(UriRef::parse("http://example.com/")?.has_authority());
+    /// assert!(!UriRef::parse("mailto:user@example.com")?.has_authority());
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[must_use]
@@ -562,10 +565,10 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::Uri;
+    /// use fluent_uri::UriRef;
     ///
-    /// assert!(Uri::parse("http://example.com/?lang=en")?.has_query());
-    /// assert!(!Uri::parse("ftp://192.0.2.1/")?.has_query());
+    /// assert!(UriRef::parse("http://example.com/?lang=en")?.has_query());
+    /// assert!(!UriRef::parse("ftp://192.0.2.1/")?.has_query());
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[must_use]
@@ -578,10 +581,10 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::Uri;
+    /// use fluent_uri::UriRef;
     ///
-    /// assert!(Uri::parse("http://example.com/#usage")?.has_fragment());
-    /// assert!(!Uri::parse("ftp://192.0.2.1/")?.has_fragment());
+    /// assert!(UriRef::parse("http://example.com/#usage")?.has_fragment());
+    /// assert!(!UriRef::parse("ftp://192.0.2.1/")?.has_fragment());
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[must_use]
@@ -590,96 +593,96 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
     }
 }
 
-impl<T: Value> Default for Uri<T> {
+impl<T: Value> Default for UriRef<T> {
     /// Creates an empty URI reference.
     fn default() -> Self {
-        Uri {
+        UriRef {
             val: T::default(),
             meta: Meta::default(),
         }
     }
 }
 
-impl<T: Bos<str>, U: Bos<str>> PartialEq<Uri<U>> for Uri<T> {
-    fn eq(&self, other: &Uri<U>) -> bool {
+impl<T: Bos<str>, U: Bos<str>> PartialEq<UriRef<U>> for UriRef<T> {
+    fn eq(&self, other: &UriRef<U>) -> bool {
         self.as_str() == other.as_str()
     }
 }
 
-impl<T: Bos<str>> PartialEq<str> for Uri<T> {
+impl<T: Bos<str>> PartialEq<str> for UriRef<T> {
     fn eq(&self, other: &str) -> bool {
         self.as_str() == other
     }
 }
 
-impl<T: Bos<str>> PartialEq<Uri<T>> for str {
-    fn eq(&self, other: &Uri<T>) -> bool {
+impl<T: Bos<str>> PartialEq<UriRef<T>> for str {
+    fn eq(&self, other: &UriRef<T>) -> bool {
         self == other.as_str()
     }
 }
 
-impl<T: Bos<str>> PartialEq<&str> for Uri<T> {
+impl<T: Bos<str>> PartialEq<&str> for UriRef<T> {
     fn eq(&self, other: &&str) -> bool {
         self.as_str() == *other
     }
 }
 
-impl<T: Bos<str>> PartialEq<Uri<T>> for &str {
-    fn eq(&self, other: &Uri<T>) -> bool {
+impl<T: Bos<str>> PartialEq<UriRef<T>> for &str {
+    fn eq(&self, other: &UriRef<T>) -> bool {
         *self == other.as_str()
     }
 }
 
-impl<T: Bos<str>> Eq for Uri<T> {}
+impl<T: Bos<str>> Eq for UriRef<T> {}
 
-impl<T: Bos<str>> hash::Hash for Uri<T> {
+impl<T: Bos<str>> hash::Hash for UriRef<T> {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         self.as_str().hash(state);
     }
 }
 
-impl<T: Bos<str>> PartialOrd for Uri<T> {
+impl<T: Bos<str>> PartialOrd for UriRef<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<T: Bos<str>> Ord for Uri<T> {
+impl<T: Bos<str>> Ord for UriRef<T> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.as_str().cmp(other.as_str())
     }
 }
 
-impl<T: Bos<str>> AsRef<str> for Uri<T> {
+impl<T: Bos<str>> AsRef<str> for UriRef<T> {
     fn as_ref(&self) -> &str {
         self.as_str()
     }
 }
 
-impl<T: Bos<str>> Borrow<str> for Uri<T> {
+impl<T: Bos<str>> Borrow<str> for UriRef<T> {
     fn borrow(&self) -> &str {
         self.as_str()
     }
 }
 
-impl From<Uri<&str>> for Uri<String> {
+impl From<UriRef<&str>> for UriRef<String> {
     #[inline]
-    fn from(uri: Uri<&str>) -> Self {
-        uri.to_owned()
+    fn from(uri_ref: UriRef<&str>) -> Self {
+        uri_ref.to_owned()
     }
 }
 
-impl FromStr for Uri<String> {
+impl FromStr for UriRef<String> {
     type Err = ParseError;
 
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Uri::parse(s).map(|uri| uri.to_owned())
+        UriRef::parse(s).map(|r| r.to_owned())
     }
 }
 
 #[cfg(feature = "serde")]
-impl<T: Bos<str>> Serialize for Uri<T> {
+impl<T: Bos<str>> Serialize for UriRef<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -689,23 +692,23 @@ impl<T: Bos<str>> Serialize for Uri<T> {
 }
 
 #[cfg(feature = "serde")]
-impl<'de> Deserialize<'de> for Uri<&'de str> {
+impl<'de> Deserialize<'de> for UriRef<&'de str> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
         let s = <&str>::deserialize(deserializer)?;
-        Uri::parse(s).map_err(de::Error::custom)
+        UriRef::parse(s).map_err(de::Error::custom)
     }
 }
 
 #[cfg(feature = "serde")]
-impl<'de> Deserialize<'de> for Uri<String> {
+impl<'de> Deserialize<'de> for UriRef<String> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        Uri::parse(s).map_err(de::Error::custom)
+        UriRef::parse(s).map_err(de::Error::custom)
     }
 }

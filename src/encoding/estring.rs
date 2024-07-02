@@ -14,9 +14,9 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 ///
 /// # Examples
 ///
-/// Encode key-value pairs to a query string and use it to build a [`Uri`].
+/// Encode key-value pairs to a query string and use it to build a [`UriRef`].
 ///
-/// [`Uri`]: crate::Uri
+/// [`UriRef`]: crate::UriRef
 ///
 /// ```
 /// use fluent_uri::{
@@ -24,7 +24,7 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 ///         encoder::{Data, Query},
 ///         EStr, EString, Encoder, Table,
 ///     },
-///     Uri,
+///     UriRef,
 /// };
 ///
 /// let pairs = [("name", "张三"), ("speech", "¡Olé!")];
@@ -49,12 +49,12 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 ///
 /// assert_eq!(buf, "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
 ///
-/// let uri = Uri::builder()
+/// let uri_ref = UriRef::builder()
 ///     .path(EStr::EMPTY)
 ///     .query(&buf)
 ///     .build()
 ///     .unwrap();
-/// assert_eq!(uri.as_str(), "?name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
+/// assert_eq!(uri_ref.as_str(), "?name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
 /// ```
 ///
 /// Encode a path whose segments may contain the slash (`'/'`) character

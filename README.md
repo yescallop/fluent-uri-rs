@@ -28,11 +28,11 @@ A URI reference is either a URI or a relative reference.
     ```rust
     const SCHEME_FOO: &Scheme = Scheme::new_or_panic("foo");
 
-    let uri = Uri::parse("foo://user@example.com:8042/over/there?name=ferret#nose")?;
+    let uri_ref = UriRef::parse("foo://user@example.com:8042/over/there?name=ferret#nose")?;
 
-    assert_eq!(uri.scheme().unwrap(), SCHEME_FOO);
+    assert_eq!(uri_ref.scheme().unwrap(), SCHEME_FOO);
 
-    let auth = uri.authority().unwrap();
+    let auth = uri_ref.authority().unwrap();
     assert_eq!(auth.as_str(), "user@example.com:8042");
     assert_eq!(auth.userinfo().unwrap(), "user");
     assert_eq!(auth.host(), "example.com");
@@ -40,9 +40,9 @@ A URI reference is either a URI or a relative reference.
     assert_eq!(auth.port().unwrap(), "8042");
     assert_eq!(auth.port_to_u16(), Ok(Some(8042)));
 
-    assert_eq!(uri.path(), "/over/there");
-    assert_eq!(uri.query().unwrap(), "name=ferret");
-    assert_eq!(uri.fragment().unwrap(), "nose");
+    assert_eq!(uri_ref.path(), "/over/there");
+    assert_eq!(uri_ref.query().unwrap(), "name=ferret");
+    assert_eq!(uri_ref.fragment().unwrap(), "nose");
     ```
 
 - Build a URI reference using the builder pattern:
@@ -50,7 +50,7 @@ A URI reference is either a URI or a relative reference.
     ```rust
     const SCHEME_FOO: &Scheme = Scheme::new_or_panic("foo");
 
-    let uri = Uri::builder()
+    let uri_ref = UriRef::builder()
         .scheme(SCHEME_FOO)
         .authority(|b| {
             b.userinfo(EStr::new_or_panic("user"))
@@ -64,7 +64,7 @@ A URI reference is either a URI or a relative reference.
         .unwrap();
 
     assert_eq!(
-        uri.as_str(),
+        uri_ref.as_str(),
         "foo://user@example.com:8042/over/there?name=ferret#nose"
     );
     ```
@@ -72,18 +72,18 @@ A URI reference is either a URI or a relative reference.
 - Resolve a URI reference against a base URI:
 
     ```rust
-    let base = Uri::parse("http://example.com/foo/bar")?;
+    let base = UriRef::parse("http://example.com/foo/bar")?;
 
-    assert_eq!(Uri::parse("baz")?.resolve_against(&base)?, "http://example.com/foo/baz");
-    assert_eq!(Uri::parse("../baz")?.resolve_against(&base)?, "http://example.com/baz");
-    assert_eq!(Uri::parse("?baz")?.resolve_against(&base)?, "http://example.com/foo/bar?baz");
+    assert_eq!(UriRef::parse("baz")?.resolve_against(&base)?, "http://example.com/foo/baz");
+    assert_eq!(UriRef::parse("../baz")?.resolve_against(&base)?, "http://example.com/baz");
+    assert_eq!(UriRef::parse("?baz")?.resolve_against(&base)?, "http://example.com/foo/bar?baz");
     ```
 
 - Normalize a URI reference:
 
     ```rust
-    let uri = Uri::parse("eXAMPLE://a/./b/../b/%63/%7bfoo%7d")?;
-    assert_eq!(uri.normalize(), "example://a/b/c/%7Bfoo%7D");
+    let uri_ref = UriRef::parse("eXAMPLE://a/./b/../b/%63/%7bfoo%7d")?;
+    assert_eq!(uri_ref.normalize(), "example://a/b/c/%7Bfoo%7D");
     ```
 
 - `EStr` (Percent-encoded string slices):
@@ -93,7 +93,7 @@ A URI reference is either a URI or a relative reference.
 
     ```rust
     let s = "?name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21";
-    let query = Uri::parse(s).unwrap().query().unwrap();
+    let query = UriRef::parse(s).unwrap().query().unwrap();
     let map: HashMap<_, _> = query
         .split('&')
         .map(|s| s.split_once('=').unwrap_or((s, EStr::EMPTY)))
@@ -105,7 +105,7 @@ A URI reference is either a URI or a relative reference.
 
 - `EString` (A percent-encoded, growable string):
 
-    You can encode key-value pairs to a query string and use it to build a `Uri`:
+    You can encode key-value pairs to a query string and use it to build a `UriRef`:
 
     ```rust
     let pairs = [("name", "张三"), ("speech", "¡Olé!")];
@@ -121,12 +121,12 @@ A URI reference is either a URI or a relative reference.
 
     assert_eq!(buf, "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
 
-    let uri = Uri::builder()
+    let uri_ref = UriRef::builder()
         .path(EStr::EMPTY)
         .query(&buf)
         .build()
         .unwrap();
-    assert_eq!(uri.as_str(), "?name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
+    assert_eq!(uri_ref.as_str(), "?name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
     ```
 
 - Validate URIs:

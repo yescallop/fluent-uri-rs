@@ -10,7 +10,7 @@ use crate::{
     },
     error::{BuildError, BuildErrorKind},
     internal::{AuthMeta, HostMeta, Meta},
-    parser, Uri,
+    parser, UriRef,
 };
 use alloc::string::String;
 use core::{fmt::Write, marker::PhantomData, num::NonZeroUsize};
@@ -21,18 +21,18 @@ use crate::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 /// A builder for URI reference.
 ///
-/// This struct is created by [`Uri::builder`].
+/// This struct is created by [`UriRef::builder`].
 ///
 /// # Examples
 ///
 /// Basic usage:
 ///
 /// ```
-/// use fluent_uri::{component::Scheme, encoding::EStr, Uri};
+/// use fluent_uri::{component::Scheme, encoding::EStr, UriRef};
 ///
 /// const SCHEME_FOO: &Scheme = Scheme::new_or_panic("foo");
 ///
-/// let uri = Uri::builder()
+/// let uri_ref = UriRef::builder()
 ///     .scheme(SCHEME_FOO)
 ///     .authority(|b| {
 ///         b.userinfo(EStr::new_or_panic("user"))
@@ -46,7 +46,7 @@ use crate::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 ///     .unwrap();
 ///
 /// assert_eq!(
-///     uri.as_str(),
+///     uri_ref.as_str(),
 ///     "foo://user@example.com:8042/over/there?name=ferret#nose"
 /// );
 /// ```
@@ -195,10 +195,10 @@ impl<S> Builder<S> {
     /// Variable rebinding may be necessary as this changes the type of the builder.
     ///
     /// ```
-    /// use fluent_uri::{component::Scheme, encoding::EStr, Uri};
+    /// use fluent_uri::{component::Scheme, encoding::EStr, UriRef};
     ///
-    /// fn build(relative: bool) -> Uri<String> {
-    ///     let b = Uri::builder();
+    /// fn build(relative: bool) -> UriRef<String> {
+    ///     let b = UriRef::builder();
     ///     let b = if relative {
     ///         b.advance()
     ///     } else {
@@ -222,16 +222,16 @@ impl<S> Builder<S> {
     /// Optionally calls a builder method with a value.
     ///
     /// ```
-    /// use fluent_uri::{encoding::EStr, Builder, Uri};
+    /// use fluent_uri::{encoding::EStr, Builder, UriRef};
     ///
-    /// let uri = Uri::builder()
+    /// let uri_ref = UriRef::builder()
     ///     .path(EStr::new_or_panic("foo"))
     ///     .optional(Builder::query, Some(EStr::new_or_panic("bar")))
     ///     .optional(Builder::fragment, None)
     ///     .build()
     ///     .unwrap();
     ///
-    /// assert_eq!(uri.as_str(), "foo?bar");
+    /// assert_eq!(uri_ref.as_str(), "foo?bar");
     /// ```
     pub fn optional<F, V, T>(self, f: F, opt: Option<V>) -> Builder<T>
     where
@@ -332,7 +332,7 @@ impl<S: To<HostEnd>> Builder<S> {
     ///
     /// If the contents of an input `&EStr<RegName>` matches the
     /// `IPv4address` ABNF rule defined in [Section 3.2.2 of RFC 3986][host],
-    /// the resulting [`Uri`] will output a [`Host::Ipv4`] variant instead.
+    /// the resulting [`UriRef`] will output a [`Host::Ipv4`] variant instead.
     ///
     /// Note that the host subcomponent is *case-insensitive* and is normalized to
     /// *lowercase*. For consistency, you should only produce lowercase registered names.
@@ -343,14 +343,14 @@ impl<S: To<HostEnd>> Builder<S> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::{component::Host, encoding::EStr, Uri};
+    /// use fluent_uri::{component::Host, encoding::EStr, UriRef};
     ///
-    /// let uri = Uri::builder()
+    /// let uri_ref = UriRef::builder()
     ///     .authority(|b| b.host(EStr::new_or_panic("127.0.0.1")))
     ///     .path(EStr::EMPTY)
     ///     .build()
     ///     .unwrap();
-    /// assert!(matches!(uri.authority().unwrap().host_parsed(), Host::Ipv4(_)));
+    /// assert!(matches!(uri_ref.authority().unwrap().host_parsed(), Host::Ipv4(_)));
     /// ```
     pub fn host<'a>(mut self, host: impl AsHost<'a>) -> Builder<HostEnd> {
         host.push_to(&mut self.inner);
@@ -439,8 +439,8 @@ impl<S: To<End>> Builder<S> {
     /// - In a [relative-path reference][rel-ref], the first path segment cannot contain `':'`.
     ///
     /// [rel-ref]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.2
-    pub fn build(self) -> Result<Uri<String>, BuildError> {
-        self.inner.validate().map(|()| Uri {
+    pub fn build(self) -> Result<UriRef<String>, BuildError> {
+        self.inner.validate().map(|()| UriRef {
             val: self.inner.buf,
             meta: self.inner.meta,
         })

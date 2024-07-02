@@ -2,7 +2,7 @@
 use fluent_uri::{
     component::{Host, Scheme},
     encoding::{encoder::*, EStr, Encoder},
-    Builder, Uri,
+    Builder, UriRef,
 };
 use libfuzzer_sys::{
     arbitrary::{self, *},
@@ -82,7 +82,7 @@ struct UriComponents<'a> {
 }
 
 fuzz_target!(|c: UriComponents<'_>| {
-    let Ok(u1) = Uri::builder()
+    let Ok(r1) = UriRef::builder()
         .optional(Builder::scheme, c.scheme.map(|s| s.0))
         .optional(
             Builder::authority,
@@ -107,12 +107,12 @@ fuzz_target!(|c: UriComponents<'_>| {
     };
 
     assert_eq!(
-        u1.scheme().map(|s| s.as_str()),
+        r1.scheme().map(|s| s.as_str()),
         c.scheme.map(|s| s.0.as_str())
     );
-    assert_eq!(u1.authority().is_some(), c.authority.is_some());
+    assert_eq!(r1.authority().is_some(), c.authority.is_some());
 
-    if let Some(a1) = u1.authority() {
+    if let Some(a1) = r1.authority() {
         let a2 = c.authority.unwrap();
         assert_eq!(a1.userinfo(), a2.userinfo.map(|s| s.0));
 
@@ -126,20 +126,20 @@ fuzz_target!(|c: UriComponents<'_>| {
         assert_eq!(a1.port(), a2.port.map(|s| s.0));
     }
 
-    assert_eq!(u1.path(), c.path.0);
-    assert_eq!(u1.query(), c.query.map(|s| s.0));
-    assert_eq!(u1.fragment(), c.fragment.map(|s| s.0));
+    assert_eq!(r1.path(), c.path.0);
+    assert_eq!(r1.query(), c.query.map(|s| s.0));
+    assert_eq!(r1.fragment(), c.fragment.map(|s| s.0));
 
-    let u2 = Uri::parse(u1.as_str()).unwrap();
+    let r2 = UriRef::parse(r1.as_str()).unwrap();
 
     assert_eq!(
-        u1.scheme().map(|s| s.as_str()),
-        u2.scheme().map(|s| s.as_str())
+        r1.scheme().map(|s| s.as_str()),
+        r2.scheme().map(|s| s.as_str())
     );
-    assert_eq!(u1.authority().is_some(), u2.authority().is_some());
+    assert_eq!(r1.authority().is_some(), r2.authority().is_some());
 
-    if let Some(a1) = u1.authority() {
-        let a2 = u2.authority().unwrap();
+    if let Some(a1) = r1.authority() {
+        let a2 = r2.authority().unwrap();
         assert_eq!(a1.as_str(), a2.as_str());
         assert_eq!(a1.userinfo(), a2.userinfo());
         assert_eq!(a1.host(), a2.host());
@@ -147,7 +147,7 @@ fuzz_target!(|c: UriComponents<'_>| {
         assert_eq!(a1.port(), a2.port());
     }
 
-    assert_eq!(u1.path(), u2.path());
-    assert_eq!(u1.query(), u2.query());
-    assert_eq!(u1.fragment(), u2.fragment());
+    assert_eq!(r1.path(), r2.path());
+    assert_eq!(r1.query(), r2.query());
+    assert_eq!(r1.fragment(), r2.fragment());
 });

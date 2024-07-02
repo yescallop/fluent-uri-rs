@@ -1,5 +1,5 @@
 #![no_main]
-use fluent_uri::{component::Host, Uri};
+use fluent_uri::{component::Host, UriRef};
 use libfuzzer_sys::fuzz_target;
 use std::{ffi::CStr, mem::MaybeUninit, ptr, slice};
 use uriparser_sys::{uriFreeUriMembersA, uriParseSingleUriA, UriTextRangeA, UriUriA, URI_SUCCESS};
@@ -15,7 +15,7 @@ unsafe fn check(data: &str, cstr: &CStr) {
     let ret = uriParseSingleUriA(uri1.as_mut_ptr(), cstr.as_ptr(), ptr::null_mut());
     let success = ret == URI_SUCCESS as _;
 
-    let uri2 = Uri::parse(data);
+    let uri2 = UriRef::parse(data);
     assert_eq!(success, uri2.is_ok());
 
     if success {
@@ -25,7 +25,7 @@ unsafe fn check(data: &str, cstr: &CStr) {
         assert_text_eq(uri2.scheme().map(|s| s.as_str()), uri1.scheme);
 
         if let Some(a) = uri2.authority() {
-            assert_text_eq(a.userinfo().map(|u| u.as_str()), uri1.userInfo);
+            assert_text_eq(a.userinfo().map(|r| r.as_str()), uri1.userInfo);
 
             let mut host = a.host();
             if host.starts_with('[') {

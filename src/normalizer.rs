@@ -1,20 +1,20 @@
 use crate::{
     encoding::{decode_octet, table::UNRESERVED},
     internal::{HostMeta, Meta},
-    parser, resolver, Uri,
+    parser, resolver, UriRef,
 };
 use alloc::string::String;
 use core::{fmt::Write, num::NonZeroUsize};
 
-pub(crate) fn normalize(u: Uri<&str>) -> Uri<String> {
+pub(crate) fn normalize(r: UriRef<&str>) -> UriRef<String> {
     // For "a://[::ffff:5:9]/" the capacity is not enough,
     // but it's fine since this rarely happens.
-    let mut buf = String::with_capacity(u.as_str().len());
+    let mut buf = String::with_capacity(r.as_str().len());
 
-    let path = u.path().as_str();
+    let path = r.path().as_str();
     let mut path_buf = String::with_capacity(path.len());
 
-    if u.has_scheme() && path.starts_with('/') {
+    if r.has_scheme() && path.starts_with('/') {
         normalize_estr(&mut buf, path, false);
         resolver::remove_dot_segments(&mut path_buf, &buf);
         buf.clear();
@@ -25,14 +25,14 @@ pub(crate) fn normalize(u: Uri<&str>) -> Uri<String> {
 
     let mut meta = Meta::default();
 
-    if let Some(scheme) = u.scheme() {
+    if let Some(scheme) = r.scheme() {
         buf.push_str(scheme.as_str());
         buf.make_ascii_lowercase();
         meta.scheme_end = NonZeroUsize::new(buf.len());
         buf.push(':');
     }
 
-    if let Some(auth) = u.authority() {
+    if let Some(auth) = r.authority() {
         buf.push_str("//");
 
         if let Some(userinfo) = auth.userinfo() {
@@ -83,24 +83,24 @@ pub(crate) fn normalize(u: Uri<&str>) -> Uri<String> {
 
     meta.path_bounds.0 = buf.len();
     // Make sure that the output is a valid URI reference.
-    if u.has_scheme() && !u.has_authority() && path_buf.starts_with("//") {
+    if r.has_scheme() && !r.has_authority() && path_buf.starts_with("//") {
         buf.push_str("/.");
     }
     buf.push_str(&path_buf);
     meta.path_bounds.1 = buf.len();
 
-    if let Some(query) = u.query() {
+    if let Some(query) = r.query() {
         buf.push('?');
         normalize_estr(&mut buf, query.as_str(), false);
         meta.query_end = NonZeroUsize::new(buf.len());
     }
 
-    if let Some(fragment) = u.fragment() {
+    if let Some(fragment) = r.fragment() {
         buf.push('#');
         normalize_estr(&mut buf, fragment.as_str(), false);
     }
 
-    Uri { val: buf, meta }
+    UriRef { val: buf, meta }
 }
 
 fn normalize_estr(buf: &mut String, s: &str, to_lowercase: bool) {

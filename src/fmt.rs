@@ -4,7 +4,7 @@ use crate::{
     error::{
         BuildError, BuildErrorKind, ParseError, ParseErrorKind, ResolveError, ResolveErrorKind,
     },
-    Uri,
+    UriRef,
 };
 use borrow_or_share::Bos;
 use core::fmt::{Debug, Display, Formatter, Result};
@@ -82,9 +82,9 @@ impl Display for ResolveError {
     }
 }
 
-impl<T: Bos<str>> Debug for Uri<T> {
+impl<T: Bos<str>> Debug for UriRef<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        f.debug_struct("Uri")
+        f.debug_struct("UriRef")
             .field("scheme", &self.scheme())
             .field("authority", &self.authority())
             .field("path", &self.path())
@@ -94,7 +94,7 @@ impl<T: Bos<str>> Debug for Uri<T> {
     }
 }
 
-impl<T: Bos<str>> Display for Uri<T> {
+impl<T: Bos<str>> Display for UriRef<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         Display::fmt(self.as_str(), f)
     }

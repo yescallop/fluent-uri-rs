@@ -1,15 +1,15 @@
 use crate::{
     error::{ResolveError, ResolveErrorKind},
     internal::Meta,
-    Uri,
+    UriRef,
 };
 use alloc::string::String;
 use core::num::NonZeroUsize;
 
 pub(crate) fn resolve(
-    base: Uri<&str>,
-    /* reference */ r: Uri<&str>,
-) -> Result<Uri<String>, ResolveError> {
+    base: UriRef<&str>,
+    /* reference */ r: UriRef<&str>,
+) -> Result<UriRef<String>, ResolveError> {
     if !base.has_scheme() || base.has_fragment() {
         return Err(ResolveError(ResolveErrorKind::InvalidBase));
     }
@@ -139,7 +139,7 @@ pub(crate) fn resolve(
 
     debug_assert_eq!(buf.len(), len);
 
-    Ok(Uri { val: buf, meta })
+    Ok(UriRef { val: buf, meta })
 }
 
 pub(crate) fn remove_dot_segments<'a>(buf: &'a mut String, path: &str) -> &'a str {

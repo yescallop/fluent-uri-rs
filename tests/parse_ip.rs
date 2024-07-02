@@ -2,11 +2,11 @@
 
 use core::net::{Ipv4Addr, Ipv6Addr};
 
-use fluent_uri::{component::Host, Uri};
+use fluent_uri::{component::Host, UriRef};
 
 fn parse_v4(s: &str) -> Option<Ipv4Addr> {
     let s = format!("//{s}");
-    match Uri::parse(s).ok()?.authority()?.host_parsed() {
+    match UriRef::parse(s).ok()?.authority()?.host_parsed() {
         Host::Ipv4(addr) => Some(addr),
         _ => None,
     }
@@ -14,7 +14,7 @@ fn parse_v4(s: &str) -> Option<Ipv4Addr> {
 
 fn parse_v6(s: &str) -> Option<Ipv6Addr> {
     let s = format!("//[{s}]");
-    match Uri::parse(s).ok()?.authority()?.host_parsed() {
+    match UriRef::parse(s).ok()?.authority()?.host_parsed() {
         Host::Ipv6(addr) => Some(addr),
         _ => None,
     }

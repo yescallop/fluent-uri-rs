@@ -30,7 +30,7 @@ const RESOLVE_CASE_BASE: &str = "http://example.com/foo/bar";
 const RESOLVE_CASE_REF: &str = "../baz";
 
 fn bench_parse(c: &mut Criterion) {
-    c.bench_function("parse", |b| b.iter(|| Uri::parse(black_box(PARSE_CASE))));
+    c.bench_function("parse", |b| b.iter(|| UriRef::parse(black_box(PARSE_CASE))));
 }
 
 fn bench_parse_iref(c: &mut Criterion) {
@@ -60,7 +60,7 @@ fn bench_parse_url(c: &mut Criterion) {
 fn bench_build(c: &mut Criterion) {
     c.bench_function("build", |b| {
         b.iter(|| {
-            Uri::builder()
+            UriRef::builder()
                 .scheme(Scheme::new_or_panic("foo"))
                 .authority(|b| {
                     b.userinfo(EStr::new_or_panic("user"))
@@ -95,20 +95,20 @@ fn bench_build_iri_string(c: &mut Criterion) {
 }
 
 fn bench_normalize(c: &mut Criterion) {
-    let uri = Uri::parse(NORMALIZE_CASE).unwrap();
-    c.bench_function("normalize", |b| b.iter(|| uri.normalize()));
+    let r = UriRef::parse(NORMALIZE_CASE).unwrap();
+    c.bench_function("normalize", |b| b.iter(|| r.normalize()));
 }
 
 fn bench_normalize_iri_string(c: &mut Criterion) {
-    let uri = UriStr::new(NORMALIZE_CASE).unwrap();
+    let r = UriStr::new(NORMALIZE_CASE).unwrap();
     c.bench_function("normalize_iri_string", |b| {
-        b.iter(|| uri.normalize().to_dedicated_string())
+        b.iter(|| r.normalize().to_dedicated_string())
     });
 }
 
 fn bench_resolve(c: &mut Criterion) {
-    let base = Uri::parse(RESOLVE_CASE_BASE).unwrap();
-    let r = Uri::parse(RESOLVE_CASE_REF).unwrap();
+    let base = UriRef::parse(RESOLVE_CASE_BASE).unwrap();
+    let r = UriRef::parse(RESOLVE_CASE_REF).unwrap();
     c.bench_function("resolve", |b| b.iter(|| r.resolve(&base)));
 }
 

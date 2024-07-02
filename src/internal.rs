@@ -1,6 +1,6 @@
 #![allow(missing_debug_implementations)]
 
-use crate::{error::ParseError, parser, Uri};
+use crate::{error::ParseError, parser, UriRef};
 use alloc::string::String;
 use core::{num::NonZeroUsize, str};
 
@@ -14,31 +14,31 @@ impl Value for String {}
 
 pub struct NoInput;
 
-pub trait ToUri {
+pub trait ToUriRef {
     type Val: Value;
     type Err;
 
-    fn to_uri(self) -> Result<Uri<Self::Val>, Self::Err>;
+    fn to_uri_ref(self) -> Result<UriRef<Self::Val>, Self::Err>;
 }
 
-impl<'a> ToUri for &'a str {
+impl<'a> ToUriRef for &'a str {
     type Val = &'a str;
     type Err = ParseError;
 
     #[inline]
-    fn to_uri(self) -> Result<Uri<Self::Val>, Self::Err> {
-        parser::parse(self.as_bytes()).map(|meta| Uri { val: self, meta })
+    fn to_uri_ref(self) -> Result<UriRef<Self::Val>, Self::Err> {
+        parser::parse(self.as_bytes()).map(|meta| UriRef { val: self, meta })
     }
 }
 
-impl ToUri for String {
+impl ToUriRef for String {
     type Val = String;
     type Err = ParseError<String>;
 
     #[inline]
-    fn to_uri(self) -> Result<Uri<Self::Val>, Self::Err> {
+    fn to_uri_ref(self) -> Result<UriRef<Self::Val>, Self::Err> {
         match parser::parse(self.as_bytes()) {
-            Ok(meta) => Ok(Uri { val: self, meta }),
+            Ok(meta) => Ok(UriRef { val: self, meta }),
             Err(e) => Err(e.with_input(self)),
         }
     }

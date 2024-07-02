@@ -1,5 +1,5 @@
 #![no_main]
-use fluent_uri::{component::Host, Uri};
+use fluent_uri::{component::Host, UriRef};
 use libfuzzer_sys::fuzz_target;
 use std::net::Ipv6Addr;
 use std::str::FromStr;
@@ -10,7 +10,7 @@ fuzz_target!(|data: &str| {
 
 fn parse_v6(s: &str) -> Option<Ipv6Addr> {
     let s = format!("//[{s}]");
-    match Uri::parse(s).ok()?.authority()?.host_parsed() {
+    match UriRef::parse(s).ok()?.authority()?.host_parsed() {
         Host::Ipv6(addr) => Some(addr),
         _ => None,
     }

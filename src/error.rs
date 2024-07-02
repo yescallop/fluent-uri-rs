@@ -1,6 +1,6 @@
 //! Error types.
 
-use crate::internal::{NoInput, ToUri};
+use crate::internal::{NoInput, ToUriRef};
 
 /// Detailed cause of a [`ParseError`].
 #[derive(Clone, Copy, Debug)]
@@ -37,10 +37,10 @@ impl ParseError {
     }
 }
 
-impl<I: ToUri> ParseError<I> {
-    /// Recovers the input that was attempted to parse into a [`Uri`].
+impl<I: ToUriRef> ParseError<I> {
+    /// Recovers the input that was attempted to parse into a [`UriRef`].
     ///
-    /// [`Uri`]: crate::Uri
+    /// [`UriRef`]: crate::UriRef
     #[must_use]
     pub fn into_input(self) -> I {
         self.input

@@ -65,11 +65,11 @@ pub trait Encoder: 'static {
 /// Parse key-value pairs from a query string into a hash map:
 ///
 /// ```
-/// use fluent_uri::{encoding::EStr, Uri};
+/// use fluent_uri::{encoding::EStr, UriRef};
 /// use std::collections::HashMap;
 ///
 /// let s = "?name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21";
-/// let query = Uri::parse(s).unwrap().query().unwrap();
+/// let query = UriRef::parse(s).unwrap().query().unwrap();
 /// let map: HashMap<_, _> = query
 ///     .split('&')
 ///     .map(|s| s.split_once('=').unwrap_or((s, EStr::EMPTY)))
@@ -395,20 +395,20 @@ impl EStr<Path> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::Uri;
+    /// use fluent_uri::UriRef;
     ///
     /// // Segments are separated by '/'.
     /// // The empty string before a leading '/' is not a segment.
     /// // However, segments can be empty in the other cases.
-    /// let path = Uri::parse("file:///path/to//dir/")?.path();
+    /// let path = UriRef::parse("file:///path/to//dir/")?.path();
     /// assert_eq!(path, "/path/to//dir/");
     /// assert!(path.segments().into_iter().flatten().eq(["path", "to", "", "dir", ""]));
     ///
-    /// let path = Uri::parse("foo:bar/baz")?.path();
+    /// let path = UriRef::parse("foo:bar/baz")?.path();
     /// assert_eq!(path, "bar/baz");
     /// assert!(path.segments().is_none());
     ///
-    /// let path = Uri::parse("http://example.com")?.path();
+    /// let path = UriRef::parse("http://example.com")?.path();
     /// assert!(path.is_empty());
     /// assert!(path.segments().is_none());
     /// # Ok::<_, fluent_uri::error::ParseError>(())

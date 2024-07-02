@@ -1,28 +1,30 @@
 #![no_main]
-use fluent_uri::{component::Host, Uri};
+use fluent_uri::{component::Host, UriRef};
 use iri_string::{format::ToDedicatedString, types::UriStr};
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &str| {
-    let Ok(u1) = Uri::parse(data) else { return };
+    let Ok(r1) = UriRef::parse(data) else {
+        return;
+    };
 
-    if u1.is_relative_reference() || u1.path().is_rootless() {
+    if r1.is_relative_reference() || r1.path().is_rootless() {
         return;
     }
 
-    let u2 = UriStr::new(data).unwrap();
+    let r2 = UriStr::new(data).unwrap();
 
-    let u1 = u1.normalize();
-    let u2 = u2.normalize().to_dedicated_string();
+    let r1 = r1.normalize();
+    let r2 = r2.normalize().to_dedicated_string();
 
-    if u1.as_str() == u2.as_str() {
+    if r1.as_str() == r2.as_str() {
         return;
     }
 
-    if let Some(auth) = u1.authority() {
+    if let Some(auth) = r1.authority() {
         match auth.host_parsed() {
             Host::RegName(name1) => {
-                let name2 = u2.authority_components().unwrap().host();
+                let name2 = r2.authority_components().unwrap().host();
                 if name1.as_str().eq_ignore_ascii_case(name2) {
                     return;
                 }
@@ -32,5 +34,5 @@ fuzz_target!(|data: &str| {
         }
     }
 
-    panic!("{} != {}", u1.as_str(), u2.as_str());
+    panic!("{} != {}", r1.as_str(), r2.as_str());
 });
