@@ -1,10 +1,12 @@
 # fluent-uri
 
-A full-featured URI handling library compliant with [RFC 3986]. It is:
+A full-featured [URI reference] handling library compliant with [RFC 3986]. It is:
 
 - **Fast:** Zero-copy parsing. Benchmarked to be highly performant.[^bench-res]
 - **Easy:** Carefully designed and documented APIs. Handy percent-encoding utilities.
 - **Correct:** Forbids unsafe code. Extensively fuzz-tested against other implementations.
+
+A URI reference is either a URI or a relative reference.
 
 [![crates.io](https://img.shields.io/crates/v/fluent-uri.svg)](https://crates.io/crates/fluent-uri)
 [![build](https://img.shields.io/github/actions/workflow/status/yescallop/fluent-uri-rs/ci.yml
@@ -14,6 +16,7 @@ A full-featured URI handling library compliant with [RFC 3986]. It is:
 [Documentation](https://docs.rs/fluent-uri) | [Discussions](https://github.com/yescallop/fluent-uri-rs/discussions)
 
 [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
+[URI reference]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.1
 [^bench-res]: In [a benchmark](https://github.com/yescallop/fluent-uri-rs/blob/main/bench/benches/bench.rs)
     on an Intel Core i5-11300H processor, `fluent-uri` parsed a URI
     in 49ns compared to 89ns for `iref` and 135ns for `iri-string`.
@@ -124,4 +127,16 @@ A full-featured URI handling library compliant with [RFC 3986]. It is:
         .build()
         .unwrap();
     assert_eq!(uri.as_str(), "?name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
+    ```
+
+- Validate URIs:
+
+    ```rust 
+    let abs_uri_ref = Uri::parse("foo:bar");
+    let is_valid_uri1 = abs_uri_ref.is_ok() && abs_uri_ref.unwrap().has_scheme();
+    assert!(is_valid_uri1);
+ 
+    let rel_uri_ref = Uri::parse("baz");
+    let is_valid_uri2 = rel_uri_ref.is_ok() && rel_uri_ref.unwrap().has_scheme();
+    assert!(!is_valid_uri2);
     ```
