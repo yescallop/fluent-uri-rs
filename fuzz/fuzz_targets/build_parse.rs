@@ -85,7 +85,7 @@ fuzz_target!(|c: UriComponents<'_>| {
     let Ok(r1) = UriRef::builder()
         .optional(Builder::scheme, c.scheme.map(|s| s.0))
         .optional(
-            Builder::authority,
+            Builder::authority_with,
             c.authority.map(|a| {
                 move |b: Builder<_>| {
                     let b = b.optional(Builder::userinfo, a.userinfo.map(|s| s.0));
