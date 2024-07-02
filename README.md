@@ -6,8 +6,6 @@ A full-featured [URI reference] handling library compliant with [RFC 3986]. It i
 - **Easy:** Carefully designed and documented APIs. Handy percent-encoding utilities.
 - **Correct:** Forbids unsafe code. Extensively fuzz-tested against other implementations.
 
-A URI reference is either a URI or a relative reference.
-
 [![crates.io](https://img.shields.io/crates/v/fluent-uri.svg)](https://crates.io/crates/fluent-uri)
 [![build](https://img.shields.io/github/actions/workflow/status/yescallop/fluent-uri-rs/ci.yml
 )](https://github.com/yescallop/fluent-uri-rs/actions/workflows/ci.yml)
@@ -20,6 +18,17 @@ A URI reference is either a URI or a relative reference.
 [^bench-res]: In [a benchmark](https://github.com/yescallop/fluent-uri-rs/blob/main/bench/benches/bench.rs)
     on an Intel Core i5-11300H processor, `fluent-uri` parsed a URI
     in 49ns compared to 89ns for `iref` and 135ns for `iri-string`.
+
+## Terminology
+
+A *URI reference* can either be a *[URI]* or a *[relative reference]*.
+If it contains a scheme (like `http`, `ftp`, etc.), it is a URI.
+For example, `foo:bar` is a URI. If it does not contain a scheme,
+it is a relative reference. For example, `baz` is a relative reference.
+Both URIs and relative references are considered URI references.
+
+[URI]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3
+[relative reference]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.2
 
 ## Examples
 
@@ -131,12 +140,12 @@ A URI reference is either a URI or a relative reference.
 
 - Validate URIs:
 
-    ```rust 
-    let abs_uri_ref = Uri::parse("foo:bar");
-    let is_valid_uri1 = abs_uri_ref.is_ok() && abs_uri_ref.unwrap().has_scheme();
-    assert!(is_valid_uri1);
- 
-    let rel_uri_ref = Uri::parse("baz");
-    let is_valid_uri2 = rel_uri_ref.is_ok() && rel_uri_ref.unwrap().has_scheme();
-    assert!(!is_valid_uri2);
+    ```rust
+    let s = "foo:bar";
+    let is_valid_uri = UriRef::parse(s).is_ok_and(|r| r.is_uri());
+    assert!(is_valid_uri);
+
+    let s = "baz";
+    let is_valid_uri = UriRef::parse(s).is_ok_and(|r| r.is_uri());
+    assert!(!is_valid_uri);
     ```

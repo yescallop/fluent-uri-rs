@@ -24,8 +24,9 @@
 //!
 //! **Examples:** [Parsing](UriRef#examples). [Building](Builder#examples).
 //! [Reference resolution](UriRef::resolve_against). [Normalization](UriRef::normalize).
-//! [Percent-decoding](crate::encoding::EStr#examples).
+//! [Percent-decoding](EStr#examples).
 //! [Percent-encoding](crate::encoding::EString#examples).
+//! [Validating URIs](UriRef#terminology).
 //!
 //! # Guidance for crate users
 //!
@@ -98,10 +99,36 @@ use internal::{Meta, ToUriRef, Value};
 #[cfg(feature = "serde")]
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-/// A [URI reference] defined in RFC 3986, that is, either a URI or a relative
-/// reference.
+/// A [URI reference] defined in RFC 3986, i.e., either a [URI] or a [relative reference].
 ///
 /// [URI reference]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.1
+/// [URI]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3
+/// [relative reference]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.2
+///
+/// # Terminology
+///
+/// A *URI reference* can either be a *URI* or a *relative reference*.
+/// If it contains a scheme (like `http`, `ftp`, etc.), it is a URI.
+/// For example, `foo:bar` is a URI. If it does not contain a scheme,
+/// it is a relative reference. For example, `baz` is a relative reference.
+/// Both URIs and relative references are considered URI references.
+/// You can combine [`parse`] and [`is_uri`] to check whether a string
+/// is a valid URI, for example:
+///
+/// [`parse`]: Self::parse
+/// [`is_uri`]: Self::is_uri
+///
+/// ```
+/// use fluent_uri::UriRef;
+///
+/// let s = "foo:bar";
+/// let is_valid_uri = UriRef::parse(s).is_ok_and(|r| r.is_uri());
+/// assert!(is_valid_uri);
+///
+/// let s = "baz";
+/// let is_valid_uri = UriRef::parse(s).is_ok_and(|r| r.is_uri());
+/// assert!(!is_valid_uri);
+/// ```
 ///
 /// # Variants
 ///
@@ -174,20 +201,6 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 /// // Borrow a `UriRef<String>` as `UriRef<&str>`.
 /// let uri_ref: UriRef<&str> = uri_ref_owned.borrow();
 /// # Ok::<_, fluent_uri::error::ParseError>(())
-/// ```
-/// 
-/// Validate URIs:
-/// 
-/// ```
-/// use fluent_uri::Uri;
-/// 
-/// let abs_uri_ref = Uri::parse("foo:bar");
-/// let is_valid_uri1 = abs_uri_ref.is_ok() && abs_uri_ref.unwrap().has_scheme();
-/// assert!(is_valid_uri1);
-/// 
-/// let rel_uri_ref = Uri::parse("baz");
-/// let is_valid_uri2 = rel_uri_ref.is_ok() && rel_uri_ref.unwrap().has_scheme();
-/// assert!(!is_valid_uri2);
 /// ```
 #[derive(Clone, Copy)]
 pub struct UriRef<T> {
@@ -526,6 +539,27 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> UriRef<T> {
     #[must_use]
     pub fn normalize(&self) -> UriRef<String> {
         normalizer::normalize(self.as_ref())
+    }
+
+    /// Checks whether the URI reference is a [URI], i.e., contains a scheme.
+    ///
+    /// This method is equivalent to [`has_scheme`].
+    ///
+    /// [URI]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3
+    /// [`has_scheme`]: Self::has_scheme
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::UriRef;
+    ///
+    /// assert!(UriRef::parse("http://example.com/")?.is_uri());
+    /// assert!(!UriRef::parse("/path/to/file")?.is_uri());
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// ```
+    #[must_use]
+    pub fn is_uri(&self) -> bool {
+        self.has_scheme()
     }
 
     /// Checks whether the URI reference contains a scheme component.
