@@ -60,6 +60,13 @@ pub struct AuthMeta {
     pub host_meta: HostMeta,
 }
 
+impl AuthMeta {
+    pub const EMPTY: Self = Self {
+        host_bounds: (0, 0),
+        host_meta: HostMeta::RegName,
+    };
+}
+
 #[derive(Clone, Copy, Default)]
 pub enum HostMeta {
     Ipv4(#[cfg(feature = "net")] Ipv4Addr),

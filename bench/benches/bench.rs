@@ -62,7 +62,7 @@ fn bench_build(c: &mut Criterion) {
         b.iter(|| {
             UriRef::builder()
                 .scheme(Scheme::new_or_panic("foo"))
-                .authority(|b| {
+                .authority_with(|b| {
                     b.userinfo(EStr::new_or_panic("user"))
                         .host(EStr::new_or_panic("example.com"))
                         .port(8042)

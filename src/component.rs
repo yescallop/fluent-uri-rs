@@ -133,9 +133,12 @@ pub struct Authority<'a> {
 
 impl<'a> Authority<'a> {
     #[inline]
-    pub(crate) fn new(val: &'a str, meta: AuthMeta) -> Self {
+    pub(crate) const fn new(val: &'a str, meta: AuthMeta) -> Self {
         Self { val, meta }
     }
+
+    /// An empty authority component.
+    pub const EMPTY: Authority<'static> = Authority::new("", AuthMeta::EMPTY);
 
     pub(crate) fn meta(&self) -> AuthMeta {
         self.meta

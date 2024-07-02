@@ -3,7 +3,7 @@
 mod state;
 
 use crate::{
-    component::Scheme,
+    component::{Authority, Scheme},
     encoding::{
         encoder::{Fragment, Path, Port, Query, RegName, Userinfo},
         EStr,
@@ -34,7 +34,7 @@ use crate::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 ///
 /// let uri_ref = UriRef::builder()
 ///     .scheme(SCHEME_FOO)
-///     .authority(|b| {
+///     .authority_with(|b| {
 ///         b.userinfo(EStr::new_or_panic("user"))
 ///             .host(EStr::new_or_panic("example.com"))
 ///             .port(8042)
@@ -107,6 +107,17 @@ impl BuilderInner {
 
     fn start_authority(&mut self) {
         self.buf.push_str("//");
+    }
+
+    fn push_authority(&mut self, v: Authority<'_>) {
+        self.buf.push_str("//");
+        let start = self.buf.len();
+        self.buf.push_str(v.as_str());
+
+        let mut meta = v.meta();
+        meta.host_bounds.0 += start;
+        meta.host_bounds.1 += start;
+        self.meta.auth_meta = Some(meta);
     }
 
     fn push_userinfo(&mut self, v: &str) {
@@ -203,7 +214,7 @@ impl<S> Builder<S> {
     ///         b.advance()
     ///     } else {
     ///         b.scheme(Scheme::new_or_panic("http"))
-    ///             .authority(|b| b.host(EStr::new_or_panic("example.com")))
+    ///             .authority_with(|b| b.host(EStr::new_or_panic("example.com")))
     ///     };
     ///     b.path(EStr::new_or_panic("/foo")).build().unwrap()
     /// }
@@ -263,13 +274,61 @@ impl<S: To<AuthorityStart>> Builder<S> {
     /// Builds the [authority] component with the given function.
     ///
     /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
-    pub fn authority<F, T>(mut self, f: F) -> Builder<AuthorityEnd>
+    pub fn authority_with<F, T>(mut self, f: F) -> Builder<AuthorityEnd>
     where
         F: FnOnce(Builder<AuthorityStart>) -> Builder<T>,
         T: To<AuthorityEnd>,
     {
         self.inner.start_authority();
         f(self.cast()).cast()
+    }
+}
+
+impl<S: To<AuthorityEnd>> Builder<S> {
+    /// Sets the [authority] component.
+    ///
+    /// This method is normally used with an authority which is empty or is
+    /// obtained from a [`UriRef`]. If you need to build an authority from its
+    /// subcomponents (userinfo, host, and port), use [`authority_with`] instead.
+    ///
+    /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
+    /// [`authority_with`]: Self::authority_with
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::{
+    ///     component::{Authority, Scheme},
+    ///     encoding::EStr,
+    ///     Builder, UriRef,
+    /// };
+    ///
+    /// let uri_ref = UriRef::builder()
+    ///     .scheme(Scheme::new_or_panic("file"))
+    ///     .authority(Authority::EMPTY)
+    ///     .path(EStr::new_or_panic("/path/to/file"))
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// assert_eq!(uri_ref, "file:///path/to/file");
+    ///
+    /// let auth = UriRef::parse("foo://user@example.com:8042")
+    ///     .unwrap()
+    ///     .authority()
+    ///     .unwrap();
+    ///
+    /// let uri_ref = UriRef::builder()
+    ///     .scheme(Scheme::new_or_panic("http"))
+    ///     .authority(auth)
+    ///     .path(EStr::EMPTY)
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// assert_eq!(uri_ref, "http://user@example.com:8042")
+    /// ```
+    pub fn authority(mut self, authority: Authority<'_>) -> Builder<AuthorityEnd> {
+        self.inner.push_authority(authority);
+        self.cast()
     }
 }
 
@@ -346,10 +405,11 @@ impl<S: To<HostEnd>> Builder<S> {
     /// use fluent_uri::{component::Host, encoding::EStr, UriRef};
     ///
     /// let uri_ref = UriRef::builder()
-    ///     .authority(|b| b.host(EStr::new_or_panic("127.0.0.1")))
+    ///     .authority_with(|b| b.host(EStr::new_or_panic("127.0.0.1")))
     ///     .path(EStr::EMPTY)
     ///     .build()
     ///     .unwrap();
+    ///
     /// assert!(matches!(uri_ref.authority().unwrap().host_parsed(), Host::Ipv4(_)));
     /// ```
     pub fn host<'a>(mut self, host: impl AsHost<'a>) -> Builder<HostEnd> {

@@ -61,7 +61,7 @@ Both URIs and relative references are considered URI references.
 
     let uri_ref = UriRef::builder()
         .scheme(SCHEME_FOO)
-        .authority(|b| {
+        .authority_with(|b| {
             b.userinfo(EStr::new_or_panic("user"))
                 .host(EStr::new_or_panic("example.com"))
                 .port(8042)
