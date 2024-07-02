@@ -18,7 +18,7 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![no_std]
 
-//! A full-featured URI handling library compliant with [RFC 3986].
+//! A full-featured URI reference handling library compliant with [RFC 3986].
 //!
 //! [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
 //!
@@ -98,7 +98,8 @@ use internal::{Meta, ToUri, Value};
 #[cfg(feature = "serde")]
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-/// A [URI reference] defined in RFC 3986.
+/// A [URI reference] defined in RFC 3986, that is, either a URI or a relative
+/// reference.
 ///
 /// [URI reference]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.1
 ///
@@ -173,6 +174,20 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 /// // Borrow a `Uri<String>` as `Uri<&str>`.
 /// let uri: Uri<&str> = uri_owned.borrow();
 /// # Ok::<_, fluent_uri::error::ParseError>(())
+/// ```
+/// 
+/// Validate URIs:
+/// 
+/// ```
+/// use fluent_uri::Uri;
+/// 
+/// let abs_uri_ref = Uri::parse("foo:bar");
+/// let is_valid_uri1 = abs_uri_ref.is_ok() && abs_uri_ref.unwrap().has_scheme();
+/// assert!(is_valid_uri1);
+/// 
+/// let rel_uri_ref = Uri::parse("baz");
+/// let is_valid_uri2 = rel_uri_ref.is_ok() && rel_uri_ref.unwrap().has_scheme();
+/// assert!(!is_valid_uri2);
 /// ```
 #[derive(Clone, Copy)]
 pub struct Uri<T> {
