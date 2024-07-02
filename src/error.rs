@@ -80,7 +80,6 @@ impl std::error::Error for BuildError {}
 pub(crate) enum ResolveErrorKind {
     InvalidBase,
     OpaqueBase,
-    // PathUnderflow,
 }
 
 /// An error occurred when resolving URI references.
