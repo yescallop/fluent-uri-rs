@@ -66,11 +66,11 @@ use crate::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 /// - Components must be set from left to right, no repetition allowed.
 /// - Setting [`path`] is mandatory before calling [`build`].
 /// - Methods [`userinfo`], [`host`], and [`port`] are only available
-///   within a call to [`authority`].
-/// - Setting [`host`] is mandatory within a call to [`authority`].
+///   within a call to [`authority_with`].
+/// - Setting [`host`] is mandatory within a call to [`authority_with`].
 ///
 /// You may otherwise skip setting optional components
-/// ([`scheme`], [`authority`], [`userinfo`], [`port`], [`query`], and [`fragment`])
+/// (scheme, authority, userinfo, port, query, and fragment)
 /// with [`advance`] or set them optionally with [`optional`].
 ///
 /// The builder typestates are currently private. Please open an issue
@@ -78,14 +78,11 @@ use crate::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 ///
 /// [`advance`]: Self::advance
 /// [`optional`]: Self::optional
-/// [`scheme`]: Self::scheme
-/// [`authority`]: Self::authority
+/// [`authority_with`]: Self::authority_with
 /// [`userinfo`]: Self::userinfo
 /// [`host`]: Self::host
 /// [`port`]: Self::port
 /// [`path`]: Self::path
-/// [`query`]: Self::query
-/// [`fragment`]: Self::fragment
 /// [`build`]: Self::build
 #[must_use]
 pub struct Builder<S> {
