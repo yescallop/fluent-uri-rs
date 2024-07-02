@@ -141,11 +141,10 @@ Both URIs and relative references are considered URI references.
 - Validate URIs:
 
     ```rust
-    let s = "foo:bar";
-    let is_valid_uri = UriRef::parse(s).is_ok_and(|r| r.is_uri());
-    assert!(is_valid_uri);
+    fn is_valid_uri(s: &str) -> bool {
+        UriRef::parse(s).is_ok_and(|r| r.is_uri())
+    }
 
-    let s = "baz";
-    let is_valid_uri = UriRef::parse(s).is_ok_and(|r| r.is_uri());
-    assert!(!is_valid_uri);
+    assert!(is_valid_uri("foo:bar"));
+    assert!(!is_valid_uri("baz"));
     ```

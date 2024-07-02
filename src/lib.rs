@@ -121,13 +121,12 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 /// ```
 /// use fluent_uri::UriRef;
 ///
-/// let s = "foo:bar";
-/// let is_valid_uri = UriRef::parse(s).is_ok_and(|r| r.is_uri());
-/// assert!(is_valid_uri);
+/// fn is_valid_uri(s: &str) -> bool {
+///     UriRef::parse(s).is_ok_and(|r| r.is_uri())
+/// }
 ///
-/// let s = "baz";
-/// let is_valid_uri = UriRef::parse(s).is_ok_and(|r| r.is_uri());
-/// assert!(!is_valid_uri);
+/// assert!(is_valid_uri("foo:bar"));
+/// assert!(!is_valid_uri("baz"));
 /// ```
 ///
 /// # Variants
