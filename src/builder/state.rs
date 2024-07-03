@@ -45,7 +45,7 @@ impl_to!(PathEnd => QueryEnd, FragmentEnd, End);
 impl_to!(QueryEnd => FragmentEnd, End);
 impl_to!(FragmentEnd => End);
 
-impl<T: To<AuthorityStart>> To<AuthorityEnd> for T {}
+impl<S: To<AuthorityStart>> To<AuthorityEnd> for S {}
 
 /// Indicates that we may advance to this state.
 pub trait AdvanceDst {}
