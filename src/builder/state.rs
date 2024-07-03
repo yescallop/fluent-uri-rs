@@ -34,8 +34,8 @@ macro_rules! impl_to {
     };
 }
 
-impl_to!(Start => SchemeEnd, AuthorityStart, AuthorityEnd, PathEnd);
-impl_to!(SchemeEnd => AuthorityStart, AuthorityEnd, PathEnd);
+impl_to!(Start => SchemeEnd, AuthorityStart, PathEnd);
+impl_to!(SchemeEnd => AuthorityStart, PathEnd);
 impl_to!(AuthorityStart => UserinfoEnd, HostEnd);
 impl_to!(UserinfoEnd => HostEnd);
 impl_to!(HostEnd => PortEnd, AuthorityEnd);
@@ -44,6 +44,8 @@ impl_to!(AuthorityEnd => PathEnd);
 impl_to!(PathEnd => QueryEnd, FragmentEnd, End);
 impl_to!(QueryEnd => FragmentEnd, End);
 impl_to!(FragmentEnd => End);
+
+impl<T: To<AuthorityStart>> To<AuthorityEnd> for T {}
 
 /// Indicates that we may advance to this state.
 pub trait AdvanceDst {}

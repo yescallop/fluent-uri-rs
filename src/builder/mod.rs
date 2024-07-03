@@ -279,9 +279,7 @@ impl<S: To<AuthorityStart>> Builder<S> {
         self.inner.start_authority();
         f(self.cast()).cast()
     }
-}
 
-impl<S: To<AuthorityEnd>> Builder<S> {
     /// Sets the [authority] component.
     ///
     /// This method is normally used with an authority which is empty or is
@@ -325,7 +323,7 @@ impl<S: To<AuthorityEnd>> Builder<S> {
     /// ```
     pub fn authority(mut self, authority: Authority<'_>) -> Builder<AuthorityEnd> {
         self.inner.push_authority(authority);
-        self.cast()
+        self.cast::<AuthorityEnd>()
     }
 }
 
