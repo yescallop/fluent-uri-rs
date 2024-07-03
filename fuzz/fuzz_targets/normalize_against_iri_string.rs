@@ -8,7 +8,7 @@ fuzz_target!(|data: &str| {
         return;
     };
 
-    if r1.is_relative_reference() || r1.path().is_rootless() {
+    if !r1.is_uri() || r1.path().is_rootless() {
         return;
     }
 
