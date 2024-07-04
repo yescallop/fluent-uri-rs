@@ -202,7 +202,7 @@ impl<E: Encoder> EStr<E> {
     ///
     /// Panics if the delimiter is not a [reserved] character.
     ///
-    /// [reserved]: https://datatracker.ietf.org/doc/html/rfc3986/#section-2.2
+    /// [reserved]: https://datatracker.ietf.org/doc/html/rfc3986#section-2.2
     ///
     /// # Examples
     ///
@@ -233,7 +233,7 @@ impl<E: Encoder> EStr<E> {
     ///
     /// Panics if the delimiter is not a [reserved] character.
     ///
-    /// [reserved]: https://datatracker.ietf.org/doc/html/rfc3986/#section-2.2
+    /// [reserved]: https://datatracker.ietf.org/doc/html/rfc3986#section-2.2
     ///
     /// # Examples
     ///
@@ -267,7 +267,7 @@ impl<E: Encoder> EStr<E> {
     ///
     /// Panics if the delimiter is not a [reserved] character.
     ///
-    /// [reserved]: https://datatracker.ietf.org/doc/html/rfc3986/#section-2.2
+    /// [reserved]: https://datatracker.ietf.org/doc/html/rfc3986#section-2.2
     ///
     /// # Examples
     ///
@@ -364,7 +364,7 @@ impl<E: Encoder> ToOwned for EStr<E> {
 
 /// Extension methods for the [path] component of URI reference.
 ///
-/// [path]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
+/// [path]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.3
 impl EStr<Path> {
     /// Checks whether the path is absolute, i.e., starting with `'/'`.
     #[inline]

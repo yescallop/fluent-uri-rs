@@ -101,9 +101,9 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 /// A [URI reference] defined in RFC 3986, i.e., either a [URI] or a [relative reference].
 ///
-/// [URI reference]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.1
-/// [URI]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3
-/// [relative reference]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.2
+/// [URI reference]: https://datatracker.ietf.org/doc/html/rfc3986#section-4.1
+/// [URI]: https://datatracker.ietf.org/doc/html/rfc3986#section-3
+/// [relative reference]: https://datatracker.ietf.org/doc/html/rfc3986#section-4.2
 ///
 /// # Terminology
 ///
@@ -226,7 +226,7 @@ impl<T> UriRef<T> {
     /// From a [`ParseError<String>`], you may recover or strip the input
     /// by calling [`into_input`] or [`strip_input`] on it.
     ///
-    /// [`URI-reference`]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.1
+    /// [`URI-reference`]: https://datatracker.ietf.org/doc/html/rfc3986#section-4.1
     /// [`into_input`]: ParseError::into_input
     /// [`strip_input`]: ParseError::strip_input
     pub fn parse<I>(input: I) -> Result<Self, I::Err>
@@ -310,7 +310,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> UriRef<T> {
     /// Note that the scheme component is *case-insensitive*.
     /// See the documentation of [`Scheme`] for more details on comparison.
     ///
-    /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
+    /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.1
     ///
     /// # Examples
     ///
@@ -334,7 +334,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> UriRef<T> {
 
     /// Returns the optional [authority] component.
     ///
-    /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
+    /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2
     ///
     /// # Examples
     ///
@@ -369,7 +369,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> UriRef<T> {
     ///
     /// The returned [`EStr`] slice has [extension methods] for the path component.
     ///
-    /// [path]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
+    /// [path]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.3
     /// [extension methods]: EStr#impl-EStr<Path>
     ///
     /// # Examples
@@ -394,7 +394,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> UriRef<T> {
 
     /// Returns the optional [query] component.
     ///
-    /// [query]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.4
+    /// [query]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.4
     ///
     /// # Examples
     ///
@@ -424,7 +424,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> UriRef<T> {
 
     /// Returns the optional [fragment] component.
     ///
-    /// [fragment]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.5
+    /// [fragment]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.5
     ///
     /// # Examples
     ///
@@ -450,7 +450,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> UriRef<T> {
     /// match the [`absolute-URI`] ABNF rule from RFC 3986.
     ///
     /// This method applies the reference resolution algorithm defined in
-    /// [Section 5 of RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986/#section-5),
+    /// [Section 5 of RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986#section-5),
     /// except for the following deviations:
     ///
     /// - If `base` contains no authority and its path is [rootless], then
@@ -471,7 +471,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> UriRef<T> {
     /// No normalization except the removal of dot segments will be performed.
     /// Use [`normalize`] if necessary.
     ///
-    /// [`absolute-URI`]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.3
+    /// [`absolute-URI`]: https://datatracker.ietf.org/doc/html/rfc3986#section-4.3
     /// [rootless]: EStr::<Path>::is_rootless
     /// [`normalize`]: Self::normalize
     ///
@@ -506,7 +506,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> UriRef<T> {
     /// Normalizes the URI reference.
     ///
     /// This method applies the syntax-based normalization described in
-    /// [Section 6.2.2 of RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986/#section-6.2.2),
+    /// [Section 6.2.2 of RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986#section-6.2.2),
     /// which is effectively equivalent to taking the following steps in order:
     ///
     /// - Decode any percent-encoded octet that corresponds to an unreserved character.
@@ -523,7 +523,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> UriRef<T> {
     ///
     /// This method is idempotent: `self.normalize()` equals `self.normalize().normalize()`.
     ///
-    /// [`remove_dot_segments`]: https://datatracker.ietf.org/doc/html/rfc3986/#section-5.2.4
+    /// [`remove_dot_segments`]: https://datatracker.ietf.org/doc/html/rfc3986#section-5.2.4
     /// [`resolve_against`]: Self::resolve_against
     ///
     /// # Examples
@@ -544,7 +544,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> UriRef<T> {
     ///
     /// This method is equivalent to [`has_scheme`].
     ///
-    /// [URI]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3
+    /// [URI]: https://datatracker.ietf.org/doc/html/rfc3986#section-3
     /// [`has_scheme`]: Self::has_scheme
     ///
     /// # Examples

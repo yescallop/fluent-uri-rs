@@ -260,7 +260,7 @@ impl<S: To<SchemeEnd>> Builder<S> {
     /// Note that the scheme component is *case-insensitive* and is normalized to
     /// *lowercase*. For consistency, you should only produce lowercase scheme names.
     ///
-    /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
+    /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.1
     pub fn scheme(mut self, scheme: &Scheme) -> Builder<SchemeEnd> {
         self.inner.push_scheme(scheme.as_str());
         self.cast()
@@ -270,7 +270,7 @@ impl<S: To<SchemeEnd>> Builder<S> {
 impl<S: To<AuthorityStart>> Builder<S> {
     /// Builds the [authority] component with the given function.
     ///
-    /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
+    /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2
     pub fn authority_with<F, T>(mut self, f: F) -> Builder<AuthorityEnd>
     where
         F: FnOnce(Builder<AuthorityStart>) -> Builder<T>,
@@ -286,7 +286,7 @@ impl<S: To<AuthorityStart>> Builder<S> {
     /// obtained from a [`UriRef`]. If you need to build an authority from its
     /// subcomponents (userinfo, host, and port), use [`authority_with`] instead.
     ///
-    /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
+    /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2
     /// [`authority_with`]: Self::authority_with
     ///
     /// # Examples
@@ -330,7 +330,7 @@ impl<S: To<AuthorityStart>> Builder<S> {
 impl<S: To<UserinfoEnd>> Builder<S> {
     /// Sets the [userinfo] subcomponent of authority.
     ///
-    /// [userinfo]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.1
+    /// [userinfo]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.1
     pub fn userinfo(mut self, userinfo: &EStr<Userinfo>) -> Builder<UserinfoEnd> {
         self.inner.push_userinfo(userinfo.as_str());
         self.cast()
@@ -391,7 +391,7 @@ impl<S: To<HostEnd>> Builder<S> {
     /// Note that the host subcomponent is *case-insensitive* and is normalized to
     /// *lowercase*. For consistency, you should only produce lowercase registered names.
     ///
-    /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
+    /// [host]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.2
     /// [`Host::Ipv4`]: crate::component::Host::Ipv4
     ///
     /// # Examples
@@ -437,7 +437,7 @@ impl<S: To<PortEnd>> Builder<S> {
     ///
     /// For consistency, you should not produce an empty port.
     ///
-    /// [port-spec]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
+    /// [port-spec]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.3
     pub fn port<P: AsPort>(mut self, port: P) -> Builder<PortEnd> {
         port.push_to(&mut self.inner.buf);
         self.cast()
@@ -445,7 +445,7 @@ impl<S: To<PortEnd>> Builder<S> {
 
     /// Sets the [port] subcomponent of authority, omitting it when it equals the default value.
     ///
-    /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
+    /// [port]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.3
     #[cfg(fluent_uri_unstable)]
     pub fn port_with_default(self, port: u16, default: u16) -> Builder<PortEnd> {
         self.optional(Builder::port, Some(port).filter(|&port| port != default))
@@ -455,7 +455,7 @@ impl<S: To<PortEnd>> Builder<S> {
 impl<S: To<PathEnd>> Builder<S> {
     /// Sets the [path] component.
     ///
-    /// [path]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.3
+    /// [path]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.3
     pub fn path(mut self, path: &EStr<Path>) -> Builder<PathEnd> {
         self.inner.push_path(path.as_str());
         self.cast()
@@ -465,7 +465,7 @@ impl<S: To<PathEnd>> Builder<S> {
 impl<S: To<QueryEnd>> Builder<S> {
     /// Sets the [query] component.
     ///
-    /// [query]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.4
+    /// [query]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.4
     pub fn query(mut self, query: &EStr<Query>) -> Builder<QueryEnd> {
         self.inner.push_query(query.as_str());
         self.cast()
@@ -475,7 +475,7 @@ impl<S: To<QueryEnd>> Builder<S> {
 impl<S: To<FragmentEnd>> Builder<S> {
     /// Sets the [fragment] component.
     ///
-    /// [fragment]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.5
+    /// [fragment]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.5
     pub fn fragment(mut self, fragment: &EStr<Fragment>) -> Builder<FragmentEnd> {
         self.inner.push_fragment(fragment.as_str());
         self.cast()
@@ -493,7 +493,7 @@ impl<S: To<End>> Builder<S> {
     /// - When authority is not present, the path cannot start with `"//"`.
     /// - In a [relative-path reference][rel-ref], the first path segment cannot contain `':'`.
     ///
-    /// [rel-ref]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.2
+    /// [rel-ref]: https://datatracker.ietf.org/doc/html/rfc3986#section-4.2
     pub fn build(self) -> Result<UriRef<String>, BuildError> {
         self.inner.validate().map(|()| UriRef {
             val: self.inner.buf,

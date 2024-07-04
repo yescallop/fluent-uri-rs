@@ -21,7 +21,7 @@ use std::{
 
 /// The [scheme] component of URI reference.
 ///
-/// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
+/// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.1
 ///
 /// # Comparison
 ///
@@ -63,7 +63,7 @@ impl Scheme {
     /// [Section 3.1 of RFC 3986][scheme]. For a non-panicking variant,
     /// use [`new`](Self::new).
     ///
-    /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.1
+    /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.1
     #[inline]
     #[must_use]
     pub const fn new_or_panic(s: &str) -> &Scheme {
@@ -124,7 +124,7 @@ impl Eq for Scheme {}
 
 /// The [authority] component of URI reference.
 ///
-/// [authority]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2
+/// [authority]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2
 #[derive(Clone, Copy)]
 pub struct Authority<'a> {
     val: &'a str,
@@ -164,7 +164,7 @@ impl<'a> Authority<'a> {
 
     /// Returns the optional [userinfo] subcomponent.
     ///
-    /// [userinfo]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.1
+    /// [userinfo]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.1
     ///
     /// # Examples
     ///
@@ -194,7 +194,7 @@ impl<'a> Authority<'a> {
     ///
     /// Note that the host subcomponent is *case-insensitive*.
     ///
-    /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
+    /// [host]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.2
     ///
     /// # Examples
     ///
@@ -224,7 +224,7 @@ impl<'a> Authority<'a> {
     ///
     /// Note that the host subcomponent is *case-insensitive*.
     ///
-    /// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
+    /// [host]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.2
     ///
     /// # Examples
     ///
@@ -279,7 +279,7 @@ impl<'a> Authority<'a> {
     /// default if it is empty, ignore the leading zeros, or use a different addressing
     /// mechanism that allows ports larger than [`u16::MAX`].
     ///
-    /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
+    /// [port]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.3
     ///
     /// # Examples
     ///
@@ -313,7 +313,7 @@ impl<'a> Authority<'a> {
     ///
     /// Returns `Ok(None)` if the port is not present or is empty. Leading zeros are ignored.
     ///
-    /// [port]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.3
+    /// [port]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.3
     ///
     /// # Errors
     ///
@@ -437,7 +437,7 @@ impl<'a> Authority<'a> {
 
 /// The parsed [host] component of URI reference.
 ///
-/// [host]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3.2.2
+/// [host]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.2
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(fuzzing, derive(PartialEq, Eq))]
 pub enum Host<'a> {

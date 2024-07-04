@@ -54,7 +54,7 @@ impl Encoder for Fragment {
 /// An encoder for data which preserves only [unreserved] characters
 /// and encodes the others.
 ///
-/// [unreserved]: https://datatracker.ietf.org/doc/html/rfc3986/#section-2.3
+/// [unreserved]: https://datatracker.ietf.org/doc/html/rfc3986#section-2.3
 pub struct Data(());
 
 impl Encoder for Data {
