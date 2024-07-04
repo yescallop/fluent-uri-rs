@@ -7,7 +7,7 @@ use crate::{
     },
     internal::{AuthMeta, HostMeta},
 };
-use core::{iter, num::ParseIntError};
+use core::num::ParseIntError;
 use ref_cast::{ref_cast_custom, RefCastCustom};
 
 #[cfg(feature = "net")]
@@ -109,14 +109,7 @@ impl Scheme {
 impl PartialEq for Scheme {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
-        const ASCII_CASE_MASK: u8 = 0b0010_0000;
-
-        let (a, b) = (self.inner.as_bytes(), other.inner.as_bytes());
-
-        // The only characters allowed in a scheme are alphabets, digits, '+', '-' and '.'.
-        // Their ASCII codes allow us to simply set the sixth bits and compare.
-        a.len() == b.len()
-            && iter::zip(a, b).all(|(a, b)| a | ASCII_CASE_MASK == b | ASCII_CASE_MASK)
+        self.inner.eq_ignore_ascii_case(&other.inner)
     }
 }
 
