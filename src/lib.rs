@@ -491,10 +491,13 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> UriRef<T> {
     ///
     /// let base = UriRef::parse("http://example.com/foo/bar")?;
     ///
-    /// assert_eq!(UriRef::parse("baz")?.resolve_against(&base)?, "http://example.com/foo/baz");
-    /// assert_eq!(UriRef::parse("../baz")?.resolve_against(&base)?, "http://example.com/baz");
-    /// assert_eq!(UriRef::parse("?baz")?.resolve_against(&base)?, "http://example.com/foo/bar?baz");
-    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// let uri_ref = UriRef::parse("baz")?;
+    /// assert_eq!(uri_ref.resolve_against(&base).unwrap(), "http://example.com/foo/baz");
+    /// let uri_ref = UriRef::parse("../baz")?;
+    /// assert_eq!(uri_ref.resolve_against(&base).unwrap(), "http://example.com/baz");
+    /// let uri_ref = UriRef::parse("?baz")?;
+    /// assert_eq!(uri_ref.resolve_against(&base).unwrap(), "http://example.com/foo/bar?baz");
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     pub fn resolve_against<U: Bos<str>>(
         &self,

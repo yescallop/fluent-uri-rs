@@ -83,9 +83,12 @@ Both URIs and relative references are considered URI references.
     ```rust
     let base = UriRef::parse("http://example.com/foo/bar")?;
 
-    assert_eq!(UriRef::parse("baz")?.resolve_against(&base)?, "http://example.com/foo/baz");
-    assert_eq!(UriRef::parse("../baz")?.resolve_against(&base)?, "http://example.com/baz");
-    assert_eq!(UriRef::parse("?baz")?.resolve_against(&base)?, "http://example.com/foo/bar?baz");
+    let uri_ref = UriRef::parse("baz")?;
+    assert_eq!(uri_ref.resolve_against(&base).unwrap(), "http://example.com/foo/baz");
+    let uri_ref = UriRef::parse("../baz")?;
+    assert_eq!(uri_ref.resolve_against(&base).unwrap(), "http://example.com/baz");
+    let uri_ref = UriRef::parse("?baz")?;
+    assert_eq!(uri_ref.resolve_against(&base).unwrap(), "http://example.com/foo/bar?baz");
     ```
 
 - Normalize a URI reference:

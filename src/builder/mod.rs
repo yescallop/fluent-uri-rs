@@ -307,11 +307,9 @@ impl<S: To<AuthorityStart>> Builder<S> {
     ///
     /// assert_eq!(uri_ref, "file:///path/to/file");
     ///
-    /// let auth = UriRef::parse("foo://user@example.com:8042")
-    ///     .unwrap()
+    /// let auth = UriRef::parse("foo://user@example.com:8042")?
     ///     .authority()
     ///     .unwrap();
-    ///
     /// let uri_ref = UriRef::builder()
     ///     .scheme(Scheme::new_or_panic("http"))
     ///     .authority(auth)
@@ -319,7 +317,8 @@ impl<S: To<AuthorityStart>> Builder<S> {
     ///     .build()
     ///     .unwrap();
     ///
-    /// assert_eq!(uri_ref, "http://user@example.com:8042")
+    /// assert_eq!(uri_ref, "http://user@example.com:8042");
+    /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     pub fn authority(mut self, authority: Authority<'_>) -> Builder<AuthorityEnd> {
         self.inner.push_authority(authority);

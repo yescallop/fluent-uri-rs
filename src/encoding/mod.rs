@@ -69,7 +69,7 @@ pub trait Encoder: 'static {
 /// use std::collections::HashMap;
 ///
 /// let s = "?name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21";
-/// let query = UriRef::parse(s).unwrap().query().unwrap();
+/// let query = UriRef::parse(s)?.query().unwrap();
 /// let map: HashMap<_, _> = query
 ///     .split('&')
 ///     .map(|s| s.split_once('=').unwrap_or((s, EStr::EMPTY)))
@@ -77,6 +77,7 @@ pub trait Encoder: 'static {
 ///     .collect();
 /// assert_eq!(map["name"], "张三");
 /// assert_eq!(map["speech"], "¡Olé!");
+/// # Ok::<_, fluent_uri::error::ParseError>(())
 /// ```
 #[derive(RefCastCustom)]
 #[repr(transparent)]
@@ -183,8 +184,7 @@ impl<E: Encoder> EStr<E> {
     ///
     /// let dec = EStr::<Path>::new_or_panic("%C2%A1Hola%21").decode();
     /// assert_eq!(dec.as_bytes(), &[0xc2, 0xa1, 0x48, 0x6f, 0x6c, 0x61, 0x21]);
-    /// assert_eq!(dec.into_string()?, "¡Hola!");
-    /// # Ok::<_, std::string::FromUtf8Error>(())
+    /// assert_eq!(dec.into_string().unwrap(), "¡Hola!");
     /// ```
     #[must_use]
     pub fn decode(&self) -> Decode<'_> {
