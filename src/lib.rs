@@ -476,9 +476,8 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> UriRef<T> {
     /// [`normalize`]: Self::normalize
     ///
     /// This method has the property that
-    /// `self.resolve_against(base).unwrap().normalize()` equals
-    /// `self.normalize().resolve_against(&base.normalize()).unwrap()`
-    /// when no panic occurs.
+    /// `self.resolve_against(base).ok().map(|r| r.normalize())` equals
+    /// `self.normalize().resolve_against(&base.normalize()).ok()`.
     ///
     /// # Errors
     ///
