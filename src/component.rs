@@ -241,7 +241,6 @@ impl<'a> Authority<'a> {
     /// let uri_ref = UriRef::parse("//localhost")?;
     /// let auth = uri_ref.authority().unwrap();
     /// assert!(matches!(auth.host_parsed(), Host::RegName(name) if name == "localhost"));
-    ///
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[must_use]
