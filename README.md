@@ -1,6 +1,6 @@
 # fluent-uri
 
-A full-featured [URI reference] handling library compliant with [RFC 3986]. It is:
+A full-featured URI reference handling library compliant with [RFC 3986]. It is:
 
 - **Fast:** Zero-copy parsing. Benchmarked to be highly performant.[^bench-res]
 - **Easy:** Carefully designed and documented APIs. Handy percent-encoding utilities.
@@ -13,22 +13,22 @@ A full-featured [URI reference] handling library compliant with [RFC 3986]. It i
 
 [Documentation](https://docs.rs/fluent-uri) | [Discussions](https://github.com/yescallop/fluent-uri-rs/discussions)
 
-[RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
-[URI reference]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.1
+[RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986
 [^bench-res]: In [a benchmark](https://github.com/yescallop/fluent-uri-rs/blob/main/bench/benches/bench.rs)
     on an Intel Core i5-11300H processor, `fluent-uri` parsed a URI
     in 49ns compared to 89ns for `iref` and 135ns for `iri-string`.
 
 ## Terminology
 
-A *URI reference* can either be a *[URI]* or a *[relative reference]*.
-If it contains a scheme (like `http`, `ftp`, etc.), it is a URI.
-For example, `foo:bar` is a URI. If it does not contain a scheme,
-it is a relative reference. For example, `baz` is a relative reference.
-Both URIs and relative references are considered URI references.
+A *[URI reference]* is either a *[URI]* or a *[relative reference]*.
+If it starts with a *[scheme]* (like `http`, `ftp`, etc.) followed by a colon (`:`), it is a URI.
+For example, `http://example.com/` and `foo:bar` are URIs. Otherwise, it is
+a relative reference. For example, `foo` and `?bar#baz` are relative references.
 
-[URI]: https://datatracker.ietf.org/doc/html/rfc3986/#section-3
-[relative reference]: https://datatracker.ietf.org/doc/html/rfc3986/#section-4.2
+[URI reference]: https://datatracker.ietf.org/doc/html/rfc3986#section-4.1
+[URI]: https://datatracker.ietf.org/doc/html/rfc3986#section-3
+[relative reference]: https://datatracker.ietf.org/doc/html/rfc3986#section-4.2
+[scheme]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.1
 
 ## Examples
 
@@ -139,15 +139,4 @@ Both URIs and relative references are considered URI references.
         .build()
         .unwrap();
     assert_eq!(uri_ref.as_str(), "?name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
-    ```
-
-- Validate URIs:
-
-    ```rust
-    fn is_valid_uri(s: &str) -> bool {
-        UriRef::parse(s).is_ok_and(|r| r.is_uri())
-    }
-
-    assert!(is_valid_uri("foo:bar"));
-    assert!(!is_valid_uri("baz"));
     ```

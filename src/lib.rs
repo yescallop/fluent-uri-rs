@@ -20,13 +20,38 @@
 
 //! A full-featured URI reference handling library compliant with [RFC 3986].
 //!
-//! [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986/
+//! [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986
 //!
 //! **Examples:** [Parsing](UriRef#examples). [Building](Builder#examples).
 //! [Reference resolution](UriRef::resolve_against). [Normalization](UriRef::normalize).
 //! [Percent-decoding](EStr#examples).
 //! [Percent-encoding](crate::encoding::EString#examples).
-//! [Validating URIs](UriRef#terminology).
+//!
+//! # Terminology
+//!
+//! This crate provides a struct [`UriRef`] representing a *[URI reference]*,
+//! that is, either a *[URI]* or a *[relative reference]*. If it starts with a *[scheme]*
+//! (like `http`, `ftp`, etc.) followed by a colon (`:`), it is a URI.
+//! For example, `http://example.com/` and `foo:bar` are URIs. Otherwise, it is
+//! a relative reference. For example, `foo` and `?bar#baz` are relative references.
+//! You can combine [`parse`] and [`is_uri`] to check whether
+//! a string is a valid URI, for example:
+//!
+//! [URI reference]: https://datatracker.ietf.org/doc/html/rfc3986#section-4.1
+//! [URI]: https://datatracker.ietf.org/doc/html/rfc3986#section-3
+//! [relative reference]: https://datatracker.ietf.org/doc/html/rfc3986#section-4.2
+//! [scheme]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.1
+//! [`parse`]: UriRef::parse
+//! [`is_uri`]: UriRef::is_uri
+//!
+//! ```
+//! fn is_valid_uri(s: &str) -> bool {
+//!     fluent_uri::UriRef::parse(s).is_ok_and(|r| r.is_uri())
+//! }
+//!
+//! assert!(is_valid_uri("foo:bar"));
+//! assert!(!is_valid_uri("baz"));
+//! ```
 //!
 //! # Guidance for crate users
 //!
@@ -99,35 +124,9 @@ use internal::{Meta, ToUriRef, Value};
 #[cfg(feature = "serde")]
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-/// A [URI reference] defined in RFC 3986, i.e., either a [URI] or a [relative reference].
+/// A URI reference, i.e., either a URI or a relative reference.
 ///
-/// [URI reference]: https://datatracker.ietf.org/doc/html/rfc3986#section-4.1
-/// [URI]: https://datatracker.ietf.org/doc/html/rfc3986#section-3
-/// [relative reference]: https://datatracker.ietf.org/doc/html/rfc3986#section-4.2
-///
-/// # Terminology
-///
-/// A *URI reference* can either be a *URI* or a *relative reference*.
-/// If it contains a scheme (like `http`, `ftp`, etc.), it is a URI.
-/// For example, `foo:bar` is a URI. If it does not contain a scheme,
-/// it is a relative reference. For example, `baz` is a relative reference.
-/// Both URIs and relative references are considered URI references.
-/// You can combine [`parse`] and [`is_uri`] to check whether a string
-/// is a valid URI, for example:
-///
-/// [`parse`]: Self::parse
-/// [`is_uri`]: Self::is_uri
-///
-/// ```
-/// use fluent_uri::UriRef;
-///
-/// fn is_valid_uri(s: &str) -> bool {
-///     UriRef::parse(s).is_ok_and(|r| r.is_uri())
-/// }
-///
-/// assert!(is_valid_uri("foo:bar"));
-/// assert!(!is_valid_uri("baz"));
-/// ```
+/// See the [crate-level documentation](crate#terminology) for an explanation of the above terms.
 ///
 /// # Variants
 ///
