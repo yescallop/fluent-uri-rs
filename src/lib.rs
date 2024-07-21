@@ -61,9 +61,9 @@
 //! for further reading as the long-term interoperability
 //! of URI schemes may be of concern.
 //!
-//! [RFC 7595]: https://datatracker.ietf.org/doc/html/rfc7595/
-//! [RFC 8820]: https://datatracker.ietf.org/doc/html/rfc8820/
-//! [RFC 9413]: https://datatracker.ietf.org/doc/html/rfc9413/
+//! [RFC 7595]: https://datatracker.ietf.org/doc/html/rfc7595
+//! [RFC 8820]: https://datatracker.ietf.org/doc/html/rfc8820
+//! [RFC 9413]: https://datatracker.ietf.org/doc/html/rfc9413
 //!
 //! # Crate features
 //!
@@ -514,7 +514,7 @@ impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> UriRef<T> {
     /// - Uppercase the hexadecimal digits within all percent-encoded octets.
     /// - Lowercase the scheme and the host except the percent-encoded octets.
     /// - Turn any IPv6 literal address into its canonical form as per
-    ///   [RFC 5952](https://datatracker.ietf.org/doc/html/rfc5952/).
+    ///   [RFC 5952](https://datatracker.ietf.org/doc/html/rfc5952).
     /// - If the port is empty, remove its `':'` delimiter.
     /// - If the URI reference contains a scheme and an absolute path,
     ///   apply the [`remove_dot_segments`] algorithm to the path, taking account of

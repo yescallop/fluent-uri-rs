@@ -3,7 +3,7 @@
 //! The predefined table constants in this module are documented with
 //! the ABNF notation of [RFC 5234].
 //!
-//! [RFC 5234]: https://datatracker.ietf.org/doc/html/rfc5234/
+//! [RFC 5234]: https://datatracker.ietf.org/doc/html/rfc5234
 
 use super::Table;
 use alloc::string::String;
