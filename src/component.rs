@@ -268,7 +268,7 @@ impl<'a> Authority<'a> {
     ///
     /// Note that the port may be empty, with leading zeros, or larger than [`u16::MAX`].
     /// It is up to you to decide whether to deny such ports, fallback to the scheme's
-    /// default if it is empty, ignore the leading zeros, or use a different addressing
+    /// default if it is empty, ignore the leading zeros, or use a special addressing
     /// mechanism that allows ports larger than [`u16::MAX`].
     ///
     /// [port]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.3
