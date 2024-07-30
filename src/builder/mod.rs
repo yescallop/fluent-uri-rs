@@ -438,7 +438,7 @@ impl<S: To<PortEnd>> Builder<S> {
     /// For consistency, you should not produce an empty port.
     ///
     /// [port-spec]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.3
-    pub fn port<P: AsPort>(mut self, port: P) -> Builder<PortEnd> {
+    pub fn port(mut self, port: impl AsPort) -> Builder<PortEnd> {
         port.push_to(&mut self.inner.buf);
         self.cast()
     }
