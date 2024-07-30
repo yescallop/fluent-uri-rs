@@ -20,10 +20,11 @@ A full-featured URI reference handling library compliant with [RFC 3986]. It is:
 
 ## Terminology
 
-A *[URI reference]* is either a *[URI]* or a *[relative reference]*.
-If it starts with a *[scheme]* (like `http`, `ftp`, etc.) followed by a colon (`:`), it is a URI.
-For example, `http://example.com/` and `foo:bar` are URIs. Otherwise, it is
-a relative reference. For example, `foo` and `?bar#baz` are relative references.
+A *[URI reference]* is either a *[URI]* or a *[relative reference]*. If it starts with a *[scheme]*
+(like `http`, `ftp`, `mailto`, etc.) followed by a colon (`:`), it is a URI. For example,
+`http://example.com/` and `mailto:user@example.com` are URIs. Otherwise, it is
+a relative reference. For example, `//example.org/`, `/index.html`, `../`, `foo`,
+`?bar`, and `#baz` are relative references.
 
 [URI reference]: https://datatracker.ietf.org/doc/html/rfc3986#section-4.1
 [URI]: https://datatracker.ietf.org/doc/html/rfc3986#section-3

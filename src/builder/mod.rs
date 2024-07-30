@@ -282,8 +282,8 @@ impl<S: To<AuthorityStart>> Builder<S> {
 
     /// Sets the [authority] component.
     ///
-    /// This method is normally used with an authority which is empty or is
-    /// obtained from a [`UriRef`]. If you need to build an authority from its
+    /// This method is normally used with an authority which is empty ([`Authority::EMPTY`])
+    /// or is obtained from a [`UriRef`]. If you need to build an authority from its
     /// subcomponents (userinfo, host, and port), use [`authority_with`] instead.
     ///
     /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2

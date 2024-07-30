@@ -31,9 +31,11 @@
 //!
 //! This crate provides a struct [`UriRef`] representing a *[URI reference]*,
 //! that is, either a *[URI]* or a *[relative reference]*. If it starts with a *[scheme]*
-//! (like `http`, `ftp`, etc.) followed by a colon (`:`), it is a URI.
-//! For example, `http://example.com/` and `foo:bar` are URIs. Otherwise, it is
-//! a relative reference. For example, `foo` and `?bar#baz` are relative references.
+//! (like `http`, `ftp`, `mailto`, etc.) followed by a colon (`:`), it is a URI. For example,
+//! `http://example.com/` and `mailto:user@example.com` are URIs. Otherwise, it is
+//! a relative reference. For example, `//example.org/`, `/index.html`, `../`, `foo`,
+//! `?bar`, and `#baz` are relative references.
+//!
 //! You can combine [`parse`] and [`is_uri`] to check whether
 //! a string is a valid URI, for example:
 //!
@@ -49,8 +51,8 @@
 //!     fluent_uri::UriRef::parse(s).is_ok_and(|r| r.is_uri())
 //! }
 //!
-//! assert!(is_valid_uri("foo:bar"));
-//! assert!(!is_valid_uri("baz"));
+//! assert!(is_valid_uri("http://example.com/"));
+//! assert!(!is_valid_uri("foo"));
 //! ```
 //!
 //! # Guidance for crate users
