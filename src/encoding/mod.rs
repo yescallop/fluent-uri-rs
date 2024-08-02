@@ -1,4 +1,4 @@
-//! Utilities for percent-encoding.
+//! Percent-encoding utilities.
 
 pub mod encoder;
 mod estring;
@@ -362,7 +362,7 @@ impl<E: Encoder> ToOwned for EStr<E> {
     }
 }
 
-/// Extension methods for the [path] component of URI reference.
+/// Extension methods for the [path] component.
 ///
 /// [path]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.3
 impl EStr<Path> {
@@ -395,20 +395,20 @@ impl EStr<Path> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::UriRef;
+    /// use fluent_uri::Uri;
     ///
     /// // Segments are separated by '/'.
     /// // The empty string before a leading '/' is not a segment.
     /// // However, segments can be empty in the other cases.
-    /// let path = UriRef::parse("file:///path/to//dir/")?.path();
+    /// let path = Uri::parse("file:///path/to//dir/")?.path();
     /// assert_eq!(path, "/path/to//dir/");
-    /// assert!(path.segments().into_iter().flatten().eq(["path", "to", "", "dir", ""]));
+    /// assert!(path.segments().unwrap().eq(["path", "to", "", "dir", ""]));
     ///
-    /// let path = UriRef::parse("foo:bar/baz")?.path();
+    /// let path = Uri::parse("foo:bar/baz")?.path();
     /// assert_eq!(path, "bar/baz");
     /// assert!(path.segments().is_none());
     ///
-    /// let path = UriRef::parse("http://example.com")?.path();
+    /// let path = Uri::parse("http://example.com")?.path();
     /// assert!(path.is_empty());
     /// assert!(path.segments().is_none());
     /// # Ok::<_, fluent_uri::error::ParseError>(())

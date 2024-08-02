@@ -1,4 +1,4 @@
-//! Components of URI reference.
+//! URI components.
 
 use crate::{
     encoding::{
@@ -19,7 +19,7 @@ use std::{
     net::{SocketAddr, ToSocketAddrs},
 };
 
-/// The [scheme] component of URI reference.
+/// A [scheme] component.
 ///
 /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.1
 ///
@@ -31,12 +31,11 @@ use std::{
 /// # Examples
 ///
 /// ```
-/// use fluent_uri::{component::Scheme, UriRef};
+/// use fluent_uri::{component::Scheme, Uri};
 ///
 /// const SCHEME_HTTP: &Scheme = Scheme::new_or_panic("http");
 ///
-/// let uri_ref = UriRef::parse("HTTP://EXAMPLE.COM/")?;
-/// let scheme = uri_ref.scheme().unwrap();
+/// let scheme = Uri::parse("HTTP://EXAMPLE.COM/")?.scheme();
 ///
 /// // Case-insensitive comparison.
 /// assert_eq!(scheme, SCHEME_HTTP);
@@ -91,12 +90,12 @@ impl Scheme {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::UriRef;
+    /// use fluent_uri::Uri;
     ///
-    /// let uri_ref = UriRef::parse("http://example.com/")?;
-    /// assert_eq!(uri_ref.scheme().unwrap().as_str(), "http");
-    /// let uri_ref = UriRef::parse("HTTP://EXAMPLE.COM/")?;
-    /// assert_eq!(uri_ref.scheme().unwrap().as_str(), "HTTP");
+    /// let uri = Uri::parse("http://example.com/")?;
+    /// assert_eq!(uri.scheme().as_str(), "http");
+    /// let uri = Uri::parse("HTTP://EXAMPLE.COM/")?;
+    /// assert_eq!(uri.scheme().as_str(), "HTTP");
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[inline]
@@ -115,7 +114,7 @@ impl PartialEq for Scheme {
 
 impl Eq for Scheme {}
 
-/// The [authority] component of URI reference.
+/// An [authority] component.
 ///
 /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2
 #[derive(Clone, Copy)]
@@ -142,10 +141,10 @@ impl<'a> Authority<'a> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::UriRef;
+    /// use fluent_uri::Uri;
     ///
-    /// let uri_ref = UriRef::parse("http://user@example.com:8080/")?;
-    /// let auth = uri_ref.authority().unwrap();
+    /// let uri = Uri::parse("http://user@example.com:8080/")?;
+    /// let auth = uri.authority().unwrap();
     /// assert_eq!(auth.as_str(), "user@example.com:8080");
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
@@ -162,14 +161,14 @@ impl<'a> Authority<'a> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::{encoding::EStr, UriRef};
+    /// use fluent_uri::{encoding::EStr, Uri};
     ///
-    /// let uri_ref = UriRef::parse("http://user@example.com/")?;
-    /// let auth = uri_ref.authority().unwrap();
+    /// let uri = Uri::parse("http://user@example.com/")?;
+    /// let auth = uri.authority().unwrap();
     /// assert_eq!(auth.userinfo(), Some(EStr::new_or_panic("user")));
     ///
-    /// let uri_ref = UriRef::parse("http://example.com/")?;
-    /// let auth = uri_ref.authority().unwrap();
+    /// let uri = Uri::parse("http://example.com/")?;
+    /// let auth = uri.authority().unwrap();
     /// assert_eq!(auth.userinfo(), None);
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
@@ -192,18 +191,18 @@ impl<'a> Authority<'a> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::UriRef;
+    /// use fluent_uri::Uri;
     ///
-    /// let uri_ref = UriRef::parse("http://user@example.com:8080/")?;
-    /// let auth = uri_ref.authority().unwrap();
+    /// let uri = Uri::parse("http://user@example.com:8080/")?;
+    /// let auth = uri.authority().unwrap();
     /// assert_eq!(auth.host(), "example.com");
     ///
-    /// let uri_ref = UriRef::parse("file:///path/to/file")?;
-    /// let auth = uri_ref.authority().unwrap();
+    /// let uri = Uri::parse("file:///path/to/file")?;
+    /// let auth = uri.authority().unwrap();
     /// assert_eq!(auth.host(), "");
     ///
-    /// let uri_ref = UriRef::parse("//[::1]")?;
-    /// let auth = uri_ref.authority().unwrap();
+    /// let uri = Uri::parse("http://[::1]")?;
+    /// let auth = uri.authority().unwrap();
     /// assert_eq!(auth.host(), "[::1]");
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
@@ -222,24 +221,24 @@ impl<'a> Authority<'a> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::{component::Host, encoding::EStr, UriRef};
+    /// use fluent_uri::{component::Host, encoding::EStr, Uri};
     /// use std::net::{Ipv4Addr, Ipv6Addr};
     ///
-    /// let uri_ref = UriRef::parse("//127.0.0.1")?;
-    /// let auth = uri_ref.authority().unwrap();
+    /// let uri = Uri::parse("foo://127.0.0.1")?;
+    /// let auth = uri.authority().unwrap();
     /// assert!(matches!(auth.host_parsed(), Host::Ipv4(Ipv4Addr::LOCALHOST)));
     ///
-    /// let uri_ref = UriRef::parse("//[::1]")?;
-    /// let auth = uri_ref.authority().unwrap();
+    /// let uri = Uri::parse("foo://[::1]")?;
+    /// let auth = uri.authority().unwrap();
     /// assert!(matches!(auth.host_parsed(), Host::Ipv6(Ipv6Addr::LOCALHOST)));
     ///
-    /// let uri_ref = UriRef::parse("//[v1.addr]")?;
-    /// let auth = uri_ref.authority().unwrap();
+    /// let uri = Uri::parse("foo://[v1.addr]")?;
+    /// let auth = uri.authority().unwrap();
     /// // The API design for IPvFuture addresses is to be determined.
     /// assert!(matches!(auth.host_parsed(), Host::IpvFuture { .. }));
     ///
-    /// let uri_ref = UriRef::parse("//localhost")?;
-    /// let auth = uri_ref.authority().unwrap();
+    /// let uri = Uri::parse("foo://localhost")?;
+    /// let auth = uri.authority().unwrap();
     /// assert!(matches!(auth.host_parsed(), Host::RegName(name) if name == "localhost"));
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
@@ -276,22 +275,22 @@ impl<'a> Authority<'a> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::{encoding::EStr, UriRef};
+    /// use fluent_uri::{encoding::EStr, Uri};
     ///
-    /// let uri_ref = UriRef::parse("//localhost:4673/")?;
-    /// let auth = uri_ref.authority().unwrap();
+    /// let uri = Uri::parse("foo://localhost:4673/")?;
+    /// let auth = uri.authority().unwrap();
     /// assert_eq!(auth.port(), Some(EStr::new_or_panic("4673")));
     ///
-    /// let uri_ref = UriRef::parse("//localhost:/")?;
-    /// let auth = uri_ref.authority().unwrap();
+    /// let uri = Uri::parse("foo://localhost:/")?;
+    /// let auth = uri.authority().unwrap();
     /// assert_eq!(auth.port(), Some(EStr::EMPTY));
     ///
-    /// let uri_ref = UriRef::parse("//localhost/")?;
-    /// let auth = uri_ref.authority().unwrap();
+    /// let uri = Uri::parse("foo://localhost/")?;
+    /// let auth = uri.authority().unwrap();
     /// assert_eq!(auth.port(), None);
     ///
-    /// let uri_ref = UriRef::parse("//localhost:123456/")?;
-    /// let auth = uri_ref.authority().unwrap();
+    /// let uri = Uri::parse("foo://localhost:123456/")?;
+    /// let auth = uri.authority().unwrap();
     /// assert_eq!(auth.port(), Some(EStr::new_or_panic("123456")));
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
@@ -314,22 +313,22 @@ impl<'a> Authority<'a> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::UriRef;
+    /// use fluent_uri::Uri;
     ///
-    /// let uri_ref = UriRef::parse("//localhost:4673/")?;
-    /// let auth = uri_ref.authority().unwrap();
+    /// let uri = Uri::parse("foo://localhost:4673/")?;
+    /// let auth = uri.authority().unwrap();
     /// assert_eq!(auth.port_to_u16(), Ok(Some(4673)));
     ///
-    /// let uri_ref = UriRef::parse("//localhost/")?;
-    /// let auth = uri_ref.authority().unwrap();
+    /// let uri = Uri::parse("foo://localhost/")?;
+    /// let auth = uri.authority().unwrap();
     /// assert_eq!(auth.port_to_u16(), Ok(None));
     ///
-    /// let uri_ref = UriRef::parse("//localhost:/")?;
-    /// let auth = uri_ref.authority().unwrap();
+    /// let uri = Uri::parse("foo://localhost:/")?;
+    /// let auth = uri.authority().unwrap();
     /// assert_eq!(auth.port_to_u16(), Ok(None));
     ///
-    /// let uri_ref = UriRef::parse("//localhost:123456/")?;
-    /// let auth = uri_ref.authority().unwrap();
+    /// let uri = Uri::parse("foo://localhost:123456/")?;
+    /// let auth = uri.authority().unwrap();
     /// assert!(auth.port_to_u16().is_err());
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
@@ -387,13 +386,13 @@ impl<'a> Authority<'a> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::UriRef;
+    /// use fluent_uri::Uri;
     ///
-    /// let uri_ref = UriRef::parse("http://user@example.com/")?;
-    /// assert!(uri_ref.authority().unwrap().has_userinfo());
+    /// let uri = Uri::parse("http://user@example.com/")?;
+    /// assert!(uri.authority().unwrap().has_userinfo());
     ///
-    /// let uri_ref = UriRef::parse("http://example.com/")?;
-    /// assert!(!uri_ref.authority().unwrap().has_userinfo());
+    /// let uri = Uri::parse("http://example.com/")?;
+    /// assert!(!uri.authority().unwrap().has_userinfo());
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     #[inline]
     #[must_use]
@@ -406,18 +405,18 @@ impl<'a> Authority<'a> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::UriRef;
+    /// use fluent_uri::Uri;
     ///
-    /// let uri_ref = UriRef::parse("//localhost:4673/")?;
-    /// assert!(uri_ref.authority().unwrap().has_port());
+    /// let uri = Uri::parse("foo://localhost:4673/")?;
+    /// assert!(uri.authority().unwrap().has_port());
     ///
     /// // The port subcomponent can be empty.
-    /// let uri_ref = UriRef::parse("//localhost:/")?;
-    /// assert!(uri_ref.authority().unwrap().has_port());
+    /// let uri = Uri::parse("foo://localhost:/")?;
+    /// assert!(uri.authority().unwrap().has_port());
     ///
-    /// let uri_ref = UriRef::parse("//localhost/")?;
-    /// let auth = uri_ref.authority().unwrap();
-    /// assert!(!uri_ref.authority().unwrap().has_port());
+    /// let uri = Uri::parse("foo://localhost/")?;
+    /// let auth = uri.authority().unwrap();
+    /// assert!(!uri.authority().unwrap().has_port());
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[inline]
@@ -427,7 +426,7 @@ impl<'a> Authority<'a> {
     }
 }
 
-/// The parsed [host] component of URI reference.
+/// A parsed [host] component.
 ///
 /// [host]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.2
 #[derive(Debug, Clone, Copy)]

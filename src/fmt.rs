@@ -4,9 +4,7 @@ use crate::{
     error::{
         BuildError, BuildErrorKind, ParseError, ParseErrorKind, ResolveError, ResolveErrorKind,
     },
-    UriRef,
 };
-use borrow_or_share::Bos;
 use core::fmt::{Debug, Display, Formatter, Result};
 
 impl<E: Encoder> Debug for EStr<E> {
@@ -73,30 +71,12 @@ impl Display for BuildError {
 impl Display for ResolveError {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         let msg = match self.0 {
-            ResolveErrorKind::InvalidBase => "base URI without scheme or with fragment",
+            ResolveErrorKind::InvalidBase => "base URI with fragment",
             ResolveErrorKind::OpaqueBase => {
                 "relative reference must be empty or start with '#' when resolved against authority-less base URI with rootless path"
             }
         };
         f.write_str(msg)
-    }
-}
-
-impl<T: Bos<str>> Debug for UriRef<T> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        f.debug_struct("UriRef")
-            .field("scheme", &self.scheme())
-            .field("authority", &self.authority())
-            .field("path", &self.path())
-            .field("query", &self.query())
-            .field("fragment", &self.fragment())
-            .finish()
-    }
-}
-
-impl<T: Bos<str>> Display for UriRef<T> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        Display::fmt(self.as_str(), f)
     }
 }
 

@@ -1,8 +1,9 @@
 #![allow(missing_debug_implementations)]
 
-mod state;
+pub mod state;
 
 use crate::{
+    common::RiRef,
     component::{Authority, Scheme},
     encoding::{
         encoder::{Fragment, Path, Port, Query, RegName, Userinfo},
@@ -10,7 +11,7 @@ use crate::{
     },
     error::{BuildError, BuildErrorKind},
     internal::{AuthMeta, HostMeta, Meta},
-    parser, UriRef,
+    parser,
 };
 use alloc::string::String;
 use core::{fmt::Write, marker::PhantomData, num::NonZeroUsize};
@@ -19,20 +20,24 @@ use state::*;
 #[cfg(feature = "net")]
 use crate::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
-/// A builder for URI reference.
+/// A builder for URI (reference).
 ///
-/// This struct is created by [`UriRef::builder`].
+/// This struct is created by the `builder` associated
+/// functions on [`Uri`] and [`UriRef`].
+///
+/// [`Uri`]: crate::Uri
+/// [`UriRef`]: crate::UriRef
 ///
 /// # Examples
 ///
 /// Basic usage:
 ///
 /// ```
-/// use fluent_uri::{component::Scheme, encoding::EStr, UriRef};
+/// use fluent_uri::{component::Scheme, encoding::EStr, Uri};
 ///
 /// const SCHEME_FOO: &Scheme = Scheme::new_or_panic("foo");
 ///
-/// let uri_ref = UriRef::builder()
+/// let uri = Uri::builder()
 ///     .scheme(SCHEME_FOO)
 ///     .authority_with(|b| {
 ///         b.userinfo(EStr::new_or_panic("user"))
@@ -46,7 +51,7 @@ use crate::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 ///     .unwrap();
 ///
 /// assert_eq!(
-///     uri_ref.as_str(),
+///     uri.as_str(),
 ///     "foo://user@example.com:8042/over/there?name=ferret#nose"
 /// );
 /// ```
@@ -64,7 +69,8 @@ use crate::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 /// which puts the following constraints:
 ///
 /// - Components must be set from left to right, no repetition allowed.
-/// - Setting [`path`] is mandatory before calling [`build`].
+/// - Setting [`scheme`] is mandatory when building a URI.
+/// - Setting [`path`] is mandatory.
 /// - Methods [`userinfo`], [`host`], and [`port`] are only available
 ///   within a call to [`authority_with`].
 /// - Setting [`host`] is mandatory within a call to [`authority_with`].
@@ -78,6 +84,7 @@ use crate::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 ///
 /// [`advance`]: Self::advance
 /// [`optional`]: Self::optional
+/// [`scheme`]: Self::scheme
 /// [`authority_with`]: Self::authority_with
 /// [`userinfo`]: Self::userinfo
 /// [`host`]: Self::host
@@ -85,9 +92,9 @@ use crate::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 /// [`path`]: Self::path
 /// [`build`]: Self::build
 #[must_use]
-pub struct Builder<S> {
+pub struct Builder<R, S> {
     inner: BuilderInner,
-    state: PhantomData<S>,
+    _marker: PhantomData<(R, S)>,
 }
 
 pub struct BuilderInner {
@@ -172,9 +179,7 @@ impl BuilderInner {
     }
 }
 
-pub(crate) type BuilderStart = Builder<Start>;
-
-impl Builder<Start> {
+impl<R, S> Builder<R, S> {
     #[inline]
     pub(crate) fn new() -> Self {
         Self {
@@ -182,19 +187,19 @@ impl Builder<Start> {
                 buf: String::new(),
                 meta: Meta::default(),
             },
-            state: PhantomData,
+            _marker: PhantomData,
         }
     }
 }
 
-impl<S> Builder<S> {
-    fn cast<T>(self) -> Builder<T>
+impl<R, S> Builder<R, S> {
+    fn cast<T>(self) -> Builder<R, T>
     where
         S: To<T>,
     {
         Builder {
             inner: self.inner,
-            state: PhantomData,
+            _marker: PhantomData,
         }
     }
 
@@ -219,10 +224,9 @@ impl<S> Builder<S> {
     /// assert_eq!(build(false).as_str(), "http://example.com/foo");
     /// assert_eq!(build(true).as_str(), "/foo");
     /// ```
-    pub fn advance<T>(self) -> Builder<T>
+    pub fn advance<T>(self) -> Builder<R, T>
     where
-        S: To<T>,
-        T: AdvanceDst,
+        S: AdvanceTo<T>,
     {
         self.cast()
     }
@@ -241,11 +245,10 @@ impl<S> Builder<S> {
     ///
     /// assert_eq!(uri_ref.as_str(), "foo?bar");
     /// ```
-    pub fn optional<F, V, T>(self, f: F, opt: Option<V>) -> Builder<T>
+    pub fn optional<F, V, T>(self, f: F, opt: Option<V>) -> Builder<R, T>
     where
-        F: FnOnce(Builder<S>, V) -> Builder<T>,
-        S: To<T>,
-        T: AdvanceDst,
+        F: FnOnce(Builder<R, S>, V) -> Builder<R, T>,
+        S: AdvanceTo<T>,
     {
         match opt {
             Some(value) => f(self, value),
@@ -254,26 +257,26 @@ impl<S> Builder<S> {
     }
 }
 
-impl<S: To<SchemeEnd>> Builder<S> {
+impl<R, S: To<SchemeEnd>> Builder<R, S> {
     /// Sets the [scheme] component.
     ///
     /// Note that the scheme component is *case-insensitive* and its canonical form is
     /// *lowercase*. For consistency, you should only produce lowercase scheme names.
     ///
     /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.1
-    pub fn scheme(mut self, scheme: &Scheme) -> Builder<SchemeEnd> {
+    pub fn scheme(mut self, scheme: &Scheme) -> Builder<R, SchemeEnd> {
         self.inner.push_scheme(scheme.as_str());
         self.cast()
     }
 }
 
-impl<S: To<AuthorityStart>> Builder<S> {
+impl<R, S: To<AuthorityStart>> Builder<R, S> {
     /// Builds the [authority] component with the given function.
     ///
     /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2
-    pub fn authority_with<F, T>(mut self, f: F) -> Builder<AuthorityEnd>
+    pub fn authority_with<F, T>(mut self, f: F) -> Builder<R, AuthorityEnd>
     where
-        F: FnOnce(Builder<AuthorityStart>) -> Builder<T>,
+        F: FnOnce(Builder<R, AuthorityStart>) -> Builder<R, T>,
         T: To<AuthorityEnd>,
     {
         self.inner.start_authority();
@@ -283,7 +286,7 @@ impl<S: To<AuthorityStart>> Builder<S> {
     /// Sets the [authority] component.
     ///
     /// This method is normally used with an authority which is empty ([`Authority::EMPTY`])
-    /// or is obtained from a [`UriRef`]. If you need to build an authority from its
+    /// or is obtained from a URI (reference). If you need to build an authority from its
     /// subcomponents (userinfo, host, and port), use [`authority_with`] instead.
     ///
     /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2
@@ -295,42 +298,42 @@ impl<S: To<AuthorityStart>> Builder<S> {
     /// use fluent_uri::{
     ///     component::{Authority, Scheme},
     ///     encoding::EStr,
-    ///     Builder, UriRef,
+    ///     Builder, Uri,
     /// };
     ///
-    /// let uri_ref = UriRef::builder()
+    /// let uri = Uri::builder()
     ///     .scheme(Scheme::new_or_panic("file"))
     ///     .authority(Authority::EMPTY)
     ///     .path(EStr::new_or_panic("/path/to/file"))
     ///     .build()
     ///     .unwrap();
     ///
-    /// assert_eq!(uri_ref, "file:///path/to/file");
+    /// assert_eq!(uri, "file:///path/to/file");
     ///
-    /// let auth = UriRef::parse("foo://user@example.com:8042")?
+    /// let auth = Uri::parse("foo://user@example.com:8042")?
     ///     .authority()
     ///     .unwrap();
-    /// let uri_ref = UriRef::builder()
+    /// let uri = Uri::builder()
     ///     .scheme(Scheme::new_or_panic("http"))
     ///     .authority(auth)
     ///     .path(EStr::EMPTY)
     ///     .build()
     ///     .unwrap();
     ///
-    /// assert_eq!(uri_ref, "http://user@example.com:8042");
+    /// assert_eq!(uri, "http://user@example.com:8042");
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
-    pub fn authority(mut self, authority: Authority<'_>) -> Builder<AuthorityEnd> {
+    pub fn authority(mut self, authority: Authority<'_>) -> Builder<R, AuthorityEnd> {
         self.inner.push_authority(authority);
         self.cast::<AuthorityEnd>()
     }
 }
 
-impl<S: To<UserinfoEnd>> Builder<S> {
+impl<R, S: To<UserinfoEnd>> Builder<R, S> {
     /// Sets the [userinfo] subcomponent of authority.
     ///
     /// [userinfo]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.1
-    pub fn userinfo(mut self, userinfo: &EStr<Userinfo>) -> Builder<UserinfoEnd> {
+    pub fn userinfo(mut self, userinfo: &EStr<Userinfo>) -> Builder<R, UserinfoEnd> {
         self.inner.push_userinfo(userinfo.as_str());
         self.cast()
     }
@@ -377,7 +380,7 @@ impl<'a> AsHost<'a> for &'a EStr<RegName> {
     }
 }
 
-impl<S: To<HostEnd>> Builder<S> {
+impl<R, S: To<HostEnd>> Builder<R, S> {
     /// Sets the [host] subcomponent of authority.
     ///
     /// This method takes either an [`Ipv4Addr`], [`Ipv6Addr`], [`IpAddr`],
@@ -385,14 +388,14 @@ impl<S: To<HostEnd>> Builder<S> {
     ///
     /// If the contents of an input `&EStr<RegName>` matches the
     /// `IPv4address` ABNF rule defined in [Section 3.2.2 of RFC 3986][host],
-    /// the resulting [`UriRef`] will output a [`Host::Ipv4`] variant instead.
+    /// the resulting URI (reference) will output a [`Host::Ipv4`] variant instead.
     ///
     /// Note that the host subcomponent is *case-insensitive*.
     /// For consistency, you should only produce [normalized] hosts.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.2
     /// [`Host::Ipv4`]: crate::component::Host::Ipv4
-    /// [normalized]: UriRef::normalize
+    /// [normalized]: crate::Uri::normalize
     ///
     /// # Examples
     ///
@@ -407,7 +410,7 @@ impl<S: To<HostEnd>> Builder<S> {
     ///
     /// assert!(matches!(uri_ref.authority().unwrap().host_parsed(), Host::Ipv4(_)));
     /// ```
-    pub fn host<'a>(mut self, host: impl AsHost<'a>) -> Builder<HostEnd> {
+    pub fn host<'a>(mut self, host: impl AsHost<'a>) -> Builder<R, HostEnd> {
         host.push_to(&mut self.inner);
         self.cast()
     }
@@ -430,7 +433,7 @@ impl AsPort for &EStr<Port> {
     }
 }
 
-impl<S: To<PortEnd>> Builder<S> {
+impl<R, S: To<PortEnd>> Builder<R, S> {
     /// Sets the [port][port-spec] subcomponent of authority.
     ///
     /// This method takes either a `u16` or <code>&amp;[EStr]&lt;[Port]&gt;</code> as argument.
@@ -438,7 +441,7 @@ impl<S: To<PortEnd>> Builder<S> {
     /// For consistency, you should not produce an empty port.
     ///
     /// [port-spec]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.3
-    pub fn port(mut self, port: impl AsPort) -> Builder<PortEnd> {
+    pub fn port(mut self, port: impl AsPort) -> Builder<R, PortEnd> {
         port.push_to(&mut self.inner.buf);
         self.cast()
     }
@@ -452,38 +455,38 @@ impl<S: To<PortEnd>> Builder<S> {
     }
 }
 
-impl<S: To<PathEnd>> Builder<S> {
+impl<R, S: To<PathEnd>> Builder<R, S> {
     /// Sets the [path] component.
     ///
     /// [path]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.3
-    pub fn path(mut self, path: &EStr<Path>) -> Builder<PathEnd> {
+    pub fn path(mut self, path: &EStr<Path>) -> Builder<R, PathEnd> {
         self.inner.push_path(path.as_str());
         self.cast()
     }
 }
 
-impl<S: To<QueryEnd>> Builder<S> {
+impl<R, S: To<QueryEnd>> Builder<R, S> {
     /// Sets the [query] component.
     ///
     /// [query]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.4
-    pub fn query(mut self, query: &EStr<Query>) -> Builder<QueryEnd> {
+    pub fn query(mut self, query: &EStr<Query>) -> Builder<R, QueryEnd> {
         self.inner.push_query(query.as_str());
         self.cast()
     }
 }
 
-impl<S: To<FragmentEnd>> Builder<S> {
+impl<R, S: To<FragmentEnd>> Builder<R, S> {
     /// Sets the [fragment] component.
     ///
     /// [fragment]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.5
-    pub fn fragment(mut self, fragment: &EStr<Fragment>) -> Builder<FragmentEnd> {
+    pub fn fragment(mut self, fragment: &EStr<Fragment>) -> Builder<R, FragmentEnd> {
         self.inner.push_fragment(fragment.as_str());
         self.cast()
     }
 }
 
-impl<S: To<End>> Builder<S> {
-    /// Builds the URI reference.
+impl<R: RiRef<Val = String>, S: To<End>> Builder<R, S> {
+    /// Builds the URI (reference).
     ///
     /// # Errors
     ///
@@ -494,10 +497,9 @@ impl<S: To<End>> Builder<S> {
     /// - In a [relative-path reference][rel-ref], the first path segment cannot contain `':'`.
     ///
     /// [rel-ref]: https://datatracker.ietf.org/doc/html/rfc3986#section-4.2
-    pub fn build(self) -> Result<UriRef<String>, BuildError> {
-        self.inner.validate().map(|()| UriRef {
-            val: self.inner.buf,
-            meta: self.inner.meta,
-        })
+    pub fn build(self) -> Result<R, BuildError> {
+        self.inner
+            .validate()
+            .map(|()| R::new(self.inner.buf, self.inner.meta))
     }
 }

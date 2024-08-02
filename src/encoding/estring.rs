@@ -14,9 +14,7 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 ///
 /// # Examples
 ///
-/// Encode key-value pairs to a query string and use it to build a [`UriRef`].
-///
-/// [`UriRef`]: crate::UriRef
+/// Encode key-value pairs to a query string and use it to build a URI reference:
 ///
 /// ```
 /// use fluent_uri::{

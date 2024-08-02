@@ -1,6 +1,6 @@
 use crate::{
     encoding::{table::*, Table, OCTET_TABLE_LO},
-    internal::{AuthMeta, HostMeta, Meta, NoInput},
+    internal::{AuthMeta, Criteria, HostMeta, Meta, NoInput},
 };
 use core::{
     num::NonZeroUsize,
@@ -21,8 +21,9 @@ macro_rules! err {
     };
 }
 
-pub(crate) fn parse(bytes: &[u8]) -> Result<Meta> {
+pub(crate) fn parse(bytes: &[u8], criteria: Criteria) -> Result<Meta> {
     let mut parser = Parser {
+        criteria,
         reader: Reader::new(bytes),
         out: Meta::default(),
     };
@@ -47,6 +48,7 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Meta> {
 /// - All output indexes are within bounds and correctly ordered.
 /// - All URI components defined by output indexes are validated.
 struct Parser<'a> {
+    criteria: Criteria,
     reader: Reader<'a>,
     out: Meta,
 }
@@ -418,6 +420,8 @@ impl<'a> Parser<'a> {
             } else {
                 self.parse_from_path(PathKind::General)
             };
+        } else if self.criteria.must_have_scheme {
+            err!(self.pos, UnexpectedChar);
         } else if self.pos == 0 {
             // Nothing read.
             if self.read_str("//") {

@@ -1,6 +1,6 @@
 #![allow(missing_debug_implementations)]
 
-use crate::{error::ParseError, parser, UriRef};
+use crate::{error::ParseError, parser};
 use alloc::string::String;
 use core::{num::NonZeroUsize, str};
 
@@ -14,31 +14,46 @@ impl Value for String {}
 
 pub struct NoInput;
 
-pub trait ToUriRef {
+pub struct Criteria {
+    pub must_be_ascii: bool,
+    pub must_have_scheme: bool,
+}
+
+pub trait RiRef: Sized {
+    type Val;
+
+    fn new(val: Self::Val, meta: Meta) -> Self;
+
+    fn new_pair((val, meta): (Self::Val, Meta)) -> Self {
+        Self::new(val, meta)
+    }
+
+    fn criteria() -> Criteria;
+}
+
+pub trait Parse {
     type Val: Value;
     type Err;
 
-    fn to_uri_ref(self) -> Result<UriRef<Self::Val>, Self::Err>;
+    fn parse<R: RiRef<Val = Self::Val>>(self) -> Result<R, Self::Err>;
 }
 
-impl<'a> ToUriRef for &'a str {
+impl<'a> Parse for &'a str {
     type Val = &'a str;
     type Err = ParseError;
 
-    #[inline]
-    fn to_uri_ref(self) -> Result<UriRef<Self::Val>, Self::Err> {
-        parser::parse(self.as_bytes()).map(|meta| UriRef { val: self, meta })
+    fn parse<R: RiRef<Val = Self::Val>>(self) -> Result<R, Self::Err> {
+        parser::parse(self.as_bytes(), R::criteria()).map(|meta| R::new(self, meta))
     }
 }
 
-impl ToUriRef for String {
+impl Parse for String {
     type Val = String;
     type Err = ParseError<String>;
 
-    #[inline]
-    fn to_uri_ref(self) -> Result<UriRef<Self::Val>, Self::Err> {
-        match parser::parse(self.as_bytes()) {
-            Ok(meta) => Ok(UriRef { val: self, meta }),
+    fn parse<R: RiRef<Val = Self::Val>>(self) -> Result<R, Self::Err> {
+        match parser::parse(self.as_bytes(), R::criteria()) {
+            Ok(meta) => Ok(R::new(self, meta)),
             Err(e) => Err(e.with_input(self)),
         }
     }

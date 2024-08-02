@@ -1,6 +1,6 @@
 //! Error types.
 
-use crate::internal::{NoInput, ToUriRef};
+use crate::internal::{NoInput, Parse};
 
 /// Detailed cause of a [`ParseError`].
 #[derive(Clone, Copy, Debug)]
@@ -19,7 +19,7 @@ pub(crate) enum ParseErrorKind {
     InvalidIpv6Addr,
 }
 
-/// An error occurred when parsing URI references.
+/// An error occurred when parsing a URI (reference).
 #[derive(Clone, Copy)]
 pub struct ParseError<I = NoInput> {
     pub(crate) index: usize,
@@ -37,10 +37,8 @@ impl ParseError {
     }
 }
 
-impl<I: ToUriRef> ParseError<I> {
-    /// Recovers the input that was attempted to parse into a [`UriRef`].
-    ///
-    /// [`UriRef`]: crate::UriRef
+impl<I: Parse> ParseError<I> {
+    /// Recovers the input that was attempted to parse into a URI (reference).
     #[must_use]
     pub fn into_input(self) -> I {
         self.input
@@ -68,7 +66,7 @@ pub(crate) enum BuildErrorKind {
     ColonInFirstPathSegment,
 }
 
-/// An error occurred when building URI references.
+/// An error occurred when building a URI (reference).
 #[derive(Clone, Copy, Debug)]
 pub struct BuildError(pub(crate) BuildErrorKind);
 
@@ -83,7 +81,7 @@ pub(crate) enum ResolveErrorKind {
     // PathUnderflow,
 }
 
-/// An error occurred when resolving URI references.
+/// An error occurred when resolving a URI reference.
 #[derive(Clone, Copy, Debug)]
 pub struct ResolveError(pub(crate) ResolveErrorKind);
 

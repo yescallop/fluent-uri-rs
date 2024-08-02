@@ -1,12 +1,13 @@
 use crate::{
+    common::Ref,
     encoding::{decode_octet, table::UNRESERVED},
     internal::{HostMeta, Meta},
-    parser, resolver, UriRef,
+    parser, resolver,
 };
 use alloc::string::String;
 use core::{fmt::Write, num::NonZeroUsize};
 
-pub(crate) fn normalize(r: UriRef<&str>) -> UriRef<String> {
+pub(crate) fn normalize(r: Ref<'_, '_>) -> (String, Meta) {
     // For "a://[::ffff:5:9]/" the capacity is not enough,
     // but it's fine since this rarely happens.
     let mut buf = String::with_capacity(r.as_str().len());
@@ -25,7 +26,7 @@ pub(crate) fn normalize(r: UriRef<&str>) -> UriRef<String> {
 
     let mut meta = Meta::default();
 
-    if let Some(scheme) = r.scheme() {
+    if let Some(scheme) = r.scheme_opt() {
         buf.push_str(scheme.as_str());
         buf.make_ascii_lowercase();
         meta.scheme_end = NonZeroUsize::new(buf.len());
@@ -100,7 +101,7 @@ pub(crate) fn normalize(r: UriRef<&str>) -> UriRef<String> {
         normalize_estr(&mut buf, fragment.as_str(), false);
     }
 
-    UriRef { val: buf, meta }
+    (buf, meta)
 }
 
 fn normalize_estr(buf: &mut String, s: &str, to_lowercase: bool) {

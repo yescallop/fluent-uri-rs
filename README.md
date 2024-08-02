@@ -1,6 +1,6 @@
 # fluent-uri
 
-A full-featured URI reference handling library compliant with [RFC 3986]. It is:
+A full-featured URI handling library compliant with [RFC 3986]. It is:
 
 - **Fast:** Zero-copy parsing. Benchmarked to be highly performant.[^bench-res]
 - **Easy:** Carefully designed and documented APIs. Handy percent-encoding utilities.
@@ -33,16 +33,17 @@ a relative reference. For example, `//example.org/`, `/index.html`, `../`, `foo`
 
 ## Examples
 
-- Parse and extract components zero-copy from a URI reference:
+- Parse and extract components from a URI:
 
     ```rust
     const SCHEME_FOO: &Scheme = Scheme::new_or_panic("foo");
 
-    let uri_ref = UriRef::parse("foo://user@example.com:8042/over/there?name=ferret#nose")?;
+    let s = "foo://user@example.com:8042/over/there?name=ferret#nose";
+    let uri = Uri::parse(s)?;
 
-    assert_eq!(uri_ref.scheme().unwrap(), SCHEME_FOO);
+    assert_eq!(uri.scheme(), SCHEME_FOO);
 
-    let auth = uri_ref.authority().unwrap();
+    let auth = uri.authority().unwrap();
     assert_eq!(auth.as_str(), "user@example.com:8042");
     assert_eq!(auth.userinfo().unwrap(), "user");
     assert_eq!(auth.host(), "example.com");
@@ -50,17 +51,17 @@ a relative reference. For example, `//example.org/`, `/index.html`, `../`, `foo`
     assert_eq!(auth.port().unwrap(), "8042");
     assert_eq!(auth.port_to_u16(), Ok(Some(8042)));
 
-    assert_eq!(uri_ref.path(), "/over/there");
-    assert_eq!(uri_ref.query().unwrap(), "name=ferret");
-    assert_eq!(uri_ref.fragment().unwrap(), "nose");
+    assert_eq!(uri.path(), "/over/there");
+    assert_eq!(uri.query().unwrap(), "name=ferret");
+    assert_eq!(uri.fragment().unwrap(), "nose");
     ```
 
-- Build a URI reference using the builder pattern:
+- Build a URI using the builder pattern:
 
     ```rust
     const SCHEME_FOO: &Scheme = Scheme::new_or_panic("foo");
 
-    let uri_ref = UriRef::builder()
+    let uri = Uri::builder()
         .scheme(SCHEME_FOO)
         .authority_with(|b| {
             b.userinfo(EStr::new_or_panic("user"))
@@ -74,7 +75,7 @@ a relative reference. For example, `//example.org/`, `/index.html`, `../`, `foo`
         .unwrap();
 
     assert_eq!(
-        uri_ref.as_str(),
+        uri.as_str(),
         "foo://user@example.com:8042/over/there?name=ferret#nose"
     );
     ```
@@ -82,21 +83,23 @@ a relative reference. For example, `//example.org/`, `/index.html`, `../`, `foo`
 - Resolve a URI reference against a base URI:
 
     ```rust
-    let base = UriRef::parse("http://example.com/foo/bar")?;
+    let base = Uri::parse("http://example.com/foo/bar")?;
 
     let uri_ref = UriRef::parse("baz")?;
     assert_eq!(uri_ref.resolve_against(&base).unwrap(), "http://example.com/foo/baz");
+
     let uri_ref = UriRef::parse("../baz")?;
     assert_eq!(uri_ref.resolve_against(&base).unwrap(), "http://example.com/baz");
+
     let uri_ref = UriRef::parse("?baz")?;
     assert_eq!(uri_ref.resolve_against(&base).unwrap(), "http://example.com/foo/bar?baz");
     ```
 
-- Normalize a URI reference:
+- Normalize a URI:
 
     ```rust
-    let uri_ref = UriRef::parse("eXAMPLE://a/./b/../b/%63/%7bfoo%7d")?;
-    assert_eq!(uri_ref.normalize(), "example://a/b/c/%7Bfoo%7D");
+    let uri = Uri::parse("eXAMPLE://a/./b/../b/%63/%7bfoo%7d")?;
+    assert_eq!(uri.normalize(), "example://a/b/c/%7Bfoo%7D");
     ```
 
 - `EStr` (Percent-encoded string slices):
@@ -118,7 +121,7 @@ a relative reference. For example, `//example.org/`, `/index.html`, `../`, `foo`
 
 - `EString` (A percent-encoded, growable string):
 
-    You can encode key-value pairs to a query string and use it to build a `UriRef`:
+    You can encode key-value pairs to a query string and use it to build a URI reference:
 
     ```rust
     let pairs = [("name", "张三"), ("speech", "¡Olé!")];

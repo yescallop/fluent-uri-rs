@@ -1,15 +1,15 @@
 use crate::{
+    common::Ref,
     error::{ResolveError, ResolveErrorKind},
     internal::Meta,
-    UriRef,
 };
 use alloc::string::String;
 use core::num::NonZeroUsize;
 
 pub(crate) fn resolve(
-    base: UriRef<&str>,
-    /* reference */ r: UriRef<&str>,
-) -> Result<UriRef<String>, ResolveError> {
+    base: Ref<'_, '_>,
+    /* reference */ r: Ref<'_, '_>,
+) -> Result<(String, Meta), ResolveError> {
     if !base.has_scheme() || base.has_fragment() {
         return Err(ResolveError(ResolveErrorKind::InvalidBase));
     }
@@ -24,8 +24,13 @@ pub(crate) fn resolve(
     let (t_scheme, t_authority, t_path, t_query, t_fragment);
     let mut buf = String::new();
 
-    let (r_scheme, r_authority, r_path, r_query, r_fragment) =
-        (r.scheme(), r.authority(), r.path(), r.query(), r.fragment());
+    let (r_scheme, r_authority, r_path, r_query, r_fragment) = (
+        r.scheme_opt(),
+        r.authority(),
+        r.path(),
+        r.query(),
+        r.fragment(),
+    );
 
     if let Some(r_scheme) = r_scheme {
         t_scheme = r_scheme;
@@ -80,7 +85,7 @@ pub(crate) fn resolve(
             }
             t_authority = base.authority();
         }
-        t_scheme = base.scheme().unwrap();
+        t_scheme = base.scheme();
     }
     t_fragment = r_fragment;
 
@@ -139,7 +144,7 @@ pub(crate) fn resolve(
 
     debug_assert_eq!(buf.len(), len);
 
-    Ok(UriRef { val: buf, meta })
+    Ok((buf, meta))
 }
 
 pub(crate) fn remove_dot_segments<'a>(buf: &'a mut String, path: &str) -> &'a str {

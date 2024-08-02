@@ -1,7 +1,7 @@
 #[cfg(feature = "net")]
 use core::net::{Ipv4Addr, Ipv6Addr};
 
-use fluent_uri::{component::Host, encoding::EStr, UriRef};
+use fluent_uri::{component::Host, encoding::EStr, Uri, UriRef};
 
 #[test]
 fn parse_absolute() {
@@ -238,7 +238,33 @@ fn parse_relative() {
 }
 
 #[test]
-fn parse_error() {
+fn parse_error_uri() {
+    // No scheme
+    let e = Uri::parse("foo").unwrap_err();
+    assert_eq!(e.to_string(), "unexpected character at index 3");
+
+    // Empty scheme
+    let e = Uri::parse(":hello").unwrap_err();
+    assert_eq!(e.to_string(), "unexpected character at index 0");
+
+    // Scheme starts with non-letter
+    let e = Uri::parse("3ttp://a.com").unwrap_err();
+    assert_eq!(e.to_string(), "unexpected character at index 0");
+
+    // Unexpected char in scheme
+    let e = Uri::parse("exam=ple:foo").unwrap_err();
+    assert_eq!(e.to_string(), "unexpected character at index 4");
+
+    let e = Uri::parse("(:").unwrap_err();
+    assert_eq!(e.to_string(), "unexpected character at index 0");
+
+    // Percent-encoded scheme
+    let e = Uri::parse("a%20:foo").unwrap_err();
+    assert_eq!(e.to_string(), "unexpected character at index 1");
+}
+
+#[test]
+fn parse_error_uri_ref() {
     // Empty scheme
     let e = UriRef::parse(":hello").unwrap_err();
     assert_eq!(e.to_string(), "unexpected character at index 0");
