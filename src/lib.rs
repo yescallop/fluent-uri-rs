@@ -95,6 +95,3 @@ use std::net;
 
 #[cfg(all(feature = "net", not(feature = "std")))]
 use core::net;
-
-#[cfg(feature = "serde")]
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};

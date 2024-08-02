@@ -22,7 +22,7 @@ pub(crate) use core::{
 };
 
 #[cfg(feature = "serde")]
-pub(crate) use serde::{Deserialize, Deserializer, Serialize, Serializer};
+pub(crate) use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 macro_rules! cond {
     (if true { $($then:tt)* } else { $($else:tt)* }) => { $($then)* };
