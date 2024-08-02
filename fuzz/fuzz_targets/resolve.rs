@@ -1,21 +1,18 @@
 #![no_main]
-use fluent_uri::UriRef;
+use fluent_uri::{Uri, UriRef};
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: (&str, &str)| {
-    let (Ok(base), Ok(r)) = (UriRef::parse(data.0), UriRef::parse(data.1)) else {
+    let (Ok(base), Ok(r)) = (Uri::parse(data.0), UriRef::parse(data.1)) else {
         return;
     };
 
     let Ok(r1) = r.resolve_against(&base) else {
         return;
     };
-    let r2 = UriRef::parse(r1.as_str()).unwrap();
+    let r2 = Uri::parse(r1.as_str()).unwrap();
 
-    assert_eq!(
-        r1.scheme().map(|s| s.as_str()),
-        r2.scheme().map(|s| s.as_str())
-    );
+    assert_eq!(r1.scheme().as_str(), r2.scheme().as_str());
     assert_eq!(r1.authority().is_some(), r2.authority().is_some());
 
     if let Some(a1) = r1.authority() {

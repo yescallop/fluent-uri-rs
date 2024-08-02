@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use fluent_uri::{component::Scheme, encoding::EStr, UriRef};
+use fluent_uri::{component::Scheme, encoding::EStr, Uri, UriRef};
 use iri_string::{
     build::Builder,
     format::ToDedicatedString,
@@ -106,7 +106,7 @@ fn bench_normalize_iri_string(c: &mut Criterion) {
 }
 
 fn bench_resolve(c: &mut Criterion) {
-    let base = UriRef::parse(RESOLVE_CASE_BASE).unwrap();
+    let base = Uri::parse(RESOLVE_CASE_BASE).unwrap();
     let r = UriRef::parse(RESOLVE_CASE_REF).unwrap();
     c.bench_function("resolve", |b| b.iter(|| r.resolve_against(&base)));
 }

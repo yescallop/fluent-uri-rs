@@ -1,5 +1,5 @@
 #![no_main]
-use fluent_uri::UriRef;
+use fluent_uri::{Uri, UriRef};
 use iri_string::{
     format::ToDedicatedString,
     types::{UriAbsoluteStr, UriReferenceStr},
@@ -7,7 +7,7 @@ use iri_string::{
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: (&str, &str)| {
-    let (Ok(base1), Ok(r1)) = (UriRef::parse(data.0), UriRef::parse(data.1)) else {
+    let (Ok(base1), Ok(r1)) = (Uri::parse(data.0), UriRef::parse(data.1)) else {
         return;
     };
 
@@ -15,7 +15,7 @@ fuzz_target!(|data: (&str, &str)| {
         return;
     };
 
-    if r1.scheme().is_some() && r1.authority().is_none() && r1.path().is_rootless() {
+    if r1.authority().is_none() && r1.path().is_rootless() {
         return;
     }
 
