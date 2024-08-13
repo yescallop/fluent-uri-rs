@@ -4,31 +4,24 @@ pub mod encoder;
 mod estring;
 mod imp;
 pub(crate) mod table;
+mod utf8;
 
 pub use estring::EString;
+pub use table::Table;
 
-pub(crate) use imp::{decode_octet, OCTET_TABLE_LO};
+pub(crate) use imp::{decode_octet, encode_byte, OCTET_TABLE_LO};
+pub(crate) use utf8::next_code_point;
 
+use crate::internal::PathEncoder;
 use alloc::{
     borrow::{Cow, ToOwned},
     string::{FromUtf8Error, String},
     vec::Vec,
 };
 use core::{cmp::Ordering, hash, iter::FusedIterator, marker::PhantomData, str};
-use encoder::Path;
 use ref_cast::{ref_cast_custom, RefCastCustom};
 
-/// A table specifying the byte patterns allowed in a string.
-#[derive(Clone, Copy, Debug)]
-pub struct Table {
-    arr: [u8; 256],
-    allows_enc: bool,
-}
-
 /// A trait used by [`EStr`] and [`EString`] to specify the table used for encoding.
-///
-/// [`EStr`]: EStr
-/// [`EString`]: EString
 ///
 /// # Sub-encoders
 ///
@@ -52,8 +45,8 @@ pub trait Encoder: 'static {
 /// allowed in a string. In short, the underlying byte sequence of an `EStr<E>` slice
 /// can be formed by joining any number of the following byte sequences:
 ///
-/// - `[x]` where `E::TABLE.allows(x)`.
-/// - `[b'%', hi, lo]` where `E::TABLE.allows_enc() && hi.is_ascii_hexdigit() && lo.is_ascii_hexdigit()`.
+/// - `ch.encode_utf8(&mut [0; 4])` where `E::TABLE.allows(ch)`.
+/// - `[b'%', hi, lo]` where `E::TABLE.allows_pct_encoded() && hi.is_ascii_hexdigit() && lo.is_ascii_hexdigit()`.
 ///
 /// # Comparison
 ///
@@ -91,13 +84,12 @@ struct Assert<L: Encoder, R: Encoder> {
 }
 
 impl<L: Encoder, R: Encoder> Assert<L, R> {
-    const LEFT_IS_SUB_ENCODER_OF_RIGHT: () =
-        assert!(L::TABLE.is_subset(R::TABLE), "not a sub-encoder");
+    const L_IS_SUB_ENCODER_OF_R: () = assert!(L::TABLE.is_subset(R::TABLE), "not a sub-encoder");
 }
 
 impl<E: Encoder> EStr<E> {
-    const ASSERT_ALLOWS_ENC: () = assert!(
-        E::TABLE.allows_enc(),
+    const ASSERT_ALLOWS_PCT_ENCODED: () = assert!(
+        E::TABLE.allows_pct_encoded(),
         "table does not allow percent-encoded octets"
     );
 
@@ -107,6 +99,10 @@ impl<E: Encoder> EStr<E> {
 
     /// An empty `EStr` slice.
     pub const EMPTY: &'static Self = Self::new_validated("");
+
+    pub(crate) fn cast<F: Encoder>(&self) -> &EStr<F> {
+        EStr::new_validated(&self.inner)
+    }
 
     /// Converts a string slice to an `EStr` slice.
     ///
@@ -175,7 +171,7 @@ impl<E: Encoder> EStr<E> {
     ///
     /// Panics at compile time if `E::TABLE` does not [allow percent-encoded octets].
     ///
-    /// [allow percent-encoded octets]: Table::allows_enc
+    /// [allow percent-encoded octets]: Table::allows_pct_encoded
     ///
     /// # Examples
     ///
@@ -188,7 +184,7 @@ impl<E: Encoder> EStr<E> {
     /// ```
     #[must_use]
     pub fn decode(&self) -> Decode<'_> {
-        let () = Self::ASSERT_ALLOWS_ENC;
+        let () = Self::ASSERT_ALLOWS_PCT_ENCODED;
 
         match imp::decode(self.inner.as_bytes()) {
             Some(vec) => Decode::Owned(vec),
@@ -215,7 +211,7 @@ impl<E: Encoder> EStr<E> {
     /// ```
     pub fn split(&self, delim: char) -> Split<'_, E> {
         assert!(
-            delim.is_ascii() && table::RESERVED.allows(delim as u8),
+            delim.is_ascii() && table::RESERVED.allows(delim),
             "splitting with non-reserved character"
         );
         Split {
@@ -250,7 +246,7 @@ impl<E: Encoder> EStr<E> {
     #[must_use]
     pub fn split_once(&self, delim: char) -> Option<(&Self, &Self)> {
         assert!(
-            delim.is_ascii() && table::RESERVED.allows(delim as u8),
+            delim.is_ascii() && table::RESERVED.allows(delim),
             "splitting with non-reserved character"
         );
         self.inner
@@ -284,7 +280,7 @@ impl<E: Encoder> EStr<E> {
     #[must_use]
     pub fn rsplit_once(&self, delim: char) -> Option<(&Self, &Self)> {
         assert!(
-            delim.is_ascii() && table::RESERVED.allows(delim as u8),
+            delim.is_ascii() && table::RESERVED.allows(delim),
             "splitting with non-reserved character"
         );
         self.inner
@@ -365,7 +361,7 @@ impl<E: Encoder> ToOwned for EStr<E> {
 /// Extension methods for the [path] component.
 ///
 /// [path]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.3
-impl EStr<Path> {
+impl<E: PathEncoder> EStr<E> {
     /// Checks whether the path is absolute, i.e., starting with `'/'`.
     #[inline]
     #[must_use]
@@ -415,7 +411,7 @@ impl EStr<Path> {
     /// ```
     #[inline]
     #[must_use]
-    pub fn segments(&self) -> Option<Split<'_, Path>> {
+    pub fn segments(&self) -> Option<Split<'_, E>> {
         self.inner
             .strip_prefix('/')
             .map(|s| EStr::new_validated(s).split('/'))

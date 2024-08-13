@@ -1,6 +1,10 @@
 #![allow(missing_debug_implementations)]
 
-use crate::{error::ParseError, parser};
+use crate::{
+    encoding::{encoder, Encoder},
+    error::ParseError,
+    parser,
+};
 use alloc::string::String;
 use core::{num::NonZeroUsize, str};
 
@@ -90,3 +94,8 @@ pub enum HostMeta {
     #[default]
     RegName,
 }
+
+pub trait PathEncoder: Encoder {}
+
+impl PathEncoder for encoder::Path {}
+impl PathEncoder for encoder::IPath {}

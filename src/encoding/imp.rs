@@ -1,4 +1,4 @@
-use alloc::vec::Vec;
+use alloc::{string::String, vec::Vec};
 
 const fn gen_octet_table(hi: bool) -> [u8; 256] {
     let mut out = [0xff; 256];
@@ -45,4 +45,23 @@ pub(crate) fn decode(s: &[u8]) -> Option<Vec<u8>> {
         }
     }
     Some(buf)
+}
+
+pub(crate) fn encode_byte(x: u8, buf: &mut String) {
+    const HEX_TABLE: [u8; 512] = {
+        const HEX_DIGITS: &[u8; 16] = b"0123456789ABCDEF";
+
+        let mut i = 0;
+        let mut table = [0; 512];
+        while i < 256 {
+            table[i * 2] = HEX_DIGITS[i >> 4];
+            table[i * 2 + 1] = HEX_DIGITS[i & 0b1111];
+            i += 1;
+        }
+        table
+    };
+
+    buf.push('%');
+    buf.push(HEX_TABLE[x as usize * 2] as char);
+    buf.push(HEX_TABLE[x as usize * 2 + 1] as char);
 }

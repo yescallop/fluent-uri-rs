@@ -68,6 +68,8 @@
 //! [`Host`]: component::Host
 //! [`Authority::socket_addrs`]: component::Authority::socket_addrs
 //! [`Error`]: std::error::Error
+//! [`Serialize`]: serde::Serialize
+//! [`Deserialize`]: serde::Deserialize
 
 mod builder;
 #[macro_use]
@@ -77,12 +79,14 @@ pub mod encoding;
 pub mod error;
 mod fmt;
 mod internal;
+mod iri;
 mod normalizer;
 mod parser;
 mod resolver;
 mod uri;
 
 pub use builder::Builder;
+pub use iri::{Iri, IriRef};
 pub use uri::{Uri, UriRef};
 
 #[cfg(feature = "std")]

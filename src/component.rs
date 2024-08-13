@@ -1,13 +1,14 @@
 //! URI components.
 
 use crate::{
+    common::Encoder,
     encoding::{
-        encoder::{Port, RegName, Userinfo},
+        encoder::{IRegName, IUserinfo, Port, RegName, Userinfo},
         table, EStr,
     },
     internal::{AuthMeta, HostMeta},
 };
-use core::num::ParseIntError;
+use core::{marker::PhantomData, num::ParseIntError};
 use ref_cast::{ref_cast_custom, RefCastCustom};
 
 #[cfg(feature = "net")]
@@ -18,6 +19,12 @@ use std::{
     io,
     net::{SocketAddr, ToSocketAddrs},
 };
+
+/// An authority component for IRI.
+pub type IAuthority<'a> = Authority<'a, IUserinfo, IRegName>;
+
+/// A parsed host component for IRI.
+pub type IHost<'a> = Host<'a, IRegName>;
 
 /// A [scheme] component.
 ///
@@ -118,19 +125,36 @@ impl Eq for Scheme {}
 ///
 /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2
 #[derive(Clone, Copy)]
-pub struct Authority<'a> {
+pub struct Authority<'a, UserinfoE = Userinfo, RegNameE = RegName> {
     val: &'a str,
     meta: AuthMeta,
+    _marker: PhantomData<(UserinfoE, RegNameE)>,
 }
 
-impl<'a> Authority<'a> {
+impl<'a, T, U> Authority<'a, T, U> {
+    pub(crate) fn cast<UserinfoE: Encoder, RegNameE: Encoder>(
+        self,
+    ) -> Authority<'a, UserinfoE, RegNameE> {
+        Authority {
+            val: self.val,
+            meta: self.meta,
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegNameE> {
     #[inline]
     pub(crate) const fn new(val: &'a str, meta: AuthMeta) -> Self {
-        Self { val, meta }
+        Self {
+            val,
+            meta,
+            _marker: PhantomData,
+        }
     }
 
     /// An empty authority component.
-    pub const EMPTY: Authority<'static> = Authority::new("", AuthMeta::EMPTY);
+    pub const EMPTY: Authority<'static, UserinfoE, RegNameE> = Authority::new("", AuthMeta::EMPTY);
 
     pub(crate) fn meta(&self) -> AuthMeta {
         self.meta
@@ -173,7 +197,7 @@ impl<'a> Authority<'a> {
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[must_use]
-    pub fn userinfo(&self) -> Option<&'a EStr<Userinfo>> {
+    pub fn userinfo(&self) -> Option<&'a EStr<UserinfoE>> {
         let host_start = self.meta.host_bounds.0;
         (host_start != 0).then(|| EStr::new_validated(&self.val[..host_start - 1]))
     }
@@ -243,7 +267,7 @@ impl<'a> Authority<'a> {
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[must_use]
-    pub fn host_parsed(&self) -> Host<'a> {
+    pub fn host_parsed(&self) -> Host<'a, RegNameE> {
         match self.meta.host_meta {
             #[cfg(feature = "net")]
             HostMeta::Ipv4(addr) => Host::Ipv4(addr),
@@ -431,7 +455,7 @@ impl<'a> Authority<'a> {
 /// [host]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.2
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(fuzzing, derive(PartialEq, Eq))]
-pub enum Host<'a> {
+pub enum Host<'a, RegNameE: Encoder = RegName> {
     /// An IPv4 address.
     #[cfg_attr(not(feature = "net"), non_exhaustive)]
     Ipv4(
@@ -455,5 +479,5 @@ pub enum Host<'a> {
     /// A registered name.
     ///
     /// Note that registered names are *case-insensitive*.
-    RegName(&'a EStr<RegName>),
+    RegName(&'a EStr<RegNameE>),
 }

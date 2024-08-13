@@ -18,6 +18,10 @@ ri_maybe_ref! {
     has_scheme_equivalent = is_uri,
     as_method = as_uri,
     into_method = into_uri,
+    AuthorityType = Authority,
+    PathEncoderType = Path,
+    QueryEncoderType = Query,
+    FragmentEncoderType = Fragment,
 }
 
 ri_maybe_ref! {
@@ -35,4 +39,8 @@ ri_maybe_ref! {
     ref_name = "URI reference",
     as_method = as_uri_ref,
     into_method = into_uri_ref,
+    AuthorityType = Authority,
+    PathEncoderType = Path,
+    QueryEncoderType = Query,
+    FragmentEncoderType = Fragment,
 }

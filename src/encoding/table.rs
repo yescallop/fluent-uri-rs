@@ -5,52 +5,47 @@
 //!
 //! [RFC 5234]: https://datatracker.ietf.org/doc/html/rfc5234
 
-use super::Table;
 use alloc::string::String;
 
-const fn gen_hex_table() -> [u8; 512] {
-    const HEX_DIGITS: &[u8; 16] = b"0123456789ABCDEF";
+const TABLE_LEN: usize = 256 + 3;
+const INDEX_PCT_ENCODED: usize = 256;
+const INDEX_UCSCHAR: usize = 256 + 1;
+const INDEX_IPRIVATE: usize = 256 + 2;
 
-    let mut i = 0;
-    let mut out = [0; 512];
-    while i < 256 {
-        out[i * 2] = HEX_DIGITS[i >> 4];
-        out[i * 2 + 1] = HEX_DIGITS[i & 0b1111];
-        i += 1;
-    }
-    out
+const fn is_ucschar(x: u32) -> bool {
+    matches!(x, 0xa0..=0xd7ff | 0xf900..=0xfdcf | 0xfdf0..=0xffef)
+        || (x >= 0x10000 && x <= 0xdffff && (x & 0xffff) <= 0xfffd)
+        || (x >= 0xe1000 && x <= 0xefffd)
 }
 
-const HEX_TABLE: &[u8; 512] = &gen_hex_table();
+const fn is_iprivate(x: u32) -> bool {
+    (x >= 0xe000 && x <= 0xf8ff) || (x >= 0xf0000 && (x & 0xffff) <= 0xfffd)
+}
+
+/// A table specifying the byte patterns allowed in a string.
+#[derive(Clone, Copy, Debug)]
+pub struct Table {
+    table: [bool; TABLE_LEN],
+}
 
 impl Table {
-    /// Generates a table that only allows the given unencoded bytes.
+    /// Creates a table that only allows the given unencoded bytes.
     ///
     /// # Panics
     ///
     /// Panics if any of the bytes is not ASCII or equals `b'%'`.
     #[must_use]
-    pub const fn gen(mut bytes: &[u8]) -> Table {
-        let mut arr = [0; 256];
+    pub const fn new(mut bytes: &[u8]) -> Table {
+        let mut table = [false; TABLE_LEN];
         while let [cur, rem @ ..] = bytes {
             assert!(
                 cur.is_ascii() && *cur != b'%',
                 "cannot allow non-ASCII byte or %"
             );
-            arr[*cur as usize] = 1;
+            table[*cur as usize] = true;
             bytes = rem;
         }
-        Table {
-            arr,
-            allows_enc: false,
-        }
-    }
-
-    /// Marks this table as allowing percent-encoded octets.
-    #[must_use]
-    pub const fn enc(mut self) -> Table {
-        self.allows_enc = true;
-        self
+        Table { table }
     }
 
     /// Combines two tables into one.
@@ -60,11 +55,37 @@ impl Table {
     #[must_use]
     pub const fn or(mut self, other: &Table) -> Table {
         let mut i = 0;
-        while i < 256 {
-            self.arr[i] |= other.arr[i];
+        while i < TABLE_LEN {
+            self.table[i] |= other.table[i];
             i += 1;
         }
-        self.allows_enc |= other.allows_enc;
+        self
+    }
+
+    /// Marks this table as allowing percent-encoded octets.
+    #[must_use]
+    pub const fn or_pct_encoded(mut self) -> Table {
+        self.table[INDEX_PCT_ENCODED] = true;
+        self
+    }
+
+    /// Marks this table as allowing characters matching the [`ucschar`]
+    /// ABNF rule from RFC 3987.
+    ///
+    /// [`ucschar`]: https://datatracker.ietf.org/doc/html/rfc3987#section-2.2
+    #[must_use]
+    pub const fn or_ucschar(mut self) -> Table {
+        self.table[INDEX_UCSCHAR] = true;
+        self
+    }
+
+    /// Marks this table as allowing characters matching the [`iprivate`]
+    /// ABNF rule from RFC 3987.
+    ///
+    /// [`iprivate`]: https://datatracker.ietf.org/doc/html/rfc3987#section-2.2
+    #[must_use]
+    pub const fn or_iprivate(mut self) -> Table {
+        self.table[INDEX_IPRIVATE] = true;
         self
     }
 
@@ -75,14 +96,9 @@ impl Table {
     #[must_use]
     pub const fn sub(mut self, other: &Table) -> Table {
         let mut i = 0;
-        while i < 256 {
-            if other.arr[i] != 0 {
-                self.arr[i] = 0;
-            }
+        while i < TABLE_LEN {
+            self.table[i] &= !other.table[i];
             i += 1;
-        }
-        if other.allows_enc {
-            self.allows_enc = false;
         }
         self
     }
@@ -92,130 +108,154 @@ impl Table {
     #[must_use]
     pub const fn is_subset(&self, other: &Table) -> bool {
         let mut i = 0;
-        while i < 256 {
-            if self.arr[i] != 0 && other.arr[i] == 0 {
+        while i < TABLE_LEN {
+            if self.table[i] & !other.table[i] {
                 return false;
             }
             i += 1;
         }
-        !self.allows_enc || other.allows_enc
+        true
     }
 
-    /// Returns the specified table value.
     #[inline]
-    pub(crate) const fn get(&self, x: u8) -> u8 {
-        self.arr[x as usize]
+    pub(crate) const fn allows_ascii(&self, x: u8) -> bool {
+        self.table[x as usize]
     }
 
-    /// Checks whether the given unencoded byte is allowed by the table.
+    #[inline]
+    pub(crate) const fn allows_non_ascii(&self) -> bool {
+        self.table[INDEX_UCSCHAR] | self.table[INDEX_IPRIVATE]
+    }
+
+    pub(crate) const fn allows_code_point(&self, x: u32) -> bool {
+        if x < 128 {
+            self.table[x as usize]
+        } else {
+            (self.table[INDEX_UCSCHAR] && is_ucschar(x))
+                || (self.table[INDEX_IPRIVATE] && is_iprivate(x))
+        }
+    }
+
+    /// Checks whether the given unencoded character is allowed by the table.
     #[inline]
     #[must_use]
-    pub const fn allows(&self, x: u8) -> bool {
-        self.get(x) != 0
+    pub const fn allows(&self, ch: char) -> bool {
+        self.allows_code_point(ch as u32)
     }
 
     /// Checks whether percent-encoded octets are allowed by the table.
     #[inline]
     #[must_use]
-    pub const fn allows_enc(&self) -> bool {
-        self.allows_enc
+    pub const fn allows_pct_encoded(&self) -> bool {
+        self.table[INDEX_PCT_ENCODED]
     }
 
-    #[inline]
-    pub(crate) fn encode(&self, x: u8, buf: &mut String) {
-        if self.allows(x) {
-            buf.push(x as char);
+    pub(crate) fn encode(&self, ch: char, buf: &mut String) {
+        if self.allows(ch) {
+            buf.push(ch);
         } else {
-            buf.push('%');
-            buf.push(HEX_TABLE[x as usize * 2] as char);
-            buf.push(HEX_TABLE[x as usize * 2 + 1] as char);
+            for x in ch.encode_utf8(&mut [0; 4]).bytes() {
+                super::encode_byte(x, buf);
+            }
         }
     }
 
-    /// Validates the given byte sequence with the table.
+    /// Validates the given string with the table.
     pub(crate) const fn validate(&self, s: &[u8]) -> bool {
         let mut i = 0;
-        if self.allows_enc() {
+        if self.allows_pct_encoded() {
             while i < s.len() {
-                let x = s[i];
-                if x == b'%' {
+                if s[i] == b'%' {
                     if i + 2 >= s.len() {
                         return false;
                     }
                     let (hi, lo) = (s[i + 1], s[i + 2]);
 
-                    if HEXDIG.get(hi) & HEXDIG.get(lo) == 0 {
+                    if !(HEXDIG.allows_ascii(hi) & HEXDIG.allows_ascii(lo)) {
                         return false;
                     }
                     i += 3;
                 } else {
-                    if !self.allows(x) {
+                    let (x, len) = super::next_code_point(s, i);
+                    if !self.allows_code_point(x) {
                         return false;
                     }
-                    i += 1;
+                    i += len;
                 }
             }
         } else {
             while i < s.len() {
-                if !self.allows(s[i]) {
+                let (x, len) = super::next_code_point(s, i);
+                if !self.allows_code_point(x) {
                     return false;
                 }
-                i += 1;
+                i += len;
             }
         }
         true
     }
 }
 
-const fn gen(bytes: &[u8]) -> Table {
-    Table::gen(bytes)
+const fn new(bytes: &[u8]) -> Table {
+    Table::new(bytes)
 }
 
+// Rules from RFC 3986:
+
 /// `ALPHA = %x41-5A / %x61-7A`
-pub const ALPHA: &Table = &gen(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
+pub const ALPHA: &Table = &new(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
 
 /// `DIGIT = %x30-39`
-pub const DIGIT: &Table = &gen(b"0123456789");
+pub const DIGIT: &Table = &new(b"0123456789");
 
 /// `HEXDIG = DIGIT / "A" / "B" / "C" / "D" / "E" / "F"`
-pub const HEXDIG: &Table = &DIGIT.or(&gen(b"ABCDEFabcdef"));
+pub const HEXDIG: &Table = &DIGIT.or(&new(b"ABCDEFabcdef"));
 
 /// `scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )`
-pub const SCHEME: &Table = &ALPHA.or(DIGIT).or(&gen(b"+-."));
+pub const SCHEME: &Table = &ALPHA.or(DIGIT).or(&new(b"+-."));
 
 /// `userinfo = *( unreserved / pct-encoded / sub-delims / ":" )`
-pub const USERINFO: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b":")).enc();
+pub const USERINFO: &Table = &UNRESERVED.or(SUB_DELIMS).or(&new(b":")).or_pct_encoded();
 
 /// `IPvFuture = "v" 1*HEXDIG "." 1*( unreserved / sub-delims / ":" )`
-pub const IPV_FUTURE: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b":"));
+pub const IPV_FUTURE: &Table = &UNRESERVED.or(SUB_DELIMS).or(&new(b":"));
 
 /// `reg-name = *( unreserved / pct-encoded / sub-delims )`
-pub const REG_NAME: &Table = &UNRESERVED.or(SUB_DELIMS).enc();
+pub const REG_NAME: &Table = &UNRESERVED.or(SUB_DELIMS).or_pct_encoded();
 
 /// `path = *( pchar / "/" )`
-pub const PATH: &Table = &PCHAR.or(&gen(b"/"));
+pub const PATH: &Table = &PCHAR.or(&new(b"/"));
 
 /// `segment-nz-nc = 1*( unreserved / pct-encoded / sub-delims / "@" )`
-pub const SEGMENT_NZ_NC: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b"@")).enc();
+pub const SEGMENT_NZ_NC: &Table = &UNRESERVED.or(SUB_DELIMS).or(&new(b"@")).or_pct_encoded();
 
 /// `pchar = unreserved / pct-encoded / sub-delims / ":" / "@"`
-pub const PCHAR: &Table = &UNRESERVED.or(SUB_DELIMS).or(&gen(b":@")).enc();
+pub const PCHAR: &Table = &UNRESERVED.or(SUB_DELIMS).or(&new(b":@")).or_pct_encoded();
 
 /// `query = *( pchar / "/" / "?" )`
-pub const QUERY: &Table = &PCHAR.or(&gen(b"/?"));
+pub const QUERY: &Table = &PCHAR.or(&new(b"/?"));
 
 /// `fragment = *( pchar / "/" / "?" )`
 pub const FRAGMENT: &Table = QUERY;
 
 /// `unreserved = ALPHA / DIGIT / "-" / "." / "_" / "~"`
-pub const UNRESERVED: &Table = &ALPHA.or(DIGIT).or(&gen(b"-._~"));
+pub const UNRESERVED: &Table = &ALPHA.or(DIGIT).or(&new(b"-._~"));
 
 /// `reserved = gen-delims / sub-delims`
 pub const RESERVED: &Table = &GEN_DELIMS.or(SUB_DELIMS);
 
 /// `gen-delims = ":" / "/" / "?" / "#" / "[" / "]" / "@"`
-pub const GEN_DELIMS: &Table = &gen(b":/?#[]@");
+pub const GEN_DELIMS: &Table = &new(b":/?#[]@");
 
 /// `sub-delims = "!" / "$" / "&" / "'" / "(" / ")"
 ///             / "*" / "+" / "," / ";" / "="`
-pub const SUB_DELIMS: &Table = &gen(b"!$&'()*+,;=");
+pub const SUB_DELIMS: &Table = &new(b"!$&'()*+,;=");
+
+// Rules from RFC 3987:
+
+pub const IUSERINFO: &Table = &USERINFO.or_ucschar();
+pub const IREG_NAME: &Table = &REG_NAME.or_ucschar();
+pub const IPATH: &Table = &PATH.or_ucschar();
+pub const ISEGMENT_NZ_NC: &Table = &SEGMENT_NZ_NC.or_ucschar();
+pub const IQUERY: &Table = &QUERY.or_ucschar().or_iprivate();
+pub const IFRAGMENT: &Table = &FRAGMENT.or_ucschar();

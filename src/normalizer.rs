@@ -1,6 +1,6 @@
 use crate::{
     common::Ref,
-    encoding::{decode_octet, table::UNRESERVED},
+    encoding::{decode_octet, next_code_point, table::UNRESERVED},
     internal::{HostMeta, Meta},
     parser, resolver,
 };
@@ -109,11 +109,11 @@ fn normalize_estr(buf: &mut String, s: &str, to_lowercase: bool) {
     let mut i = 0;
 
     while i < s.len() {
-        let mut x = s[i];
-        if x == b'%' {
+        // FIXME: Change this to also decode encoded ucschar and iprivate chars.
+        if s[i] == b'%' {
             let (hi, lo) = (s[i + 1], s[i + 2]);
             let mut octet = decode_octet(hi, lo);
-            if UNRESERVED.allows(octet) {
+            if UNRESERVED.allows_ascii(octet) {
                 if to_lowercase {
                     octet = octet.to_ascii_lowercase();
                 }
@@ -125,11 +125,13 @@ fn normalize_estr(buf: &mut String, s: &str, to_lowercase: bool) {
             }
             i += 3;
         } else {
+            let (x, len) = next_code_point(s, i);
+            let mut x = char::from_u32(x).unwrap();
             if to_lowercase {
                 x = x.to_ascii_lowercase();
             }
-            buf.push(x as char);
-            i += 1;
+            buf.push(x);
+            i += len;
         }
     }
 }

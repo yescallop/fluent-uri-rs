@@ -3,11 +3,8 @@ pub(crate) use crate::{
         state::{NonRefStart, Start},
         Builder,
     },
-    component::{Authority, Scheme},
-    encoding::{
-        encoder::{Fragment, Path, Query},
-        EStr, Encoder,
-    },
+    component::{Authority, IAuthority, Scheme},
+    encoding::{encoder::*, EStr, Encoder},
     error::{ParseError, ResolveError},
     internal::{Criteria, Meta, Parse, RiRef, Value},
     normalizer, resolver,
@@ -54,6 +51,10 @@ macro_rules! ri_maybe_ref {
         )?
         as_method = $as:ident,
         into_method = $into:ident,
+        AuthorityType = $Authority:ident,
+        PathEncoderType = $PathE:ident,
+        QueryEncoderType = $QueryE:ident,
+        FragmentEncoderType = $FragmentE:ident,
     ) => {
         #[doc = $desc]
         ///
@@ -347,18 +348,17 @@ macro_rules! ri_maybe_ref {
             /// # Ok::<_, fluent_uri::error::ParseError>(())
             /// ```
             #[must_use]
-            pub fn authority(&'i self) -> Option<Authority<'o>> {
-                self.as_ref().authority()
+            pub fn authority(&'i self) -> Option<$Authority<'o>> {
+                self.as_ref().authority().map(Authority::cast)
             }
 
             /// Returns the [path] component.
             ///
             /// The path component is always present, although it may be empty.
             ///
-            /// The returned [`EStr`] slice has [extension methods] for the path component.
+            /// The returned [`EStr`] slice has extension methods for the path component.
             ///
             /// [path]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.3
-            /// [extension methods]: EStr#impl-EStr<Path>
             ///
             /// # Examples
             ///
@@ -376,8 +376,8 @@ macro_rules! ri_maybe_ref {
             /// # Ok::<_, fluent_uri::error::ParseError>(())
             /// ```
             #[must_use]
-            pub fn path(&'i self) -> &'o EStr<Path> {
-                self.as_ref().path()
+            pub fn path(&'i self) -> &'o EStr<$PathE> {
+                self.as_ref().path().cast()
             }
 
             /// Returns the optional [query] component.
@@ -397,8 +397,8 @@ macro_rules! ri_maybe_ref {
             /// # Ok::<_, fluent_uri::error::ParseError>(())
             /// ```
             #[must_use]
-            pub fn query(&'i self) -> Option<&'o EStr<Query>> {
-                self.as_ref().query()
+            pub fn query(&'i self) -> Option<&'o EStr<$QueryE>> {
+                self.as_ref().query().map(EStr::cast)
             }
 
             /// Returns the optional [fragment] component.
@@ -418,8 +418,8 @@ macro_rules! ri_maybe_ref {
             /// # Ok::<_, fluent_uri::error::ParseError>(())
             /// ```
             #[must_use]
-            pub fn fragment(&'i self) -> Option<&'o EStr<Fragment>> {
-                self.as_ref().fragment()
+            pub fn fragment(&'i self) -> Option<&'o EStr<$FragmentE>> {
+                self.as_ref().fragment().map(EStr::cast)
             }
 
             $(
@@ -506,6 +506,8 @@ macro_rules! ri_maybe_ref {
             ///   percent-encoded dot segments as described at [`UriRef::resolve_against`].
             /// - If `self` contains no authority and its path would start with
             ///   `"//"`, prepend `"/."` to the path.
+            ///
+            /// [`UriRef::resolve_against`]: crate::UriRef::resolve_against
             ///
             /// This method is idempotent: `self.normalize()` equals `self.normalize().normalize()`.
             ///
@@ -788,7 +790,7 @@ impl<'v, 'm> Ref<'v, 'm> {
         Scheme::new_validated(self.slice(0, end))
     }
 
-    pub fn authority(&self) -> Option<Authority<'v>> {
+    pub fn authority(&self) -> Option<IAuthority<'v>> {
         let mut meta = self.meta.auth_meta?;
         let start = match self.meta.scheme_end {
             Some(i) => i.get() + 3,
@@ -802,11 +804,11 @@ impl<'v, 'm> Ref<'v, 'm> {
         Some(Authority::new(self.slice(start, end), meta))
     }
 
-    pub fn path(&self) -> &'v EStr<Path> {
+    pub fn path(&self) -> &'v EStr<IPath> {
         self.eslice(self.meta.path_bounds.0, self.meta.path_bounds.1)
     }
 
-    pub fn query(&self) -> Option<&'v EStr<Query>> {
+    pub fn query(&self) -> Option<&'v EStr<IQuery>> {
         let end = self.meta.query_end?.get();
         Some(self.eslice(self.meta.path_bounds.1 + 1, end))
     }
@@ -819,7 +821,7 @@ impl<'v, 'm> Ref<'v, 'm> {
         (query_or_path_end != self.val.len()).then_some(query_or_path_end + 1)
     }
 
-    pub fn fragment(&self) -> Option<&'v EStr<Fragment>> {
+    pub fn fragment(&self) -> Option<&'v EStr<IFragment>> {
         self.fragment_start()
             .map(|i| self.eslice(i, self.val.len()))
     }

@@ -29,7 +29,7 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 /// let mut buf = EString::<Query>::new();
 /// for (k, v) in pairs {
 ///     if !buf.is_empty() {
-///         buf.push_byte(b'&');
+///         buf.push('&');
 ///     }
 ///
 ///     // WARNING: Absolutely do not confuse data with delimiters! Use `Data`
@@ -41,7 +41,7 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 ///     // choose to preserve some of them. See below for an example of creating
 ///     // a custom encoder based on an existing one.
 ///     buf.encode::<Data>(k);
-///     buf.push_byte(b'=');
+///     buf.push('=');
 ///     buf.encode::<Data>(v);
 /// }
 ///
@@ -64,11 +64,11 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 /// struct PathSegment;
 ///
 /// impl Encoder for PathSegment {
-///     const TABLE: &'static Table = &Path::TABLE.sub(&Table::gen(b"/"));
+///     const TABLE: &'static Table = &Path::TABLE.sub(&Table::new(b"/"));
 /// }
 ///
 /// let mut path = EString::<Path>::new();
-/// path.push_byte(b'/');
+/// path.push('/');
 /// path.encode::<PathSegment>("foo/bar");
 ///
 /// assert_eq!(path, "/foo%2Fbar");
@@ -122,26 +122,31 @@ impl<E: Encoder> EString<E> {
     /// Panics at compile time if `SubE` is not a [sub-encoder](Encoder#sub-encoders) of `E`,
     /// or if `SubE::TABLE` does not [allow percent-encoded octets].
     ///
-    /// [allow percent-encoded octets]: super::Table::allows_enc
+    /// [allow percent-encoded octets]: super::Table::allows_pct_encoded
     pub fn encode<SubE: Encoder>(&mut self, s: &(impl AsRef<[u8]> + ?Sized)) {
-        let () = Assert::<SubE, E>::LEFT_IS_SUB_ENCODER_OF_RIGHT;
-        let () = EStr::<SubE>::ASSERT_ALLOWS_ENC;
+        let () = Assert::<SubE, E>::L_IS_SUB_ENCODER_OF_R;
+        let () = EStr::<SubE>::ASSERT_ALLOWS_PCT_ENCODED;
 
-        for &x in s.as_ref() {
-            SubE::TABLE.encode(x, &mut self.buf);
+        for chunk in s.as_ref().utf8_chunks() {
+            for ch in chunk.valid().chars() {
+                SubE::TABLE.encode(ch, &mut self.buf);
+            }
+            for &x in chunk.invalid() {
+                super::encode_byte(x, &mut self.buf);
+            }
         }
     }
 
-    /// Appends an unencoded byte onto the end of this `EString`.
+    /// Appends an unencoded character onto the end of this `EString`.
     ///
     /// # Panics
     ///
-    /// Panics if `E::TABLE` does not [allow] the byte.
+    /// Panics if `E::TABLE` does not [allow] the character.
     ///
     /// [allow]: super::Table::allows
-    pub fn push_byte(&mut self, x: u8) {
-        assert!(E::TABLE.allows(x), "table does not allow the byte");
-        self.buf.push(x as char);
+    pub fn push(&mut self, ch: char) {
+        assert!(E::TABLE.allows(ch), "table does not allow the char");
+        self.buf.push(ch);
     }
 
     /// Appends an `EStr` slice onto the end of this `EString`.

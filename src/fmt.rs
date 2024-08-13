@@ -94,7 +94,7 @@ impl Display for Scheme {
     }
 }
 
-impl Debug for Authority<'_> {
+impl<UserinfoE: Encoder, RegNameE: Encoder + Debug> Debug for Authority<'_, UserinfoE, RegNameE> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_struct("Authority")
             .field("userinfo", &self.userinfo())

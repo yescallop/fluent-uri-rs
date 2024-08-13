@@ -78,14 +78,32 @@ test = false
 doc = false
 
 [[bin]]
+name = "iri_against_iref"
+path = "fuzz_targets/iri_against_iref.rs"
+test = false
+doc = false
+
+[[bin]]
 name = "against_iri_string"
 path = "fuzz_targets/against_iri_string.rs"
 test = false
 doc = false
 
 [[bin]]
+name = "iri_against_iri_string"
+path = "fuzz_targets/iri_against_iri_string.rs"
+test = false
+doc = false
+
+[[bin]]
 name = "against_oxiri"
 path = "fuzz_targets/against_oxiri.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "iri_against_oxiri"
+path = "fuzz_targets/iri_against_oxiri.rs"
 test = false
 doc = false
 
