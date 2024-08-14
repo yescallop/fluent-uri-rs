@@ -3,14 +3,13 @@
 pub mod state;
 
 use crate::{
-    common::RiRef,
-    component::{Authority, Scheme},
+    component::{Authority, IAuthority, Scheme},
     encoding::{
-        encoder::{Fragment, Path, Port, Query, RegName, Userinfo},
+        encoder::{IRegName, Port, RegName},
         EStr,
     },
     error::{BuildError, BuildErrorKind},
-    internal::{AuthMeta, HostMeta, Meta},
+    internal::{AuthMeta, HostMeta, Meta, RiRef},
     parser,
 };
 use alloc::string::String;
@@ -20,13 +19,15 @@ use state::*;
 #[cfg(feature = "net")]
 use crate::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
-/// A builder for URI (reference).
+/// A builder for URI/IRI (reference).
 ///
 /// This struct is created by the `builder` associated
-/// functions on [`Uri`] and [`UriRef`].
+/// functions on [`Uri`], [`UriRef`], [`Iri`], and [`IriRef`].
 ///
 /// [`Uri`]: crate::Uri
 /// [`UriRef`]: crate::UriRef
+/// [`Iri`]: crate::Iri
+/// [`IriRef`]: crate::IriRef
 ///
 /// # Examples
 ///
@@ -69,7 +70,7 @@ use crate::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 /// which puts the following constraints:
 ///
 /// - Components must be set from left to right, no repetition allowed.
-/// - Setting [`scheme`] is mandatory when building a URI.
+/// - Setting [`scheme`] is mandatory when building a URI/IRI.
 /// - Setting [`path`] is mandatory.
 /// - Methods [`userinfo`], [`host`], and [`port`] are only available
 ///   within a call to [`authority_with`].
@@ -113,7 +114,7 @@ impl BuilderInner {
         self.buf.push_str("//");
     }
 
-    fn push_authority(&mut self, v: Authority<'_>) {
+    fn push_authority(&mut self, v: IAuthority<'_>) {
         self.buf.push_str("//");
         let start = self.buf.len();
         self.buf.push_str(v.as_str());
@@ -180,7 +181,6 @@ impl BuilderInner {
 }
 
 impl<R, S> Builder<R, S> {
-    #[inline]
     pub(crate) fn new() -> Self {
         Self {
             inner: BuilderInner {
@@ -270,7 +270,7 @@ impl<R, S: To<SchemeEnd>> Builder<R, S> {
     }
 }
 
-impl<R, S: To<AuthorityStart>> Builder<R, S> {
+impl<R: RiRef, S: To<AuthorityStart>> Builder<R, S> {
     /// Builds the [authority] component with the given function.
     ///
     /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2
@@ -285,8 +285,10 @@ impl<R, S: To<AuthorityStart>> Builder<R, S> {
 
     /// Sets the [authority] component.
     ///
+    /// This method takes an [`Authority`] (for URI) or [`IAuthority`] (for IRI) as argument.
+    ///
     /// This method is normally used with an authority which is empty ([`Authority::EMPTY`])
-    /// or is obtained from a URI (reference). If you need to build an authority from its
+    /// or is obtained from a URI/IRI (reference). If you need to build an authority from its
     /// subcomponents (userinfo, host, and port), use [`authority_with`] instead.
     ///
     /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2
@@ -323,17 +325,25 @@ impl<R, S: To<AuthorityStart>> Builder<R, S> {
     /// assert_eq!(uri, "http://user@example.com:8042");
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
-    pub fn authority(mut self, authority: Authority<'_>) -> Builder<R, AuthorityEnd> {
-        self.inner.push_authority(authority);
+    pub fn authority(
+        mut self,
+        authority: Authority<'_, R::UserinfoE, R::RegNameE>,
+    ) -> Builder<R, AuthorityEnd> {
+        self.inner.push_authority(authority.cast());
         self.cast::<AuthorityEnd>()
     }
 }
 
-impl<R, S: To<UserinfoEnd>> Builder<R, S> {
-    /// Sets the [userinfo] subcomponent of authority.
+impl<R: RiRef, S: To<UserinfoEnd>> Builder<R, S> {
+    /// Sets the [userinfo][userinfo-spec] subcomponent of authority.
     ///
-    /// [userinfo]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.1
-    pub fn userinfo(mut self, userinfo: &EStr<Userinfo>) -> Builder<R, UserinfoEnd> {
+    /// This method takes an <code>&amp;[EStr]&lt;[Userinfo]&gt;</code> (for URI)
+    /// or <code>&amp;[EStr]&lt;[IUserinfo]&gt;</code> (for IRI) as argument.
+    ///
+    /// [userinfo-spec]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.1
+    /// [Userinfo]: crate::encoding::encoder::Userinfo
+    /// [IUserinfo]: crate::encoding::encoder::IUserinfo
+    pub fn userinfo(mut self, userinfo: &EStr<R::UserinfoE>) -> Builder<R, UserinfoEnd> {
         self.inner.push_userinfo(userinfo.as_str());
         self.cast()
     }
@@ -372,6 +382,13 @@ impl<'a> AsHost<'a> for IpAddr {
 }
 
 impl<'a> AsHost<'a> for &'a EStr<RegName> {
+    #[inline]
+    fn push_to(self, b: &mut BuilderInner) {
+        self.cast::<IRegName>().push_to(b);
+    }
+}
+
+impl<'a> AsHost<'a> for &'a EStr<IRegName> {
     fn push_to(self, b: &mut BuilderInner) {
         let meta = parser::parse_v4_or_reg_name(self.as_str().as_bytes());
         b.push_host(meta, |buf| {
@@ -380,15 +397,28 @@ impl<'a> AsHost<'a> for &'a EStr<RegName> {
     }
 }
 
-impl<R, S: To<HostEnd>> Builder<R, S> {
+pub trait WithEncoder<E> {}
+
+#[cfg(feature = "net")]
+impl<E> WithEncoder<E> for Ipv4Addr {}
+#[cfg(feature = "net")]
+impl<E> WithEncoder<E> for Ipv6Addr {}
+#[cfg(feature = "net")]
+impl<E> WithEncoder<E> for IpAddr {}
+
+impl WithEncoder<RegName> for &EStr<RegName> {}
+impl WithEncoder<IRegName> for &EStr<IRegName> {}
+
+impl<R: RiRef, S: To<HostEnd>> Builder<R, S> {
     /// Sets the [host] subcomponent of authority.
     ///
     /// This method takes either an [`Ipv4Addr`], [`Ipv6Addr`], [`IpAddr`],
-    /// or <code>&amp;[EStr]&lt;[RegName]&gt;</code> as argument.
+    /// <code>&amp;[EStr]&lt;[RegName]&gt;</code> (for URI)
+    /// or <code>&amp;[EStr]&lt;[IRegName]&gt;</code> (for IRI) as argument.
     ///
-    /// If the contents of an input `&EStr<RegName>` matches the
+    /// If the contents of an input `EStr` slice matches the
     /// `IPv4address` ABNF rule defined in [Section 3.2.2 of RFC 3986][host],
-    /// the resulting URI (reference) will output a [`Host::Ipv4`] variant instead.
+    /// the resulting URI/IRI (reference) will output a [`Host::Ipv4`] variant instead.
     ///
     /// Note that the host subcomponent is *case-insensitive*.
     /// For consistency, you should only produce [normalized] hosts.
@@ -410,7 +440,10 @@ impl<R, S: To<HostEnd>> Builder<R, S> {
     ///
     /// assert!(matches!(uri_ref.authority().unwrap().host_parsed(), Host::Ipv4(_)));
     /// ```
-    pub fn host<'a>(mut self, host: impl AsHost<'a>) -> Builder<R, HostEnd> {
+    pub fn host<'a>(
+        mut self,
+        host: impl AsHost<'a> + WithEncoder<R::RegNameE>,
+    ) -> Builder<R, HostEnd> {
         host.push_to(&mut self.inner);
         self.cast()
     }
@@ -455,38 +488,53 @@ impl<R, S: To<PortEnd>> Builder<R, S> {
     }
 }
 
-impl<R, S: To<PathEnd>> Builder<R, S> {
-    /// Sets the [path] component.
+impl<R: RiRef, S: To<PathEnd>> Builder<R, S> {
+    /// Sets the [path][path-spec] component.
     ///
-    /// [path]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.3
-    pub fn path(mut self, path: &EStr<Path>) -> Builder<R, PathEnd> {
+    /// This method takes an <code>&amp;[EStr]&lt;[Path]&gt;</code> (for URI)
+    /// or <code>&amp;[EStr]&lt;[IPath]&gt;</code> (for IRI) as argument.
+    ///
+    /// [path-spec]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.3
+    /// [Path]: crate::encoding::encoder::Path
+    /// [IPath]: crate::encoding::encoder::IPath
+    pub fn path(mut self, path: &EStr<R::PathE>) -> Builder<R, PathEnd> {
         self.inner.push_path(path.as_str());
         self.cast()
     }
 }
 
-impl<R, S: To<QueryEnd>> Builder<R, S> {
-    /// Sets the [query] component.
+impl<R: RiRef, S: To<QueryEnd>> Builder<R, S> {
+    /// Sets the [query][query-spec] component.
     ///
-    /// [query]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.4
-    pub fn query(mut self, query: &EStr<Query>) -> Builder<R, QueryEnd> {
+    /// This method takes an <code>&amp;[EStr]&lt;[Query]&gt;</code> (for URI)
+    /// or <code>&amp;[EStr]&lt;[IQuery]&gt;</code> (for IRI) as argument.
+    ///
+    /// [query-spec]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.4
+    /// [Query]: crate::encoding::encoder::Query
+    /// [IQuery]: crate::encoding::encoder::IQuery
+    pub fn query(mut self, query: &EStr<R::QueryE>) -> Builder<R, QueryEnd> {
         self.inner.push_query(query.as_str());
         self.cast()
     }
 }
 
-impl<R, S: To<FragmentEnd>> Builder<R, S> {
-    /// Sets the [fragment] component.
+impl<R: RiRef, S: To<FragmentEnd>> Builder<R, S> {
+    /// Sets the [fragment][fragment-spec] component.
     ///
-    /// [fragment]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.5
-    pub fn fragment(mut self, fragment: &EStr<Fragment>) -> Builder<R, FragmentEnd> {
+    /// This method takes an <code>&amp;[EStr]&lt;[Fragment]&gt;</code> (for URI)
+    /// or <code>&amp;[EStr]&lt;[IFragment]&gt;</code> (for IRI) as argument.
+    ///
+    /// [fragment-spec]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.5
+    /// [Fragment]: crate::encoding::encoder::Fragment
+    /// [IFragment]: crate::encoding::encoder::IFragment
+    pub fn fragment(mut self, fragment: &EStr<R::FragmentE>) -> Builder<R, FragmentEnd> {
         self.inner.push_fragment(fragment.as_str());
         self.cast()
     }
 }
 
 impl<R: RiRef<Val = String>, S: To<End>> Builder<R, S> {
-    /// Builds the URI (reference).
+    /// Builds the URI/IRI (reference).
     ///
     /// # Errors
     ///

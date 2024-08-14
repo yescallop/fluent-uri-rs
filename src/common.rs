@@ -52,6 +52,8 @@ macro_rules! ri_maybe_ref {
         as_method = $as:ident,
         into_method = $into:ident,
         AuthorityType = $Authority:ident,
+        UserinfoEncoderType = $UserinfoE:ident,
+        RegNameEncoderType = $RegNameE:ident,
         PathEncoderType = $PathE:ident,
         QueryEncoderType = $QueryE:ident,
         FragmentEncoderType = $FragmentE:ident,
@@ -150,6 +152,11 @@ macro_rules! ri_maybe_ref {
 
         impl<T> RiRef for $Ty<T> {
             type Val = T;
+            type UserinfoE = $UserinfoE;
+            type RegNameE = $RegNameE;
+            type PathE = $PathE;
+            type QueryE = $QueryE;
+            type FragmentE = $FragmentE;
 
             fn new(val: T, meta: Meta) -> Self {
                 Self { val, meta }

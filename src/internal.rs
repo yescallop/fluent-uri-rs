@@ -25,6 +25,11 @@ pub struct Criteria {
 
 pub trait RiRef: Sized {
     type Val;
+    type UserinfoE: Encoder;
+    type RegNameE: Encoder;
+    type PathE: Encoder;
+    type QueryE: Encoder;
+    type FragmentE: Encoder;
 
     fn new(val: Self::Val, meta: Meta) -> Self;
 
