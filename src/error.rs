@@ -9,7 +9,7 @@ pub(crate) enum ParseErrorKind {
     ///
     /// The error index points to the percent character "%" of the octet.
     InvalidOctet,
-    /// Unexpected character that is not allowed by the URI syntax.
+    /// Unexpected character that is not allowed by the URI/IRI syntax.
     ///
     /// The error index points to the first byte of the character.
     UnexpectedChar,
@@ -19,7 +19,7 @@ pub(crate) enum ParseErrorKind {
     InvalidIpv6Addr,
 }
 
-/// An error occurred when parsing a URI (reference).
+/// An error occurred when parsing a URI/IRI (reference).
 #[derive(Clone, Copy)]
 pub struct ParseError<I = NoInput> {
     pub(crate) index: usize,
@@ -38,7 +38,7 @@ impl ParseError {
 }
 
 impl<I: Parse> ParseError<I> {
-    /// Recovers the input that was attempted to parse into a URI (reference).
+    /// Recovers the input that was attempted to parse into a URI/IRI (reference).
     #[must_use]
     pub fn into_input(self) -> I {
         self.input
@@ -66,7 +66,7 @@ pub(crate) enum BuildErrorKind {
     ColonInFirstPathSegment,
 }
 
-/// An error occurred when building a URI (reference).
+/// An error occurred when building a URI/IRI (reference).
 #[derive(Clone, Copy, Debug)]
 pub struct BuildError(pub(crate) BuildErrorKind);
 
@@ -81,7 +81,7 @@ pub(crate) enum ResolveErrorKind {
     // PathUnderflow,
 }
 
-/// An error occurred when resolving a URI reference.
+/// An error occurred when resolving a URI/IRI reference.
 #[derive(Clone, Copy, Debug)]
 pub struct ResolveError(pub(crate) ResolveErrorKind);
 

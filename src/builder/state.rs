@@ -1,8 +1,8 @@
 //! Builder typestates.
 
-/// Start of URI reference.
+/// Start of URI/IRI reference.
 pub struct Start(());
-/// Start of URI.
+/// Start of URI/IRI.
 pub struct NonRefStart(());
 /// End of scheme.
 pub struct SchemeEnd(());
@@ -22,7 +22,7 @@ pub struct PathEnd(());
 pub struct QueryEnd(());
 /// End of fragment
 pub struct FragmentEnd(());
-/// End of URI (reference).
+/// End of URI/IRI (reference).
 pub struct End(());
 
 /// Indicates the next possible state.

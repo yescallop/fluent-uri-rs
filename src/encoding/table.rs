@@ -1,4 +1,4 @@
-//! Byte pattern tables from RFC 3986.
+//! Byte pattern tables from RFC 3986 and RFC 3987.
 //!
 //! The predefined table constants in this module are documented with
 //! the ABNF notation of [RFC 5234].

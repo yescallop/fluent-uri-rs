@@ -1,4 +1,4 @@
-//! URI components.
+//! URI/IRI components.
 
 use crate::{
     encoding::{

@@ -71,9 +71,9 @@ impl Display for BuildError {
 impl Display for ResolveError {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         let msg = match self.0 {
-            ResolveErrorKind::InvalidBase => "base URI with fragment",
+            ResolveErrorKind::InvalidBase => "base URI/IRI with fragment",
             ResolveErrorKind::OpaqueBase => {
-                "relative reference must be empty or start with '#' when resolved against authority-less base URI with rootless path"
+                "relative reference must be empty or start with '#' when resolved against authority-less base URI/IRI with rootless path"
             }
         };
         f.write_str(msg)

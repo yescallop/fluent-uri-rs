@@ -83,7 +83,7 @@ pub(crate) fn normalize(r: Ref<'_, '_>) -> (String, Meta) {
     }
 
     meta.path_bounds.0 = buf.len();
-    // Make sure that the output is a valid URI reference.
+    // Make sure that the output is a valid URI/IRI reference.
     if r.has_scheme() && !r.has_authority() && path_buf.starts_with("//") {
         buf.push_str("/.");
     }

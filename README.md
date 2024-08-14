@@ -1,6 +1,6 @@
 # fluent-uri
 
-A full-featured URI handling library compliant with [RFC 3986]. It is:
+A full-featured URI/IRI handling library compliant with [RFC 3986] and [RFC 3987]. It is:
 
 - **Fast:** Zero-copy parsing. Benchmarked to be highly performant.[^bench-res]
 - **Easy:** Carefully designed and documented APIs. Handy percent-encoding utilities.
@@ -14,6 +14,7 @@ A full-featured URI handling library compliant with [RFC 3986]. It is:
 [Documentation](https://docs.rs/fluent-uri) | [Discussions](https://github.com/yescallop/fluent-uri-rs/discussions)
 
 [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986
+[RFC 3987]: https://datatracker.ietf.org/doc/html/rfc3987
 [^bench-res]: In [a benchmark](https://github.com/yescallop/fluent-uri-rs/blob/main/bench/benches/bench.rs)
     on an Intel Core i5-11300H processor, `fluent-uri` parsed a URI
     in 49ns compared to 89ns for `iref` and 135ns for `iri-string`.

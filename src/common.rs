@@ -143,9 +143,9 @@ macro_rules! ri_maybe_ref {
         /// ```
         #[derive(Clone, Copy)]
         pub struct $Ty<T> {
-            /// Value of the URI (reference).
+            /// Value of the URI/IRI (reference).
             val: T,
-            /// Metadata of the URI (reference).
+            /// Metadata of the URI/IRI (reference).
             /// Should be identical to parser output with `val` as input.
             meta: Meta,
         }
@@ -446,7 +446,7 @@ macro_rules! ri_maybe_ref {
                 /// - When the target contains no authority and its path would start
                 ///   with `"//"`, the string `"/."` is prepended to the path. This closes a
                 ///   loophole in the original algorithm that resolving `".//@@"` against
-                ///   `"foo:/"` yields `"foo://@@"` which is not a valid URI.
+                ///   `"foo:/"` yields `"foo://@@"` which is not a valid URI/IRI.
                 /// - Percent-encoded dot segments (e.g. `"%2E"` and `".%2e"`) are also removed.
                 ///   This closes a loophole in the original algorithm that resolving `".."`
                 ///   against `"foo:/bar/.%2E/"` yields `"foo:/bar/"`, while first normalizing
@@ -764,7 +764,7 @@ macro_rules! ri_maybe_ref {
     };
 }
 
-/// A Rust reference to a URI (reference).
+/// A Rust reference to a URI/IRI (reference).
 pub struct Ref<'v, 'm> {
     val: &'v str,
     meta: &'m Meta,

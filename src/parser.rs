@@ -31,7 +31,7 @@ pub(crate) fn parse(bytes: &[u8], criteria: Criteria) -> Result<Meta> {
     Ok(parser.out)
 }
 
-/// URI parser.
+/// URI/IRI parser.
 ///
 /// # Invariants
 ///
@@ -47,7 +47,7 @@ pub(crate) fn parse(bytes: &[u8], criteria: Criteria) -> Result<Meta> {
 ///
 /// - All output indexes are within bounds, correctly ordered
 ///   and on the boundary of a UTF-8 code point.
-/// - All URI components defined by output indexes are validated.
+/// - All URI/IRI components defined by output indexes are validated.
 struct Parser<'a> {
     criteria: Criteria,
     reader: Reader<'a>,

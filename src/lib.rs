@@ -18,9 +18,10 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![no_std]
 
-//! A full-featured URI handling library compliant with [RFC 3986].
+//! A full-featured URI/IRI handling library compliant with [RFC 3986] and [RFC 3987].
 //!
 //! [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986
+//! [RFC 3987]: https://datatracker.ietf.org/doc/html/rfc3987
 //!
 //! **Examples:** [Parsing](Uri#examples). [Building](Builder#examples).
 //! [Reference resolution](UriRef::resolve_against). [Normalization](Uri::normalize).
