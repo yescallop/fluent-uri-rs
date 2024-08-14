@@ -41,7 +41,7 @@ pub trait RiRef: Sized {
 }
 
 pub trait Parse {
-    type Val: Value;
+    type Val;
     type Err;
 
     fn parse<R: RiRef<Val = Self::Val>>(self) -> Result<R, Self::Err>;

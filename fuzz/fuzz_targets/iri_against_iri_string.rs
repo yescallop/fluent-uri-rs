@@ -1,9 +1,8 @@
 #![no_main]
-use fluent_uri::IriRef;
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &str| {
-    let r1 = IriRef::parse(data);
+    let r1 = fluent_uri::IriRef::parse(data);
     let r2 = iri_string::types::IriReferenceStr::new(data);
     assert_eq!(r1.is_ok(), r2.is_ok());
 

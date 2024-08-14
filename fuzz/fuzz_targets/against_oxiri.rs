@@ -1,9 +1,8 @@
 #![no_main]
-use fluent_uri::{component::Host, UriRef};
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &str| {
-    let Ok(r1) = UriRef::parse(data) else {
+    let Ok(r1) = fluent_uri::UriRef::parse(data) else {
         return;
     };
     let r2 = oxiri::IriRef::parse(data).unwrap();

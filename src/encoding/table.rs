@@ -163,33 +163,32 @@ impl Table {
     /// Validates the given string with the table.
     pub(crate) const fn validate(&self, s: &[u8]) -> bool {
         let mut i = 0;
-        if self.allows_pct_encoded() {
-            while i < s.len() {
-                if s[i] == b'%' {
-                    if i + 2 >= s.len() {
-                        return false;
-                    }
-                    let (hi, lo) = (s[i + 1], s[i + 2]);
+        let allow_pct_encoded = self.allows_pct_encoded();
+        let allow_non_ascii = self.allows_non_ascii();
 
-                    if !(HEXDIG.allows_ascii(hi) & HEXDIG.allows_ascii(lo)) {
-                        return false;
-                    }
-                    i += 3;
-                } else {
-                    let (x, len) = super::next_code_point(s, i);
-                    if !self.allows_code_point(x) {
-                        return false;
-                    }
-                    i += len;
+        while i < s.len() {
+            let x = s[i];
+            if allow_pct_encoded && x == b'%' {
+                if i + 2 >= s.len() {
+                    return false;
                 }
-            }
-        } else {
-            while i < s.len() {
+                let (hi, lo) = (s[i + 1], s[i + 2]);
+
+                if !(HEXDIG.allows_ascii(hi) & HEXDIG.allows_ascii(lo)) {
+                    return false;
+                }
+                i += 3;
+            } else if allow_non_ascii {
                 let (x, len) = super::next_code_point(s, i);
                 if !self.allows_code_point(x) {
                     return false;
                 }
                 i += len;
+            } else {
+                if !self.allows_ascii(x) {
+                    return false;
+                }
+                i += 1;
             }
         }
         true

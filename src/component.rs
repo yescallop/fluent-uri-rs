@@ -1,10 +1,9 @@
 //! URI components.
 
 use crate::{
-    common::Encoder,
     encoding::{
         encoder::{IRegName, IUserinfo, Port, RegName, Userinfo},
-        table, EStr,
+        table, EStr, Encoder,
     },
     internal::{AuthMeta, HostMeta},
 };

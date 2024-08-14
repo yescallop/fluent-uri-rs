@@ -1,9 +1,8 @@
 #![no_main]
-use fluent_uri::UriRef;
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &str| {
-    let r1 = UriRef::parse(data);
+    let r1 = fluent_uri::UriRef::parse(data);
     let r2 = iref::UriRef::new(data);
     assert_eq!(r1.is_ok(), r2.is_ok());
 

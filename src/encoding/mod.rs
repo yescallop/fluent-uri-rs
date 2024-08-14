@@ -154,7 +154,7 @@ impl<E: Encoder> EStr<E> {
     #[cfg(fluent_uri_unstable)]
     #[must_use]
     pub fn upcast<SuperE: Encoder>(&self) -> &EStr<SuperE> {
-        let () = Assert::<E, SuperE>::LEFT_IS_SUB_ENCODER_OF_RIGHT;
+        let () = Assert::<E, SuperE>::L_IS_SUB_ENCODER_OF_R;
         EStr::new_validated(self.as_str())
     }
 
