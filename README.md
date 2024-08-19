@@ -32,7 +32,7 @@ which may contain non-ASCII characters.
 
 [URI reference]: https://datatracker.ietf.org/doc/html/rfc3986#section-4.1
 [URI]: https://datatracker.ietf.org/doc/html/rfc3986#section-3
-[IRI]: https://datatracker.ietf.org/doc/html/rfc3987#section-2.2
+[IRI]: https://datatracker.ietf.org/doc/html/rfc3987#section-2
 [relative reference]: https://datatracker.ietf.org/doc/html/rfc3986#section-4.2
 [scheme]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.1
 
