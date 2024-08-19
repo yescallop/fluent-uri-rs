@@ -36,8 +36,12 @@
 //! a relative reference. For example, `//example.org/`, `/index.html`, `../`, `foo`,
 //! `?bar`, and `#baz` are relative references.
 //!
+//! An *[IRI]* (reference) is an internationalized version of URI (reference)
+//! which may contain non-ASCII characters.
+//!
 //! [URI]: https://datatracker.ietf.org/doc/html/rfc3986#section-3
 //! [URI reference]: https://datatracker.ietf.org/doc/html/rfc3986#section-4.1
+//! [IRI]: https://datatracker.ietf.org/doc/html/rfc3987#section-2.2
 //! [relative reference]: https://datatracker.ietf.org/doc/html/rfc3986#section-4.2
 //! [scheme]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.1
 //!

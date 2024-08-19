@@ -499,12 +499,13 @@ macro_rules! ri_maybe_ref {
             #[doc = concat!("Normalizes the ", $name, ".")]
             ///
             /// This method applies the syntax-based normalization described in
-            /// [Section 6.2.2 of RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986#section-6.2.2),
+            /// [Section 6.2.2 of RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986#section-6.2.2)
+            /// and [Section 5.3.2 of RFC 3987](https://datatracker.ietf.org/doc/html/rfc3987#section-5.3.2),
             /// which is effectively equivalent to taking the following steps in order:
             ///
-            /// - Decode any percent-encoded octet that corresponds to an unreserved character.
+            /// - Decode any percent-encoded octets that correspond to an allowed character which is not reserved.
             /// - Uppercase the hexadecimal digits within all percent-encoded octets.
-            /// - Lowercase the scheme and the host except the percent-encoded octets.
+            /// - Lowercase all ASCII characters within the scheme and the host except the percent-encoded octets.
             /// - Turn any IPv6 literal address into its canonical form as per
             ///   [RFC 5952](https://datatracker.ietf.org/doc/html/rfc5952).
             /// - If the port is empty, remove its `':'` delimiter.
@@ -514,10 +515,9 @@ macro_rules! ri_maybe_ref {
             /// - If `self` contains no authority and its path would start with
             ///   `"//"`, prepend `"/."` to the path.
             ///
-            /// [`UriRef::resolve_against`]: crate::UriRef::resolve_against
-            ///
             /// This method is idempotent: `self.normalize()` equals `self.normalize().normalize()`.
             ///
+            /// [`UriRef::resolve_against`]: crate::UriRef::resolve_against
             /// [`remove_dot_segments`]: https://datatracker.ietf.org/doc/html/rfc3986#section-5.2.4
             ///
             /// # Examples
@@ -531,7 +531,7 @@ macro_rules! ri_maybe_ref {
             /// ```
             #[must_use]
             pub fn normalize(&self) -> $Ty<String> {
-                RiRef::new_pair(normalizer::normalize(self.as_ref_loose()))
+                RiRef::new_pair(normalizer::normalize(self.as_ref_loose(), $must_be_ascii))
             }
 
             $(
