@@ -1,5 +1,4 @@
 #![no_main]
-use fluent_uri::component::Host;
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &str| {
@@ -9,12 +8,6 @@ fuzz_target!(|data: &str| {
 
     let Ok(r1) = r1 else { return };
     let r2 = r2.unwrap();
-
-    if let Some(auth) = r1.authority() {
-        if let Host::IpvFuture { .. } = auth.host_parsed() {
-            return;
-        }
-    }
 
     assert_eq!(r1.scheme().map(|s| s.as_str()), r2.scheme());
     assert_eq!(r1.authority().map(|a| a.as_str()), r2.authority());
