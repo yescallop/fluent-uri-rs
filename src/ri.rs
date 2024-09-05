@@ -1,25 +1,26 @@
-pub(crate) use crate::{
+use crate::{
     builder::{
         state::{NonRefStart, Start},
         Builder,
     },
     component::{Authority, IAuthority, Scheme},
-    encoding::{encoder::*, EStr, Encoder},
+    encoding::{encode_byte, encoder::*, EStr, Encoder},
     error::{ParseError, ResolveError},
-    internal::{Criteria, Meta, Parse, RiRef, Value},
+    internal::{Criteria, HostMeta, Meta, Parse, RiRef, Value},
     normalizer, resolver,
 };
-pub(crate) use alloc::{borrow::ToOwned, string::String};
-pub(crate) use borrow_or_share::{BorrowOrShare, Bos};
-pub(crate) use core::{
+use alloc::{borrow::ToOwned, string::String};
+use borrow_or_share::{BorrowOrShare, Bos};
+use core::{
     borrow::Borrow,
     cmp::Ordering,
     fmt, hash,
+    num::NonZeroUsize,
     str::{self, FromStr},
 };
 
 #[cfg(feature = "serde")]
-pub(crate) use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 macro_rules! cond {
     (if true { $($then:tt)* } else { $($else:tt)* }) => { $($then)* };
@@ -49,8 +50,6 @@ macro_rules! ri_maybe_ref {
             RefType = $RefTy:ident,
             ref_name = $ref_name:literal,
         )?
-        as_method = $as:ident,
-        into_method = $into:ident,
         AuthorityType = $Authority:ident,
         UserinfoEncoderType = $UserinfoE:ident,
         RegNameEncoderType = $RegNameE:ident,
@@ -247,41 +246,6 @@ macro_rules! ri_maybe_ref {
             pub fn as_str(&'i self) -> &'o str {
                 self.val.borrow_or_share()
             }
-
-            $(
-                #[doc = concat!("Returns the ", $name, " as a borrowed ", $nr_name)]
-                /// if it contains a scheme.
-                pub fn $as(&'i self) -> Option<$NonRefTy<&'o str>> {
-                    self.has_scheme().then(|| RiRef::new(self.as_str(), self.meta))
-                }
-
-                #[doc = concat!("Consumes this `", $ty, "` and creates a new `", stringify!($NonRefTy), "`")]
-                /// with the same value if it contains a scheme.
-                ///
-                /// # Errors
-                ///
-                /// Returns `Err` containing `self` if it contains no scheme.
-                pub fn $into(self) -> Result<$NonRefTy<T>, Self> {
-                    if self.has_scheme() {
-                        Ok(RiRef::new(self.val, self.meta))
-                    } else {
-                        Err(self)
-                    }
-                }
-            )?
-
-            $(
-                #[doc = concat!("Returns the ", $name, " as a borrowed ", $ref_name, ".")]
-                pub fn $as(&'i self) -> $RefTy<&'o str> {
-                    RiRef::new(self.as_str(), self.meta)
-                }
-
-                #[doc = concat!("Consumes this `", $ty, "` and creates a new `", stringify!($RefTy), "`")]
-                /// with the same contents.
-                pub fn $into(self) -> $RefTy<T> {
-                    RiRef::new(self.val, self.meta)
-                }
-            )?
 
             fn as_ref(&'i self) -> Ref<'o, 'i> {
                 Ref::new(self.as_str(), &self.meta)
@@ -808,7 +772,7 @@ impl<'v, 'm> Ref<'v, 'm> {
         meta.host_bounds.0 -= start;
         meta.host_bounds.1 -= start;
 
-        Some(Authority::new(self.slice(start, end), meta))
+        Some(IAuthority::new(self.slice(start, end), meta))
     }
 
     pub fn path(&self) -> &'v EStr<IPath> {
@@ -850,5 +814,199 @@ impl<'v, 'm> Ref<'v, 'm> {
 
     pub fn has_fragment(&self) -> bool {
         self.fragment_start().is_some()
+    }
+}
+
+ri_maybe_ref! {
+    Type = UriRef,
+    type_name = "UriRef",
+    variable_name = "uri_ref",
+    name = "URI reference",
+    indefinite_article = "a",
+    description = "A URI reference, i.e., either a URI or a relative reference.",
+    must_be_ascii = true,
+    must_have_scheme = false,
+    rfc = 3986,
+    abnf_rule = ("URI-reference", "https://datatracker.ietf.org/doc/html/rfc3986#section-4.1"),
+    NonRefType = Uri,
+    non_ref_name = "URI",
+    non_ref_link = "https://datatracker.ietf.org/doc/html/rfc3986#section-3",
+    abnf_rule_absolute = ("absolute-URI", "https://datatracker.ietf.org/doc/html/rfc3986#section-4.3"),
+    has_scheme_equivalent = is_uri,
+    AuthorityType = Authority,
+    UserinfoEncoderType = Userinfo,
+    RegNameEncoderType = RegName,
+    PathEncoderType = Path,
+    QueryEncoderType = Query,
+    FragmentEncoderType = Fragment,
+}
+
+ri_maybe_ref! {
+    Type = Uri,
+    type_name = "Uri",
+    variable_name = "uri",
+    name = "URI",
+    indefinite_article = "a",
+    description = "A URI.",
+    must_be_ascii = true,
+    must_have_scheme = true,
+    rfc = 3986,
+    abnf_rule = ("URI", "https://datatracker.ietf.org/doc/html/rfc3986#section-3"),
+    RefType = UriRef,
+    ref_name = "URI reference",
+    AuthorityType = Authority,
+    UserinfoEncoderType = Userinfo,
+    RegNameEncoderType = RegName,
+    PathEncoderType = Path,
+    QueryEncoderType = Query,
+    FragmentEncoderType = Fragment,
+}
+
+ri_maybe_ref! {
+    Type = IriRef,
+    type_name = "IriRef",
+    variable_name = "iri_ref",
+    name = "IRI reference",
+    indefinite_article = "an",
+    description = "An IRI reference, i.e., either a IRI or a relative reference.",
+    must_be_ascii = false,
+    must_have_scheme = false,
+    rfc = 3987,
+    abnf_rule = ("IRI-reference", "https://datatracker.ietf.org/doc/html/rfc3987#section-2.2"),
+    NonRefType = Iri,
+    non_ref_name = "IRI",
+    non_ref_link = "https://datatracker.ietf.org/doc/html/rfc3987#section-2.2",
+    abnf_rule_absolute = ("absolute-IRI", "https://datatracker.ietf.org/doc/html/rfc3987#section-2.2"),
+    has_scheme_equivalent = is_iri,
+    AuthorityType = IAuthority,
+    UserinfoEncoderType = IUserinfo,
+    RegNameEncoderType = IRegName,
+    PathEncoderType = IPath,
+    QueryEncoderType = IQuery,
+    FragmentEncoderType = IFragment,
+}
+
+ri_maybe_ref! {
+    Type = Iri,
+    type_name = "Iri",
+    variable_name = "iri",
+    name = "IRI",
+    indefinite_article = "an",
+    description = "An IRI.",
+    must_be_ascii = false,
+    must_have_scheme = true,
+    rfc = 3987,
+    abnf_rule = ("IRI", "https://datatracker.ietf.org/doc/html/rfc3987#section-2.2"),
+    RefType = IriRef,
+    ref_name = "IRI reference",
+    AuthorityType = IAuthority,
+    UserinfoEncoderType = IUserinfo,
+    RegNameEncoderType = IRegName,
+    PathEncoderType = IPath,
+    QueryEncoderType = IQuery,
+    FragmentEncoderType = IFragment,
+}
+
+impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
+    /// Consumes this `Uri` and creates a new [`UriRef`] with the same contents.
+    pub fn into_uri_ref(self) -> UriRef<T> {
+        RiRef::new(self.val, self.meta)
+    }
+
+    /// Consumes this `Uri` and creates a new [`Iri`] with the same contents.
+    pub fn into_iri(self) -> Iri<T> {
+        RiRef::new(self.val, self.meta)
+    }
+}
+
+impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> UriRef<T> {
+    /// Consumes this `UriRef` and creates a new [`IriRef`] with the same contents.
+    pub fn into_iri_ref(self) -> IriRef<T> {
+        RiRef::new(self.val, self.meta)
+    }
+}
+
+impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Iri<T> {
+    /// Consumes this `Iri` and creates a new [`IriRef`] with the same contents.
+    pub fn into_iri_ref(self) -> IriRef<T> {
+        RiRef::new(self.val, self.meta)
+    }
+
+    /// Converts the IRI to a URI by percent-encoding non-ASCII characters.
+    pub fn to_uri(&self) -> Uri<String> {
+        RiRef::new_pair(encode_non_ascii(self.as_ref_loose()))
+    }
+}
+
+impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> IriRef<T> {
+    /// Converts the IRI reference to a URI reference by percent-encoding non-ASCII characters.
+    pub fn to_uri_ref(&self) -> UriRef<String> {
+        RiRef::new_pair(encode_non_ascii(self.as_ref_loose()))
+    }
+}
+
+fn encode_non_ascii(r: Ref<'_, '_>) -> (String, Meta) {
+    let mut buf = String::new();
+    let mut meta = Meta::default();
+
+    if let Some(scheme) = r.scheme_opt() {
+        buf.push_str(scheme.as_str());
+        meta.scheme_end = NonZeroUsize::new(buf.len());
+        buf.push(':');
+    }
+
+    if let Some(auth) = r.authority() {
+        buf.push_str("//");
+
+        if let Some(userinfo) = auth.userinfo() {
+            encode_non_ascii_str(&mut buf, userinfo.as_str());
+            buf.push('@');
+        }
+
+        let mut auth_meta = auth.meta();
+        auth_meta.host_bounds.0 = buf.len();
+        match auth_meta.host_meta {
+            HostMeta::RegName => encode_non_ascii_str(&mut buf, auth.host()),
+            _ => buf.push_str(auth.host()),
+        }
+        auth_meta.host_bounds.1 = buf.len();
+        meta.auth_meta = Some(auth_meta);
+
+        if let Some(port) = auth.port() {
+            buf.push_str(port.as_str());
+        }
+    }
+
+    meta.path_bounds.0 = buf.len();
+    encode_non_ascii_str(&mut buf, r.path().as_str());
+    meta.path_bounds.1 = buf.len();
+
+    if let Some(query) = r.query() {
+        buf.push('?');
+        encode_non_ascii_str(&mut buf, query.as_str());
+        meta.query_end = NonZeroUsize::new(buf.len());
+    }
+
+    if let Some(fragment) = r.fragment() {
+        buf.push('#');
+        encode_non_ascii_str(&mut buf, fragment.as_str());
+    }
+
+    (buf, meta)
+}
+
+fn encode_non_ascii_str(buf: &mut String, s: &str) {
+    if s.is_ascii() {
+        buf.push_str(s);
+    } else {
+        for ch in s.chars() {
+            if ch.is_ascii() {
+                buf.push(ch);
+            } else {
+                for x in ch.encode_utf8(&mut [0; 4]).bytes() {
+                    encode_byte(x, buf);
+                }
+            }
+        }
     }
 }

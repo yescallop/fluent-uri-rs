@@ -77,22 +77,18 @@
 //! [`Deserialize`]: serde::Deserialize
 
 mod builder;
-#[macro_use]
-mod common;
 pub mod component;
 pub mod encoding;
 pub mod error;
 mod fmt;
 mod internal;
-mod iri;
 mod normalizer;
 mod parser;
 mod resolver;
-mod uri;
+mod ri;
 
 pub use builder::Builder;
-pub use iri::{Iri, IriRef};
-pub use uri::{Uri, UriRef};
+pub use ri::{Iri, IriRef, Uri, UriRef};
 
 #[cfg(feature = "std")]
 extern crate std;

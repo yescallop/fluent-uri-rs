@@ -4,7 +4,7 @@ use core::net::{Ipv4Addr, Ipv6Addr};
 #[cfg(feature = "net")]
 use fluent_uri::component::Host;
 
-use fluent_uri::UriRef;
+use fluent_uri::{IriRef, UriRef};
 
 #[test]
 fn normalize() {
@@ -120,4 +120,15 @@ fn normalize() {
     // IPvFuture address.
     let r = UriRef::parse("//[v1FdE.AddR]").unwrap();
     assert_eq!(r.normalize(), "//[v1fde.addr]");
+}
+
+#[test]
+fn normalize_iri() {
+    // Example from Section 5.3.2 of RFC 3987.
+    let r = IriRef::parse("eXAMPLE://a/./b/../b/%63/%7bfoo%7d/ros%C3%A9").unwrap();
+    assert_eq!(r.normalize(), "example://a/b/c/%7Bfoo%7D/rosé");
+
+    // Encoded private character in query.
+    let r = IriRef::parse("?%EE%80%80").unwrap();
+    assert_eq!(r.normalize(), "?\u{e000}");
 }

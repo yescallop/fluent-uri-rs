@@ -1,11 +1,11 @@
 use crate::{
-    common::Ref,
     encoding::{
         decode_octet, encode_byte, next_code_point,
         table::{is_iprivate, is_ucschar, UNRESERVED},
     },
     internal::{HostMeta, Meta},
     parser, resolver,
+    ri::Ref,
 };
 use alloc::{string::String, vec::Vec};
 use core::{fmt::Write, num::NonZeroUsize};
