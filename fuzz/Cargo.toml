@@ -130,3 +130,9 @@ name = "normalize_against_iri_string"
 path = "fuzz_targets/normalize_against_iri_string.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "normalize_iri_against_iri_string"
+path = "fuzz_targets/normalize_iri_against_iri_string.rs"
+test = false
+doc = false

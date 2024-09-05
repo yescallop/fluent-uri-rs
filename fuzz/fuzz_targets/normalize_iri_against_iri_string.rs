@@ -1,10 +1,10 @@
 #![no_main]
-use fluent_uri::{component::Host, Uri};
-use iri_string::{format::ToDedicatedString, types::UriStr};
+use fluent_uri::{component::Host, Iri};
+use iri_string::{format::ToDedicatedString, types::IriStr};
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &str| {
-    let Ok(r1) = Uri::parse(data) else {
+    let Ok(r1) = Iri::parse(data) else {
         return;
     };
 
@@ -12,7 +12,7 @@ fuzz_target!(|data: &str| {
         return;
     }
 
-    let r2 = UriStr::new(data).unwrap();
+    let r2 = IriStr::new(data).unwrap();
 
     let r1 = r1.normalize();
     let r2 = r2.normalize().to_dedicated_string();
@@ -34,5 +34,5 @@ fuzz_target!(|data: &str| {
         }
     }
 
-    panic!("{} != {}", r1.as_str(), r2.as_str());
+    panic!("{:?} != {:?}", r1.as_str(), r2.as_str());
 });
