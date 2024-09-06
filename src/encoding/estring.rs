@@ -109,13 +109,14 @@ impl<E: Encoder> EString<E> {
 
     /// Encodes a byte sequence with a sub-encoder and appends the result onto the end of this `EString`.
     ///
-    /// A byte will be percent-encoded if and only if `SubE::TABLE` does not [allow] it.
-    /// When encoding data, make sure that `SubE::TABLE` does not [allow] the component delimiters
-    /// that delimit the data.
+    /// A byte will be preserved if and only if it is part of a UTF-8-encoded character
+    /// that `SubE::TABLE` [allows]. It will be percent-encoded otherwise.
+    /// When encoding data, make sure that `SubE::TABLE` does not [allow][allows]
+    /// the component delimiters that delimit the data.
     ///
     /// Note that this method will **not** encode `0x20` (space) as `U+002B` (+).
     ///
-    /// [allow]: super::Table::allows
+    /// [allows]: super::Table::allows
     ///
     /// # Panics
     ///
