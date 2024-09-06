@@ -14,8 +14,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@nightly
-      - name: Test with default features
-        run: cargo test
       - name: Test with all features
         run: cargo test --all-features
       - name: Test with no features
