@@ -439,7 +439,7 @@ impl<R: RiRef, S: To<HostEnd>> Builder<R, S> {
     ///     .build()
     ///     .unwrap();
     ///
-    /// assert!(matches!(uri_ref.authority().unwrap().host_parsed(), Host::Ipv4(_)));
+    /// assert!(matches!(uri_ref.authority().unwrap().host_parsed(), Host::Ipv4 { .. }));
     /// ```
     pub fn host<'a>(
         mut self,

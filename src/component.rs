@@ -245,15 +245,29 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     ///
     /// ```
     /// use fluent_uri::{component::Host, encoding::EStr, Uri};
-    /// use std::net::{Ipv4Addr, Ipv6Addr};
+    #[cfg_attr(feature = "net", doc = "use std::net::{Ipv4Addr, Ipv6Addr};")]
     ///
     /// let uri = Uri::parse("foo://127.0.0.1")?;
     /// let auth = uri.authority().unwrap();
-    /// assert!(matches!(auth.host_parsed(), Host::Ipv4(Ipv4Addr::LOCALHOST)));
+    #[cfg_attr(
+        feature = "net",
+        doc = "assert!(matches!(auth.host_parsed(), Host::Ipv4(Ipv4Addr::LOCALHOST)));"
+    )]
+    #[cfg_attr(
+        not(feature = "net"),
+        doc = "assert!(matches!(auth.host_parsed(), Host::Ipv4 { .. }));"
+    )]
     ///
     /// let uri = Uri::parse("foo://[::1]")?;
     /// let auth = uri.authority().unwrap();
-    /// assert!(matches!(auth.host_parsed(), Host::Ipv6(Ipv6Addr::LOCALHOST)));
+    #[cfg_attr(
+        feature = "net",
+        doc = "assert!(matches!(auth.host_parsed(), Host::Ipv6(Ipv6Addr::LOCALHOST)));"
+    )]
+    #[cfg_attr(
+        not(feature = "net"),
+        doc = "assert!(matches!(auth.host_parsed(), Host::Ipv6 { .. }));"
+    )]
     ///
     /// let uri = Uri::parse("foo://[v1.addr]")?;
     /// let auth = uri.authority().unwrap();
