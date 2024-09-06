@@ -680,7 +680,24 @@ macro_rules! ri_maybe_ref {
             }
         }
 
+        impl<'a> From<$Ty<&'a str>> for &'a str {
+            #[doc = concat!("Equivalent to [`as_str`](", $ty, "::as_str).")]
+            #[inline]
+            fn from(value: $Ty<&'a str>) -> &'a str {
+                value.val
+            }
+        }
+
+        impl<'a> From<$Ty<String>> for String {
+            #[doc = concat!("Equivalent to [`into_string`](", $ty, "::into_string).")]
+            #[inline]
+            fn from(value: $Ty<String>) -> String {
+                value.val
+            }
+        }
+
         impl From<$Ty<&str>> for $Ty<String> {
+            /// Equivalent to [`to_owned`](Self::to_owned).
             #[inline]
             fn from(value: $Ty<&str>) -> Self {
                 value.to_owned()
@@ -690,6 +707,7 @@ macro_rules! ri_maybe_ref {
         impl FromStr for $Ty<String> {
             type Err = ParseError;
 
+            #[doc = concat!("Equivalent to `", $ty, "::parse(s).map(|r| r.to_owned())`.")]
             #[inline]
             fn from_str(s: &str) -> Result<Self, Self::Err> {
                 $Ty::parse(s).map(|r| r.to_owned())
