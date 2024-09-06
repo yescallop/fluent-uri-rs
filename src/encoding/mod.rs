@@ -10,7 +10,7 @@ pub use estring::EString;
 pub use table::Table;
 
 pub(crate) use imp::{decode_octet, encode_byte, OCTET_TABLE_LO};
-pub(crate) use utf8::next_code_point;
+pub(crate) use utf8::{next_code_point, Utf8Chunks};
 
 use crate::internal::PathEncoder;
 use alloc::{

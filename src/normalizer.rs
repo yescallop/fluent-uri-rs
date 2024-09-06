@@ -2,6 +2,7 @@ use crate::{
     encoding::{
         decode_octet, encode_byte, next_code_point,
         table::{is_iprivate, is_ucschar, UNRESERVED},
+        Utf8Chunks,
     },
     internal::{HostMeta, Meta},
     parser, resolver,
@@ -177,7 +178,7 @@ fn normalize_estr(
 }
 
 fn consume_dec_buf(buf: &mut String, dec_buf: &mut Vec<u8>, is_query: bool) {
-    for chunk in dec_buf.utf8_chunks() {
+    for chunk in Utf8Chunks::new(dec_buf) {
         for ch in chunk.valid().chars() {
             if is_ucschar(ch as u32) || (is_query && is_iprivate(ch as u32)) {
                 buf.push(ch);

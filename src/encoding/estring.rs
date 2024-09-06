@@ -1,4 +1,4 @@
-use super::{Assert, EStr, Encoder};
+use super::{Assert, EStr, Encoder, Utf8Chunks};
 use alloc::{borrow::ToOwned, string::String};
 use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref};
 
@@ -127,7 +127,7 @@ impl<E: Encoder> EString<E> {
         let () = Assert::<SubE, E>::L_IS_SUB_ENCODER_OF_R;
         let () = EStr::<SubE>::ASSERT_ALLOWS_PCT_ENCODED;
 
-        for chunk in s.as_ref().utf8_chunks() {
+        for chunk in Utf8Chunks::new(s.as_ref()) {
             for ch in chunk.valid().chars() {
                 SubE::TABLE.encode(ch, &mut self.buf);
             }
