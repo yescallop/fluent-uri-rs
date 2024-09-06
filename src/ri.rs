@@ -4,10 +4,10 @@ use crate::{
         Builder,
     },
     component::{Authority, IAuthority, Scheme},
-    encoding::{encode_byte, encoder::*, EStr, Encoder},
+    encoding::{encode_byte, encoder::*, table::SCHEME, EStr, Encoder},
     error::{ParseError, ResolveError},
     internal::{Criteria, HostMeta, Meta, Parse, RiRef, Value},
-    normalizer, resolver,
+    normalizer, parser, resolver,
 };
 use alloc::{borrow::ToOwned, string::String};
 use borrow_or_share::{BorrowOrShare, Bos};
@@ -660,6 +660,26 @@ macro_rules! ri_maybe_ref {
             }
         }
 
+        impl<'a> TryFrom<&'a str> for $Ty<&'a str> {
+            type Error = ParseError;
+
+            /// Equivalent to [`parse`](Self::parse).
+            #[inline]
+            fn try_from(value: &'a str) -> Result<Self, Self::Error> {
+                $Ty::parse(value)
+            }
+        }
+
+        impl TryFrom<String> for $Ty<String> {
+            type Error = ParseError<String>;
+
+            /// Equivalent to [`parse`](Self::parse).
+            #[inline]
+            fn try_from(value: String) -> Result<Self, Self::Error> {
+                $Ty::parse(value)
+            }
+        }
+
         impl From<$Ty<&str>> for $Ty<String> {
             #[inline]
             fn from(value: $Ty<&str>) -> Self {
@@ -815,6 +835,48 @@ impl<'v, 'm> Ref<'v, 'm> {
     pub fn has_fragment(&self) -> bool {
         self.fragment_start().is_some()
     }
+
+    pub fn ensure_has_scheme(&self) -> Result<(), ParseError> {
+        if self.has_scheme() {
+            Ok(())
+        } else {
+            let pos = self
+                .as_str()
+                .bytes()
+                .position(|x| !SCHEME.allows_ascii(x))
+                .unwrap();
+            parser::err!(pos, UnexpectedChar);
+        }
+    }
+
+    pub fn ensure_ascii(&self) -> Result<(), ParseError> {
+        if let Some(pos) = self.as_str().bytes().position(|x| !x.is_ascii()) {
+            parser::err!(pos, UnexpectedChar);
+        } else {
+            Ok(())
+        }
+    }
+}
+
+ri_maybe_ref! {
+    Type = Uri,
+    type_name = "Uri",
+    variable_name = "uri",
+    name = "URI",
+    indefinite_article = "a",
+    description = "A URI.",
+    must_be_ascii = true,
+    must_have_scheme = true,
+    rfc = 3986,
+    abnf_rule = ("URI", "https://datatracker.ietf.org/doc/html/rfc3986#section-3"),
+    RefType = UriRef,
+    ref_name = "URI reference",
+    AuthorityType = Authority,
+    UserinfoEncoderType = Userinfo,
+    RegNameEncoderType = RegName,
+    PathEncoderType = Path,
+    QueryEncoderType = Query,
+    FragmentEncoderType = Fragment,
 }
 
 ri_maybe_ref! {
@@ -842,24 +904,24 @@ ri_maybe_ref! {
 }
 
 ri_maybe_ref! {
-    Type = Uri,
-    type_name = "Uri",
-    variable_name = "uri",
-    name = "URI",
-    indefinite_article = "a",
-    description = "A URI.",
-    must_be_ascii = true,
+    Type = Iri,
+    type_name = "Iri",
+    variable_name = "iri",
+    name = "IRI",
+    indefinite_article = "an",
+    description = "An IRI.",
+    must_be_ascii = false,
     must_have_scheme = true,
-    rfc = 3986,
-    abnf_rule = ("URI", "https://datatracker.ietf.org/doc/html/rfc3986#section-3"),
-    RefType = UriRef,
-    ref_name = "URI reference",
-    AuthorityType = Authority,
-    UserinfoEncoderType = Userinfo,
-    RegNameEncoderType = RegName,
-    PathEncoderType = Path,
-    QueryEncoderType = Query,
-    FragmentEncoderType = Fragment,
+    rfc = 3987,
+    abnf_rule = ("IRI", "https://datatracker.ietf.org/doc/html/rfc3987#section-2.2"),
+    RefType = IriRef,
+    ref_name = "IRI reference",
+    AuthorityType = IAuthority,
+    UserinfoEncoderType = IUserinfo,
+    RegNameEncoderType = IRegName,
+    PathEncoderType = IPath,
+    QueryEncoderType = IQuery,
+    FragmentEncoderType = IFragment,
 }
 
 ri_maybe_ref! {
@@ -886,27 +948,6 @@ ri_maybe_ref! {
     FragmentEncoderType = IFragment,
 }
 
-ri_maybe_ref! {
-    Type = Iri,
-    type_name = "Iri",
-    variable_name = "iri",
-    name = "IRI",
-    indefinite_article = "an",
-    description = "An IRI.",
-    must_be_ascii = false,
-    must_have_scheme = true,
-    rfc = 3987,
-    abnf_rule = ("IRI", "https://datatracker.ietf.org/doc/html/rfc3987#section-2.2"),
-    RefType = IriRef,
-    ref_name = "IRI reference",
-    AuthorityType = IAuthority,
-    UserinfoEncoderType = IUserinfo,
-    RegNameEncoderType = IRegName,
-    PathEncoderType = IPath,
-    QueryEncoderType = IQuery,
-    FragmentEncoderType = IFragment,
-}
-
 macro_rules! impl_from {
     ($($x:ident => $($y:ident),+)*) => {
         $($(
@@ -921,9 +962,54 @@ macro_rules! impl_from {
 }
 
 impl_from! {
-    UriRef => IriRef
     Uri => UriRef, Iri, IriRef
+    UriRef => IriRef
     Iri => IriRef
+}
+
+macro_rules! impl_try_from {
+    ($(#[$doc:meta] $x:ident if $($cond:ident)&&+ => $y:ident)*) => {
+        $(
+            impl<'a> TryFrom<$x<&'a str>> for $y<&'a str> {
+                type Error = ParseError;
+
+                #[$doc]
+                fn try_from(value: $x<&'a str>) -> Result<Self, Self::Error> {
+                    let r = value.as_ref();
+                    $(r.$cond()?;)*
+                    Ok((RiRef::new(value.val, value.meta)))
+                }
+            }
+
+            impl TryFrom<$x<String>> for $y<String> {
+                type Error = ParseError<$x<String>>;
+
+                #[$doc]
+                fn try_from(value: $x<String>) -> Result<Self, Self::Error> {
+                    let r = value.as_ref();
+                    $(
+                        if let Err(e) = r.$cond() {
+                            return Err(e.with_input(value));
+                        }
+                    )*
+                    Ok((RiRef::new(value.val, value.meta)))
+                }
+            }
+        )*
+    };
+}
+
+impl_try_from! {
+    /// Converts the URI reference to a URI if it contains a scheme.
+    UriRef if ensure_has_scheme => Uri
+    /// Converts the IRI to a URI if it is ASCII.
+    Iri if ensure_ascii => Uri
+    /// Converts the IRI reference to a URI if it contains a scheme and is ASCII.
+    IriRef if ensure_has_scheme && ensure_ascii => Uri
+    /// Converts the IRI reference to a URI reference if it is ASCII.
+    IriRef if ensure_ascii => UriRef
+    /// Converts the IRI reference to an IRI if it contains a scheme.
+    IriRef if ensure_has_scheme => Iri
 }
 
 impl<T: Bos<str>> Iri<T> {

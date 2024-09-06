@@ -1,4 +1,4 @@
-use fluent_uri::{Iri, Uri};
+use fluent_uri::{Iri, IriRef, Uri, UriRef};
 
 #[test]
 fn iri_to_uri() {
@@ -38,5 +38,34 @@ fn uri_to_iri() {
     assert_eq!(
         Iri::from(uri).normalize(),
         "http://xn--99zt52a.example.org/\u{202e}"
+    );
+}
+
+#[test]
+fn convert_error() {
+    let uri_ref = UriRef::parse("rel/ref").unwrap();
+    assert_eq!(
+        Uri::try_from(uri_ref).unwrap_err().to_string(),
+        "unexpected character at index 3"
+    );
+
+    let iri = Iri::parse("http://你好.example.com/").unwrap();
+    assert_eq!(
+        Uri::try_from(iri).unwrap_err().to_string(),
+        "unexpected character at index 7"
+    );
+
+    let iri_ref = IriRef::parse("réf/rel").unwrap();
+    assert_eq!(
+        Uri::try_from(iri_ref).unwrap_err().to_string(),
+        "unexpected character at index 1"
+    );
+    assert_eq!(
+        UriRef::try_from(iri_ref).unwrap_err().to_string(),
+        "unexpected character at index 1"
+    );
+    assert_eq!(
+        Iri::try_from(iri_ref).unwrap_err().to_string(),
+        "unexpected character at index 1"
     );
 }

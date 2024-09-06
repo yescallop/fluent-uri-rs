@@ -1,6 +1,6 @@
 use crate::{
     encoding::{next_code_point, table::*, Table, OCTET_TABLE_LO},
-    internal::{AuthMeta, Criteria, HostMeta, Meta, NoInput},
+    internal::{AuthMeta, Criteria, HostMeta, Meta},
 };
 use core::{
     num::NonZeroUsize,
@@ -16,10 +16,12 @@ macro_rules! err {
         return Err(crate::error::ParseError {
             index: $index,
             kind: crate::error::ParseErrorKind::$kind,
-            input: NoInput,
+            input: crate::internal::NoInput,
         })
     };
 }
+
+pub(crate) use err;
 
 pub(crate) fn parse(bytes: &[u8], criteria: Criteria) -> Result<Meta> {
     let mut parser = Parser {

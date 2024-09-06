@@ -1,6 +1,6 @@
 //! Error types.
 
-use crate::internal::{NoInput, Parse};
+use crate::internal::NoInput;
 
 /// Detailed cause of a [`ParseError`].
 #[derive(Clone, Copy, Debug)]
@@ -37,7 +37,7 @@ impl ParseError {
     }
 }
 
-impl<I: Parse> ParseError<I> {
+impl<I: AsRef<str>> ParseError<I> {
     /// Recovers the input that was attempted to parse into a URI/IRI (reference).
     #[must_use]
     pub fn into_input(self) -> I {
