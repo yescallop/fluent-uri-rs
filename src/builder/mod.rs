@@ -415,6 +415,7 @@ impl<R: RiRef, S: To<HostEnd>> Builder<R, S> {
     /// This method takes either an [`Ipv4Addr`], [`Ipv6Addr`], [`IpAddr`],
     /// <code>&amp;[EStr]&lt;[RegName]&gt;</code> (for URI)
     /// or <code>&amp;[EStr]&lt;[IRegName]&gt;</code> (for IRI) as argument.
+    /// Crate feature `net` is required for this method to take an IP address as argument.
     ///
     /// If the contents of an input `EStr` slice matches the
     /// `IPv4address` ABNF rule defined in [Section 3.2.2 of RFC 3986][host],

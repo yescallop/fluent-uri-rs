@@ -59,13 +59,14 @@
 //!
 //! # Crate features
 //!
-//! - `net` (default): Enables [`std::net`] support.
-//!   Required for IP address fields in [`Host`] and [`Authority::socket_addrs`].
-//!   Disabling `net` will not affect parsing behavior.
-//!
 //! - `std` (default): Enables [`std`] support. Required for [`Error`] implementations
-//!   and [`Authority::socket_addrs`]. Disabling `std` while enabling `net`
-//!   requires [`core::net`] and a minimum Rust version of `1.77`.
+//!   and [`Authority::socket_addrs`].
+//!
+//! - `net`: Enables [`std::net`] or [`core::net`] support.
+//!   Required for IP address fields in [`Host`], for [`Builder::host`] to take an IP
+//!   address as argument, and for [`Authority::socket_addrs`].
+//!   Disabling `net` will not affect parsing behavior. Disabling `std` while enabling `net`
+//!   requires a minimum Rust version of 1.77.
 //!
 //! - `serde`: Enables [`serde`] support. Required for [`Serialize`] and [`Deserialize`]
 //!   implementations.
@@ -95,8 +96,7 @@ extern crate std;
 
 extern crate alloc;
 
-#[cfg(all(feature = "net", feature = "std"))]
-use std::net;
-
 #[cfg(all(feature = "net", not(feature = "std")))]
 use core::net;
+#[cfg(all(feature = "net", feature = "std"))]
+use std::net;
