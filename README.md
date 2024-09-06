@@ -1,6 +1,6 @@
 # fluent-uri
 
-A full-featured URI/IRI handling library compliant with [RFC 3986] and [RFC 3987]. It is:
+A generic URI/IRI handling library compliant with [RFC 3986] and [RFC 3987]. It is:
 
 - **Fast:** Zero-copy parsing. Benchmarked to be highly performant.[^bench-res]
 - **Easy:** Carefully designed and documented APIs. Handy percent-encoding utilities.
