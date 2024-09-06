@@ -19,15 +19,15 @@ fn iri_to_uri() {
 fn uri_to_iri() {
     let uri = Uri::parse("http://www.example.org/r%E9sum%E9.html").unwrap();
     assert_eq!(
-        uri.into_iri().normalize(),
+        Iri::from(uri).normalize(),
         "http://www.example.org/r%E9sum%E9.html"
     );
 
     let uri = Uri::parse("http://www.example.org/D%C3%BCrst").unwrap();
-    assert_eq!(uri.into_iri().normalize(), "http://www.example.org/Dürst");
+    assert_eq!(Iri::from(uri).normalize(), "http://www.example.org/Dürst");
 
     let uri = Uri::parse("http://www.example.org/D%FCrst").unwrap();
-    assert_eq!(uri.into_iri().normalize(), "http://www.example.org/D%FCrst");
+    assert_eq!(Iri::from(uri).normalize(), "http://www.example.org/D%FCrst");
 
     let uri = Uri::parse("http://xn--99zt52a.example.org/%e2%80%ae").unwrap();
     // TODO: Determine if we should implement the MUST in Section 4.1 of RFC 3987.
@@ -36,7 +36,7 @@ fn uri_to_iri() {
     //     "http://xn--99zt52a.example.org/%E2%80%AE"
     // );
     assert_eq!(
-        uri.into_iri().normalize(),
+        Iri::from(uri).normalize(),
         "http://xn--99zt52a.example.org/\u{202e}"
     );
 }

@@ -907,38 +907,33 @@ ri_maybe_ref! {
     FragmentEncoderType = IFragment,
 }
 
-impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
-    /// Consumes this `Uri` and creates a new [`UriRef`] with the same contents.
-    pub fn into_uri_ref(self) -> UriRef<T> {
-        RiRef::new(self.val, self.meta)
-    }
-
-    /// Consumes this `Uri` and creates a new [`Iri`] with the same contents.
-    pub fn into_iri(self) -> Iri<T> {
-        RiRef::new(self.val, self.meta)
-    }
+macro_rules! impl_from {
+    ($($x:ident => $($y:ident),+)*) => {
+        $($(
+            impl<T: Bos<str>> From<$x<T>> for $y<T> {
+                #[doc = concat!("Consumes the `", stringify!($x), "` and creates a new [`", stringify!($y), "`] with the same contents.")]
+                fn from(value: $x<T>) -> Self {
+                    RiRef::new(value.val, value.meta)
+                }
+            }
+        )+)*
+    };
 }
 
-impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> UriRef<T> {
-    /// Consumes this `UriRef` and creates a new [`IriRef`] with the same contents.
-    pub fn into_iri_ref(self) -> IriRef<T> {
-        RiRef::new(self.val, self.meta)
-    }
+impl_from! {
+    UriRef => IriRef
+    Uri => UriRef, Iri, IriRef
+    Iri => IriRef
 }
 
-impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Iri<T> {
-    /// Consumes this `Iri` and creates a new [`IriRef`] with the same contents.
-    pub fn into_iri_ref(self) -> IriRef<T> {
-        RiRef::new(self.val, self.meta)
-    }
-
+impl<T: Bos<str>> Iri<T> {
     /// Converts the IRI to a URI by percent-encoding non-ASCII characters.
     pub fn to_uri(&self) -> Uri<String> {
         RiRef::new_pair(encode_non_ascii(self.as_ref_loose()))
     }
 }
 
-impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> IriRef<T> {
+impl<T: Bos<str>> IriRef<T> {
     /// Converts the IRI reference to a URI reference by percent-encoding non-ASCII characters.
     pub fn to_uri_ref(&self) -> UriRef<String> {
         RiRef::new_pair(encode_non_ascii(self.as_ref_loose()))
