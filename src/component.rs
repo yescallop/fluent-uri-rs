@@ -207,7 +207,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     ///
     /// The square brackets enclosing an IPv6 or IPvFuture address are included.
     ///
-    /// Note that the host subcomponent is *case-insensitive*.
+    /// Note that ASCII characters within a host are *case-insensitive*.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.2
     ///
@@ -237,7 +237,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
 
     /// Returns the parsed [host] subcomponent.
     ///
-    /// Note that the host subcomponent is *case-insensitive*.
+    /// Note that ASCII characters within a host are *case-insensitive*.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.2
     ///
@@ -380,6 +380,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     ///
     /// The default port is used if the port component is not present or is empty.
     /// A registered name is first [decoded] and then resolved with [`ToSocketAddrs`].
+    /// Punycode encoding is **not** performed prior to resolution.
     ///
     /// [decoded]: EStr::decode
     ///
@@ -418,7 +419,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
         }
     }
 
-    /// Checks whether the authority component contains a userinfo subcomponent.
+    /// Checks whether a userinfo subcomponent is present.
     ///
     /// # Examples
     ///
@@ -437,7 +438,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
         self.meta.host_bounds.0 != 0
     }
 
-    /// Checks whether the authority component contains a port subcomponent.
+    /// Checks whether a port subcomponent is present.
     ///
     /// # Examples
     ///
@@ -491,6 +492,6 @@ pub enum Host<'a, RegNameE: Encoder = RegName> {
     IpvFuture,
     /// A registered name.
     ///
-    /// Note that registered names are *case-insensitive*.
+    /// Note that ASCII characters within a registered name are *case-insensitive*.
     RegName(&'a EStr<RegNameE>),
 }

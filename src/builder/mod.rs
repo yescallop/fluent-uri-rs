@@ -421,7 +421,7 @@ impl<R: RiRef, S: To<HostEnd>> Builder<R, S> {
     /// `IPv4address` ABNF rule defined in [Section 3.2.2 of RFC 3986][host],
     /// the resulting URI/IRI (reference) will output a [`Host::Ipv4`] variant instead.
     ///
-    /// Note that the host subcomponent is *case-insensitive*.
+    /// Note that ASCII characters within a host are *case-insensitive*.
     /// For consistency, you should only produce [normalized] hosts.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.2

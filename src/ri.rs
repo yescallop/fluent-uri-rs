@@ -1032,6 +1032,20 @@ impl_try_from! {
 
 impl<T: Bos<str>> Iri<T> {
     /// Converts the IRI to a URI by percent-encoding non-ASCII characters.
+    ///
+    /// Punycode encoding is **not** performed during conversion.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::Iri;
+    ///
+    /// let iri = Iri::parse("http://www.example.org/résumé.html").unwrap();
+    /// assert_eq!(iri.to_uri(), "http://www.example.org/r%C3%A9sum%C3%A9.html");
+    ///
+    /// let iri = Iri::parse("http://résumé.example.org").unwrap();
+    /// assert_eq!(iri.to_uri(), "http://r%C3%A9sum%C3%A9.example.org");
+    /// ```
     pub fn to_uri(&self) -> Uri<String> {
         RiRef::new_pair(encode_non_ascii(self.as_ref_loose()))
     }
@@ -1039,6 +1053,20 @@ impl<T: Bos<str>> Iri<T> {
 
 impl<T: Bos<str>> IriRef<T> {
     /// Converts the IRI reference to a URI reference by percent-encoding non-ASCII characters.
+    ///
+    /// Punycode encoding is **not** performed during conversion.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::IriRef;
+    ///
+    /// let iri_ref = IriRef::parse("résumé.html").unwrap();
+    /// assert_eq!(iri_ref.to_uri_ref(), "r%C3%A9sum%C3%A9.html");
+    ///
+    /// let iri_ref = IriRef::parse("//résumé.example.org").unwrap();
+    /// assert_eq!(iri_ref.to_uri_ref(), "//r%C3%A9sum%C3%A9.example.org");
+    /// ```
     pub fn to_uri_ref(&self) -> UriRef<String> {
         RiRef::new_pair(encode_non_ascii(self.as_ref_loose()))
     }
