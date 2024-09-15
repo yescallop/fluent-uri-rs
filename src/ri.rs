@@ -44,7 +44,6 @@ macro_rules! ri_maybe_ref {
             non_ref_name = $nr_name:literal,
             non_ref_link = $nr_link:literal,
             abnf_rule_absolute = ($abnf_abs:literal, $abnf_abs_link:literal),
-            has_scheme_equivalent = $has_scheme_equiv:ident,
         )?
         $(
             RefType = $RefTy:ident,
@@ -498,30 +497,7 @@ macro_rules! ri_maybe_ref {
                 RiRef::new_pair(normalizer::normalize(self.as_ref_loose(), $must_be_ascii))
             }
 
-            $(
-                /// Checks whether the
-                #[doc = concat!($name, " is ", $art, " [", $nr_name, "][non-ref],")]
-                /// i.e., contains a scheme.
-                ///
-                /// This method is equivalent to [`has_scheme`].
-                ///
-                #[doc = concat!("[non-ref]: ", $nr_link)]
-                /// [`has_scheme`]: Self::has_scheme
-                ///
-                /// # Examples
-                ///
-                /// ```
-                #[doc = concat!("use fluent_uri::", $ty, ";")]
-                ///
-                #[doc = concat!("assert!(", $ty, "::parse(\"http://example.com/\")?.", stringify!($has_scheme_equiv), "());")]
-                #[doc = concat!("assert!(!", $ty, "::parse(\"/path/to/file\")?.", stringify!($has_scheme_equiv), "());")]
-                /// # Ok::<_, fluent_uri::error::ParseError>(())
-                /// ```
-                #[must_use]
-                pub fn $has_scheme_equiv(&self) -> bool {
-                    self.has_scheme()
-                }
-
+            cond!(if $must_have_scheme {} else {
                 /// Checks whether a scheme component is present.
                 ///
                 /// # Examples
@@ -537,7 +513,7 @@ macro_rules! ri_maybe_ref {
                 pub fn has_scheme(&self) -> bool {
                     self.as_ref_loose().has_scheme()
                 }
-            )?
+            });
 
             /// Checks whether an authority component is present.
             ///
@@ -912,7 +888,6 @@ ri_maybe_ref! {
     non_ref_name = "URI",
     non_ref_link = "https://datatracker.ietf.org/doc/html/rfc3986#section-3",
     abnf_rule_absolute = ("absolute-URI", "https://datatracker.ietf.org/doc/html/rfc3986#section-4.3"),
-    has_scheme_equivalent = is_uri,
     AuthorityType = Authority,
     UserinfoEncoderType = Userinfo,
     RegNameEncoderType = RegName,
@@ -957,7 +932,6 @@ ri_maybe_ref! {
     non_ref_name = "IRI",
     non_ref_link = "https://datatracker.ietf.org/doc/html/rfc3987#section-2.2",
     abnf_rule_absolute = ("absolute-IRI", "https://datatracker.ietf.org/doc/html/rfc3987#section-2.2"),
-    has_scheme_equivalent = is_iri,
     AuthorityType = IAuthority,
     UserinfoEncoderType = IUserinfo,
     RegNameEncoderType = IRegName,
