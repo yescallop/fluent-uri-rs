@@ -31,7 +31,7 @@ pub trait To<T> {}
 pub trait AdvanceTo<T>: To<T> {}
 
 macro_rules! impl_many {
-    ($trait:ident for $($x:ty => $($y:ty),*;)*) => {
+    ($trait:ident for $($x:ty => $($y:ty),+)*) => {
         $($(
             impl $trait<$y> for $x {}
         )*)*
@@ -39,26 +39,26 @@ macro_rules! impl_many {
 }
 
 impl_many! { To for
-    Start => SchemeEnd, AuthorityStart, PathEnd;
-    NonRefStart => SchemeEnd;
-    SchemeEnd => AuthorityStart, PathEnd;
-    AuthorityStart => UserinfoEnd, HostEnd;
-    UserinfoEnd => HostEnd;
-    HostEnd => PortEnd, AuthorityEnd;
-    PortEnd => AuthorityEnd;
-    AuthorityEnd => PathEnd;
-    PathEnd => QueryEnd, FragmentEnd, End;
-    QueryEnd => FragmentEnd, End;
-    FragmentEnd => End;
+    Start => SchemeEnd, AuthorityStart, PathEnd
+    NonRefStart => SchemeEnd
+    SchemeEnd => AuthorityStart, PathEnd
+    AuthorityStart => UserinfoEnd, HostEnd
+    UserinfoEnd => HostEnd
+    HostEnd => PortEnd, AuthorityEnd
+    PortEnd => AuthorityEnd
+    AuthorityEnd => PathEnd
+    PathEnd => QueryEnd, FragmentEnd, End
+    QueryEnd => FragmentEnd, End
+    FragmentEnd => End
 }
 
 impl<S: To<AuthorityStart>> To<AuthorityEnd> for S {}
 
 impl_many! { AdvanceTo for
-    Start => SchemeEnd, AuthorityEnd;
-    SchemeEnd => AuthorityEnd;
-    AuthorityStart => UserinfoEnd;
-    HostEnd => PortEnd;
-    PathEnd => QueryEnd, FragmentEnd;
-    QueryEnd => FragmentEnd;
+    Start => SchemeEnd, AuthorityEnd
+    SchemeEnd => AuthorityEnd
+    AuthorityStart => UserinfoEnd
+    HostEnd => PortEnd
+    PathEnd => QueryEnd, FragmentEnd
+    QueryEnd => FragmentEnd
 }
