@@ -1,9 +1,9 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use fluent_uri::{component::Scheme, encoding::EStr, Uri, UriRef};
+use fluent_uri::{component::Scheme, encoding::EStr, Iri, Uri, UriRef};
 use iri_string::{
     build::Builder,
     format::ToDedicatedString,
-    types::{UriAbsoluteStr, UriReferenceStr, UriStr},
+    types::{IriStr, UriAbsoluteStr, UriReferenceStr, UriStr},
 };
 use url::Url;
 
@@ -29,24 +29,24 @@ const RESOLVE_CASE_BASE: &str = "http://example.com/foo/bar";
 const RESOLVE_CASE_REF: &str = "../baz";
 
 fn bench_parse(c: &mut Criterion) {
-    c.bench_function("parse", |b| b.iter(|| UriRef::parse(black_box(PARSE_CASE))));
+    c.bench_function("parse", |b| b.iter(|| Iri::parse(black_box(PARSE_CASE))));
 }
 
 fn bench_parse_iref(c: &mut Criterion) {
     c.bench_function("parse_iref", |b| {
-        b.iter(|| iref::UriRef::new(black_box(PARSE_CASE)))
+        b.iter(|| iref::Iri::new(black_box(PARSE_CASE)))
     });
 }
 
 fn bench_parse_iri_string(c: &mut Criterion) {
     c.bench_function("parse_iri_string", |b| {
-        b.iter(|| UriReferenceStr::new(black_box(PARSE_CASE)))
+        b.iter(|| IriStr::new(black_box(PARSE_CASE)))
     });
 }
 
 fn bench_parse_oxiri(c: &mut Criterion) {
     c.bench_function("parse_oxiri", |b| {
-        b.iter(|| oxiri::IriRef::parse(black_box(PARSE_CASE)))
+        b.iter(|| oxiri::Iri::parse(black_box(PARSE_CASE)))
     });
 }
 
@@ -59,7 +59,7 @@ fn bench_parse_url(c: &mut Criterion) {
 fn bench_build(c: &mut Criterion) {
     c.bench_function("build", |b| {
         b.iter(|| {
-            UriRef::builder()
+            Uri::builder()
                 .scheme(Scheme::new_or_panic("foo"))
                 .authority_with(|b| {
                     b.userinfo(EStr::new_or_panic("user"))
@@ -85,10 +85,7 @@ fn bench_build_iri_string(c: &mut Criterion) {
             builder.path("/over/there");
             builder.query("name=ferret");
             builder.fragment("nose");
-            builder
-                .build::<UriReferenceStr>()
-                .unwrap()
-                .to_dedicated_string()
+            builder.build::<UriStr>().unwrap().to_dedicated_string()
         })
     });
 }

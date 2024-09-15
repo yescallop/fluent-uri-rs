@@ -27,7 +27,6 @@
 //! [Reference resolution](UriRef::resolve_against). [Normalization](Uri::normalize).
 //! [Percent-decoding](crate::encoding::EStr#examples).
 //! [Percent-encoding](crate::encoding::EString#examples).
-//! [Conversion from IRI to URI](Iri::to_uri).
 //!
 //! # Terminology
 //!
