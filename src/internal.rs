@@ -33,7 +33,7 @@ pub trait RiRef: Sized {
 
     fn new(val: Self::Val, meta: Meta) -> Self;
 
-    fn new_pair((val, meta): (Self::Val, Meta)) -> Self {
+    fn from_pair((val, meta): (Self::Val, Meta)) -> Self {
         Self::new(val, meta)
     }
 

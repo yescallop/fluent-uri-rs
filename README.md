@@ -17,7 +17,7 @@ A generic URI/IRI handling library compliant with [RFC 3986] and [RFC 3987]. It 
 [RFC 3987]: https://datatracker.ietf.org/doc/html/rfc3987
 [^bench-res]: In [a benchmark](https://github.com/yescallop/fluent-uri-rs/blob/main/bench/benches/bench.rs)
     on an Intel Core i5-11300H processor, `fluent-uri` parsed a 61-byte IRI
-    in ~85ns compared to ~125ns for `iref`, `iri-string` and `oxiri`.
+    in ~85ns compared to ~125ns for `iref`, `iri-string`, and `oxiri`.
 
 ## Terminology
 

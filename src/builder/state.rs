@@ -34,7 +34,7 @@ macro_rules! impl_many {
     ($trait:ident for $($x:ty => $($y:ty),+)*) => {
         $($(
             impl $trait<$y> for $x {}
-        )*)*
+        )+)*
     };
 }
 

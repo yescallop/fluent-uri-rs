@@ -455,7 +455,7 @@ macro_rules! ri_maybe_ref {
                     &self,
                     base: &$NonRefTy<U>,
                 ) -> Result<$NonRefTy<String>, ResolveError> {
-                    resolver::resolve(base.as_ref(), self.as_ref_loose()).map(RiRef::new_pair)
+                    resolver::resolve(base.as_ref(), self.as_ref_loose()).map(RiRef::from_pair)
                 }
             )?
 
@@ -494,7 +494,7 @@ macro_rules! ri_maybe_ref {
             /// ```
             #[must_use]
             pub fn normalize(&self) -> $Ty<String> {
-                RiRef::new_pair(normalizer::normalize(self.as_ref_loose(), $must_be_ascii))
+                RiRef::from_pair(normalizer::normalize(self.as_ref_loose(), $must_be_ascii))
             }
 
             cond!(if $must_have_scheme {} else {
@@ -968,7 +968,7 @@ macro_rules! impl_try_from {
                 #[$doc]
                 fn try_from(value: $x<&'a str>) -> Result<Self, Self::Error> {
                     let r = value.as_ref();
-                    $(r.$cond()?;)*
+                    $(r.$cond()?;)+
                     Ok((RiRef::new(value.val, value.meta)))
                 }
             }
@@ -983,7 +983,7 @@ macro_rules! impl_try_from {
                         if let Err(e) = r.$cond() {
                             return Err(e.with_input(value));
                         }
-                    )*
+                    )+
                     Ok((RiRef::new(value.val, value.meta)))
                 }
             }
@@ -1021,7 +1021,7 @@ impl<T: Bos<str>> Iri<T> {
     /// assert_eq!(iri.to_uri(), "http://r%C3%A9sum%C3%A9.example.org");
     /// ```
     pub fn to_uri(&self) -> Uri<String> {
-        RiRef::new_pair(encode_non_ascii(self.as_ref_loose()))
+        RiRef::from_pair(encode_non_ascii(self.as_ref_loose()))
     }
 }
 
@@ -1042,7 +1042,7 @@ impl<T: Bos<str>> IriRef<T> {
     /// assert_eq!(iri_ref.to_uri_ref(), "//r%C3%A9sum%C3%A9.example.org");
     /// ```
     pub fn to_uri_ref(&self) -> UriRef<String> {
-        RiRef::new_pair(encode_non_ascii(self.as_ref_loose()))
+        RiRef::from_pair(encode_non_ascii(self.as_ref_loose()))
     }
 }
 

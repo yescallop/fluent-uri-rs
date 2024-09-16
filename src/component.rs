@@ -120,34 +120,87 @@ impl PartialEq for Scheme {
 
 impl Eq for Scheme {}
 
+#[derive(Clone, Copy)]
+struct AuthorityInner<'a> {
+    val: &'a str,
+    meta: AuthMeta,
+}
+
+impl<'a> AuthorityInner<'a> {
+    fn userinfo(&self) -> Option<&'a EStr<IUserinfo>> {
+        let host_start = self.meta.host_bounds.0;
+        (host_start != 0).then(|| EStr::new_validated(&self.val[..host_start - 1]))
+    }
+
+    fn host(&self) -> &'a str {
+        let (start, end) = self.meta.host_bounds;
+        &self.val[start..end]
+    }
+
+    fn port(&self) -> Option<&'a EStr<Port>> {
+        let host_end = self.meta.host_bounds.1;
+        (host_end != self.val.len()).then(|| EStr::new_validated(&self.val[host_end + 1..]))
+    }
+
+    fn port_to_u16(&self) -> Result<Option<u16>, ParseIntError> {
+        self.port()
+            .filter(|s| !s.is_empty())
+            .map(|s| s.as_str().parse())
+            .transpose()
+    }
+
+    #[cfg(all(feature = "net", feature = "std"))]
+    fn socket_addrs(&self, default_port: u16) -> io::Result<impl Iterator<Item = SocketAddr>> {
+        use std::vec;
+
+        let port = self
+            .port_to_u16()
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid port value"))?
+            .unwrap_or(default_port);
+
+        match self.meta.host_meta {
+            HostMeta::Ipv4(addr) => Ok(vec![(addr, port).into()].into_iter()),
+            HostMeta::Ipv6(addr) => Ok(vec![(addr, port).into()].into_iter()),
+            HostMeta::IpvFuture => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "address mechanism not supported",
+            )),
+            HostMeta::RegName => {
+                let name = EStr::<IRegName>::new_validated(self.host());
+                let name = name.decode().into_string().map_err(|_| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "registered name does not decode to valid UTF-8",
+                    )
+                })?;
+                (&name[..], port).to_socket_addrs()
+            }
+        }
+    }
+}
+
 /// An [authority] component.
 ///
 /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2
 #[derive(Clone, Copy)]
 pub struct Authority<'a, UserinfoE = Userinfo, RegNameE = RegName> {
-    val: &'a str,
-    meta: AuthMeta,
+    inner: AuthorityInner<'a>,
     _marker: PhantomData<(UserinfoE, RegNameE)>,
 }
 
 impl<'a, T, U> Authority<'a, T, U> {
-    pub(crate) fn cast<UserinfoE: Encoder, RegNameE: Encoder>(
-        self,
-    ) -> Authority<'a, UserinfoE, RegNameE> {
+    pub(crate) fn cast<V, W>(self) -> Authority<'a, V, W> {
         Authority {
-            val: self.val,
-            meta: self.meta,
+            inner: self.inner,
             _marker: PhantomData,
         }
     }
 }
 
 impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegNameE> {
-    #[inline]
     pub(crate) const fn new(val: &'a str, meta: AuthMeta) -> Self {
         Self {
-            val,
-            meta,
+            inner: AuthorityInner { val, meta },
             _marker: PhantomData,
         }
     }
@@ -156,7 +209,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     pub const EMPTY: Authority<'static, UserinfoE, RegNameE> = Authority::new("", AuthMeta::EMPTY);
 
     pub(crate) fn meta(&self) -> AuthMeta {
-        self.meta
+        self.inner.meta
     }
 
     /// Returns the authority component as a string slice.
@@ -174,7 +227,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     #[inline]
     #[must_use]
     pub fn as_str(&self) -> &'a str {
-        self.val
+        self.inner.val
     }
 
     /// Returns the optional [userinfo] subcomponent.
@@ -197,8 +250,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     /// ```
     #[must_use]
     pub fn userinfo(&self) -> Option<&'a EStr<UserinfoE>> {
-        let host_start = self.meta.host_bounds.0;
-        (host_start != 0).then(|| EStr::new_validated(&self.val[..host_start - 1]))
+        self.inner.userinfo().map(EStr::cast)
     }
 
     /// Returns the [host] subcomponent as a string slice.
@@ -231,8 +283,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     /// ```
     #[must_use]
     pub fn host(&self) -> &'a str {
-        let (start, end) = self.meta.host_bounds;
-        &self.val[start..end]
+        self.inner.host()
     }
 
     /// Returns the parsed [host] subcomponent.
@@ -281,7 +332,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     /// ```
     #[must_use]
     pub fn host_parsed(&self) -> Host<'a, RegNameE> {
-        match self.meta.host_meta {
+        match self.inner.meta.host_meta {
             #[cfg(feature = "net")]
             HostMeta::Ipv4(addr) => Host::Ipv4(addr),
             #[cfg(feature = "net")]
@@ -333,8 +384,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     /// ```
     #[must_use]
     pub fn port(&self) -> Option<&'a EStr<Port>> {
-        let host_end = self.meta.host_bounds.1;
-        (host_end != self.val.len()).then(|| EStr::new_validated(&self.val[host_end + 1..]))
+        self.inner.port()
     }
 
     /// Converts the [port] subcomponent to `u16`, if present and nonempty.
@@ -370,10 +420,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     pub fn port_to_u16(&self) -> Result<Option<u16>, ParseIntError> {
-        self.port()
-            .filter(|s| !s.is_empty())
-            .map(|s| s.as_str().parse())
-            .transpose()
+        self.inner.port_to_u16()
     }
 
     /// Converts the host and the port subcomponent to an iterator of resolved [`SocketAddr`]s.
@@ -393,30 +440,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     /// - A registered name does not decode to valid UTF-8 or fails to resolve.
     #[cfg(all(feature = "net", feature = "std"))]
     pub fn socket_addrs(&self, default_port: u16) -> io::Result<impl Iterator<Item = SocketAddr>> {
-        use std::vec;
-
-        let port = self
-            .port_to_u16()
-            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid port value"))?
-            .unwrap_or(default_port);
-
-        match self.host_parsed() {
-            Host::Ipv4(addr) => Ok(vec![(addr, port).into()].into_iter()),
-            Host::Ipv6(addr) => Ok(vec![(addr, port).into()].into_iter()),
-            Host::IpvFuture => Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "address mechanism not supported",
-            )),
-            Host::RegName(name) => {
-                let name = name.decode().into_string().map_err(|_| {
-                    io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "registered name does not decode to valid UTF-8",
-                    )
-                })?;
-                (&name[..], port).to_socket_addrs()
-            }
-        }
+        self.inner.socket_addrs(default_port)
     }
 
     /// Checks whether a userinfo subcomponent is present.
@@ -435,7 +459,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     #[inline]
     #[must_use]
     pub fn has_userinfo(&self) -> bool {
-        self.meta.host_bounds.0 != 0
+        self.inner.meta.host_bounds.0 != 0
     }
 
     /// Checks whether a port subcomponent is present.
@@ -460,7 +484,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     #[inline]
     #[must_use]
     pub fn has_port(&self) -> bool {
-        self.meta.host_bounds.1 != self.val.len()
+        self.inner.meta.host_bounds.1 != self.inner.val.len()
     }
 }
 

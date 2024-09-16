@@ -65,8 +65,7 @@
 //! - `net`: Enables [`std::net`] or [`core::net`] support.
 //!   Required for IP address fields in [`Host`], for [`Builder::host`] to take an IP
 //!   address as argument, and for [`Authority::socket_addrs`].
-//!   Disabling `net` will not affect parsing behavior. Disabling `std` while enabling `net`
-//!   requires a minimum Rust version of 1.77.
+//!   Disabling `std` while enabling `net` requires a minimum Rust version of 1.77.
 //!
 //! - `serde`: Enables [`serde`] support. Required for [`Serialize`] and [`Deserialize`]
 //!   implementations.
