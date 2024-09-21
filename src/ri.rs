@@ -326,9 +326,10 @@ macro_rules! ri_maybe_ref {
             ///
             /// The path component is always present, although it may be empty.
             ///
-            /// The returned [`EStr`] slice has extension methods for the path component.
+            /// The returned `EStr` slice has [extension methods] for the path component.
             ///
             /// [path]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.3
+            /// [extension methods]: EStr#impl-EStr<E>-1
             ///
             /// # Examples
             ///

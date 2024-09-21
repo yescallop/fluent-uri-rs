@@ -146,11 +146,20 @@ impl<E: Encoder> EStr<E> {
         self.inner.is_empty()
     }
 
-    /// Upcasts the `EStr` slice to associate with the given super-encoder.
+    /// Upcasts the `EStr` slice to associate it with the given super-encoder.
     ///
     /// # Panics
     ///
     /// Panics at compile time if `E` is not a [sub-encoder](Encoder#sub-encoders) of `SuperE`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fluent_uri::encoding::{encoder::{IPath, Path}, EStr};
+    ///
+    /// let path = EStr::<Path>::new_or_panic("foo");
+    /// let path: &EStr<IPath> = path.upcast();
+    /// ```
     #[cfg(fluent_uri_unstable)]
     #[must_use]
     pub fn upcast<SuperE: Encoder>(&self) -> &EStr<SuperE> {

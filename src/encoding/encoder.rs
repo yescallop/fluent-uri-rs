@@ -45,9 +45,9 @@ impl Encoder for Port {
 
 /// An encoder for URI path.
 ///
-/// [`EStr`] has extension methods for the path component.
+/// `EStr` has [extension methods] for the path component.
 ///
-/// [`EStr`]: super::EStr
+/// [extension methods]: super::EStr#impl-EStr<E>-1
 #[derive(Debug, Clone, Copy)]
 pub struct Path(());
 
@@ -57,9 +57,9 @@ impl Encoder for Path {
 
 /// An encoder for IRI path.
 ///
-/// [`EStr`] has extension methods for the path component.
+/// `EStr` has [extension methods] for the path component.
 ///
-/// [`EStr`]: super::EStr
+/// [extension methods]: super::EStr#impl-EStr<E>-1
 #[derive(Debug, Clone, Copy)]
 pub struct IPath(());
 
