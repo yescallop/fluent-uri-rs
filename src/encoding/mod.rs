@@ -398,20 +398,20 @@ impl<E: PathEncoder> EStr<E> {
     /// // However, segments can be empty in the other cases.
     /// let path = Uri::parse("file:///path/to//dir/")?.path();
     /// assert_eq!(path, "/path/to//dir/");
-    /// assert!(path.segments().unwrap().eq(["path", "to", "", "dir", ""]));
+    /// assert!(path.segments_if_absolute().unwrap().eq(["path", "to", "", "dir", ""]));
     ///
     /// let path = Uri::parse("foo:bar/baz")?.path();
     /// assert_eq!(path, "bar/baz");
-    /// assert!(path.segments().is_none());
+    /// assert!(path.segments_if_absolute().is_none());
     ///
     /// let path = Uri::parse("http://example.com")?.path();
     /// assert!(path.is_empty());
-    /// assert!(path.segments().is_none());
+    /// assert!(path.segments_if_absolute().is_none());
     /// # Ok::<_, fluent_uri::error::ParseError>(())
     /// ```
     #[inline]
     #[must_use]
-    pub fn segments(&self) -> Option<Split<'_, E>> {
+    pub fn segments_if_absolute(&self) -> Option<Split<'_, E>> {
         self.inner
             .strip_prefix('/')
             .map(|s| EStr::new_validated(s).split('/'))
