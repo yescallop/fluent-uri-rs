@@ -839,7 +839,7 @@ impl<'v, 'm> Ref<'v, 'm> {
                 .as_str()
                 .bytes()
                 .position(|x| !SCHEME.allows_ascii(x))
-                .unwrap();
+                .unwrap_or(0);
             parser::err!(pos, UnexpectedChar);
         }
     }

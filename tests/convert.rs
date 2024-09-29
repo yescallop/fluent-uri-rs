@@ -49,6 +49,12 @@ fn convert_error() {
         "unexpected character at index 3"
     );
 
+    let uri_ref = UriRef::parse("").unwrap();
+    assert_eq!(
+        Uri::try_from(uri_ref).unwrap_err().to_string(),
+        "unexpected character at index 0"
+    );
+
     let iri = Iri::parse("http://你好.example.com/").unwrap();
     assert_eq!(
         Uri::try_from(iri).unwrap_err().to_string(),
