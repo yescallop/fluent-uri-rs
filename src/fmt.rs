@@ -1,5 +1,5 @@
 use crate::{
-    component::{Authority, Scheme},
+    component::{Authority, Host, Scheme},
     encoding::{EStr, EString, Encoder},
     error::{
         BuildError, BuildErrorKind, ParseError, ParseErrorKind, ResolveError, ResolveErrorKind,
@@ -94,7 +94,26 @@ impl Display for Scheme {
     }
 }
 
-impl<UserinfoE: Encoder, RegNameE: Encoder + Debug> Debug for Authority<'_, UserinfoE, RegNameE> {
+impl<RegNameE: Encoder> Debug for Host<'_, RegNameE> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        match self {
+            #[cfg(feature = "net")]
+            Host::Ipv4(addr) => f.debug_tuple("Ipv4").field(addr).finish(),
+            #[cfg(feature = "net")]
+            Host::Ipv6(addr) => f.debug_tuple("Ipv6").field(addr).finish(),
+
+            #[cfg(not(feature = "net"))]
+            Host::Ipv4() => f.debug_struct("Ipv4").finish_non_exhaustive(),
+            #[cfg(not(feature = "net"))]
+            Host::Ipv6() => f.debug_struct("Ipv6").finish_non_exhaustive(),
+
+            Host::IpvFuture => f.debug_struct("IpvFuture").finish_non_exhaustive(),
+            Host::RegName(name) => f.debug_tuple("RegName").field(name).finish(),
+        }
+    }
+}
+
+impl<UserinfoE: Encoder, RegNameE: Encoder> Debug for Authority<'_, UserinfoE, RegNameE> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_struct("Authority")
             .field("userinfo", &self.userinfo())

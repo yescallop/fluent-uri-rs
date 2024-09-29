@@ -491,7 +491,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
 /// A parsed [host] component.
 ///
 /// [host]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.2
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 #[cfg_attr(fuzzing, derive(PartialEq, Eq))]
 pub enum Host<'a, RegNameE: Encoder = RegName> {
     /// An IPv4 address.

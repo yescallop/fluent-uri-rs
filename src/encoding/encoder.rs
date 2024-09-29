@@ -1,9 +1,11 @@
+#![allow(missing_debug_implementations)]
+
 //! Percent-encoders for URI/IRI components.
 
 use super::{table::*, Encoder, Table};
 
 /// An encoder for URI userinfo.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Userinfo(());
 
 impl Encoder for Userinfo {
@@ -11,7 +13,7 @@ impl Encoder for Userinfo {
 }
 
 /// An encoder for IRI userinfo.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct IUserinfo(());
 
 impl Encoder for IUserinfo {
@@ -19,7 +21,7 @@ impl Encoder for IUserinfo {
 }
 
 /// An encoder for URI registered name.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 #[cfg_attr(fuzzing, derive(PartialEq, Eq))]
 pub struct RegName(());
 
@@ -28,7 +30,7 @@ impl Encoder for RegName {
 }
 
 /// An encoder for IRI registered name.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct IRegName(());
 
 impl Encoder for IRegName {
@@ -36,7 +38,7 @@ impl Encoder for IRegName {
 }
 
 /// An encoder for URI/IRI port.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Port(());
 
 impl Encoder for Port {
@@ -48,7 +50,7 @@ impl Encoder for Port {
 /// `EStr` has [extension methods] for the path component.
 ///
 /// [extension methods]: super::EStr#impl-EStr<E>-1
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Path(());
 
 impl Encoder for Path {
@@ -60,7 +62,7 @@ impl Encoder for Path {
 /// `EStr` has [extension methods] for the path component.
 ///
 /// [extension methods]: super::EStr#impl-EStr<E>-1
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct IPath(());
 
 impl Encoder for IPath {
@@ -68,7 +70,7 @@ impl Encoder for IPath {
 }
 
 /// An encoder for URI query.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Query(());
 
 impl Encoder for Query {
@@ -76,7 +78,7 @@ impl Encoder for Query {
 }
 
 /// An encoder for IRI query.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct IQuery(());
 
 impl Encoder for IQuery {
@@ -84,7 +86,7 @@ impl Encoder for IQuery {
 }
 
 /// An encoder for URI fragment.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Fragment(());
 
 impl Encoder for Fragment {
@@ -92,7 +94,7 @@ impl Encoder for Fragment {
 }
 
 /// An encoder for IRI fragment.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct IFragment(());
 
 impl Encoder for IFragment {
@@ -103,7 +105,7 @@ impl Encoder for IFragment {
 /// and encodes the others.
 ///
 /// [unreserved]: https://datatracker.ietf.org/doc/html/rfc3986#section-2.3
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Data(());
 
 impl Encoder for Data {
@@ -114,7 +116,7 @@ impl Encoder for Data {
 /// and encodes the others.
 ///
 /// [unreserved]: https://datatracker.ietf.org/doc/html/rfc3987#section-2.1
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct IData(());
 
 impl Encoder for IData {
