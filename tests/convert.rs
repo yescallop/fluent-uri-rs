@@ -8,6 +8,9 @@ fn iri_to_uri() {
     let iri = Iri::parse("http://www.example.org/red%09rosé#red").unwrap();
     assert_eq!(iri.to_uri(), "http://www.example.org/red%09ros%C3%A9#red");
 
+    let iri = Iri::parse("foo://user@example.com:8042/over/there?name=ferret#nose").unwrap();
+    assert_eq!(iri.to_uri(), iri.as_str());
+
     let iri = Iri::parse("http://example.com/\u{10300}\u{10301}\u{10302}").unwrap();
     assert_eq!(
         iri.to_uri(),

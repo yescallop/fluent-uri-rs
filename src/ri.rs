@@ -1075,6 +1075,7 @@ fn encode_non_ascii(r: Ref<'_, '_>) -> (String, Meta) {
         meta.auth_meta = Some(auth_meta);
 
         if let Some(port) = auth.port() {
+            buf.push(':');
             buf.push_str(port.as_str());
         }
     }
