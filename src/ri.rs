@@ -233,12 +233,6 @@ macro_rules! ri_maybe_ref {
             }
         }
 
-        impl<T: Bos<str>> $Ty<T> {
-            fn as_ref_loose(&self) -> Ref<'_, '_> {
-                self.as_ref()
-            }
-        }
-
         impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> $Ty<T> {
             #[doc = concat!("Returns the ", $name, " as a string slice.")]
             #[must_use]
@@ -392,7 +386,9 @@ macro_rules! ri_maybe_ref {
             pub fn fragment(&'i self) -> Option<&'o EStr<$FragmentE>> {
                 self.as_ref().fragment().map(EStr::cast)
             }
+        }
 
+        impl<'i, 'o, T: Bos<str>> $Ty<T> {
             $(
                 #[doc = concat!("Resolves the ", $name, " against the given base ", $nr_name)]
                 #[doc = concat!("and returns the target ", $nr_name, ".")]
@@ -456,7 +452,7 @@ macro_rules! ri_maybe_ref {
                     &self,
                     base: &$NonRefTy<U>,
                 ) -> Result<$NonRefTy<String>, ResolveError> {
-                    resolver::resolve(base.as_ref(), self.as_ref_loose()).map(RiRef::from_pair)
+                    resolver::resolve(base.as_ref(), self.as_ref()).map(RiRef::from_pair)
                 }
             )?
 
@@ -495,7 +491,7 @@ macro_rules! ri_maybe_ref {
             /// ```
             #[must_use]
             pub fn normalize(&self) -> $Ty<String> {
-                RiRef::from_pair(normalizer::normalize(self.as_ref_loose(), $must_be_ascii))
+                RiRef::from_pair(normalizer::normalize(self.as_ref(), $must_be_ascii))
             }
 
             cond!(if $must_have_scheme {} else {
@@ -512,7 +508,7 @@ macro_rules! ri_maybe_ref {
                 /// ```
                 #[must_use]
                 pub fn has_scheme(&self) -> bool {
-                    self.as_ref_loose().has_scheme()
+                    self.as_ref().has_scheme()
                 }
             });
 
@@ -529,7 +525,7 @@ macro_rules! ri_maybe_ref {
             /// ```
             #[must_use]
             pub fn has_authority(&self) -> bool {
-                self.as_ref_loose().has_authority()
+                self.as_ref().has_authority()
             }
 
             /// Checks whether a query component is present.
@@ -545,7 +541,7 @@ macro_rules! ri_maybe_ref {
             /// ```
             #[must_use]
             pub fn has_query(&self) -> bool {
-                self.as_ref_loose().has_query()
+                self.as_ref().has_query()
             }
 
             /// Checks whether a fragment component is present.
@@ -561,7 +557,7 @@ macro_rules! ri_maybe_ref {
             /// ```
             #[must_use]
             pub fn has_fragment(&self) -> bool {
-                self.as_ref_loose().has_fragment()
+                self.as_ref().has_fragment()
             }
         }
 
@@ -1022,7 +1018,7 @@ impl<T: Bos<str>> Iri<T> {
     /// assert_eq!(iri.to_uri(), "http://r%C3%A9sum%C3%A9.example.org");
     /// ```
     pub fn to_uri(&self) -> Uri<String> {
-        RiRef::from_pair(encode_non_ascii(self.as_ref_loose()))
+        RiRef::from_pair(encode_non_ascii(self.as_ref()))
     }
 }
 
@@ -1043,7 +1039,7 @@ impl<T: Bos<str>> IriRef<T> {
     /// assert_eq!(iri_ref.to_uri_ref(), "//r%C3%A9sum%C3%A9.example.org");
     /// ```
     pub fn to_uri_ref(&self) -> UriRef<String> {
-        RiRef::from_pair(encode_non_ascii(self.as_ref_loose()))
+        RiRef::from_pair(encode_non_ascii(self.as_ref()))
     }
 }
 
