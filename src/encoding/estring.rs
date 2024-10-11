@@ -101,10 +101,22 @@ impl<E: Encoder> EString<E> {
         Self::new_validated(String::new())
     }
 
+    /// Creates a new empty `EString` with at least the specified capacity.
+    #[must_use]
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self::new_validated(String::with_capacity(capacity))
+    }
+
     /// Coerces to an `EStr` slice.
     #[must_use]
     pub fn as_estr(&self) -> &EStr<E> {
         self
+    }
+
+    /// Returns this `EString`'s capacity, in bytes.
+    #[must_use]
+    pub fn capacity(&self) -> usize {
+        self.buf.capacity()
     }
 
     /// Encodes a byte sequence with a sub-encoder and appends the result onto the end of this `EString`.
@@ -153,6 +165,11 @@ impl<E: Encoder> EString<E> {
     /// Appends an `EStr` slice onto the end of this `EString`.
     pub fn push_estr(&mut self, s: &EStr<E>) {
         self.buf.push_str(s.as_str());
+    }
+
+    /// Truncates this `EString`, removing all contents.
+    pub fn clear(&mut self) {
+        self.buf.clear();
     }
 
     /// Consumes this `EString` and yields the underlying `String`.
