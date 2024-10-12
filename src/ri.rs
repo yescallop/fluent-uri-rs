@@ -801,6 +801,7 @@ macro_rules! ri_maybe_ref {
 }
 
 /// A Rust reference to a URI/IRI (reference).
+#[derive(Clone, Copy)]
 pub struct Ref<'v, 'm> {
     val: &'v str,
     meta: &'m Meta,
@@ -811,29 +812,29 @@ impl<'v, 'm> Ref<'v, 'm> {
         Self { val, meta }
     }
 
-    pub fn as_str(&self) -> &'v str {
+    pub fn as_str(self) -> &'v str {
         self.val
     }
 
-    fn slice(&self, start: usize, end: usize) -> &'v str {
+    fn slice(self, start: usize, end: usize) -> &'v str {
         &self.val[start..end]
     }
 
-    fn eslice<E: Encoder>(&self, start: usize, end: usize) -> &'v EStr<E> {
+    fn eslice<E: Encoder>(self, start: usize, end: usize) -> &'v EStr<E> {
         EStr::new_validated(self.slice(start, end))
     }
 
-    pub fn scheme_opt(&self) -> Option<&'v Scheme> {
+    pub fn scheme_opt(self) -> Option<&'v Scheme> {
         let end = self.meta.scheme_end?.get();
         Some(Scheme::new_validated(self.slice(0, end)))
     }
 
-    pub fn scheme(&self) -> &'v Scheme {
+    pub fn scheme(self) -> &'v Scheme {
         let end = self.meta.scheme_end.map_or(0, |i| i.get());
         Scheme::new_validated(self.slice(0, end))
     }
 
-    pub fn authority(&self) -> Option<IAuthority<'v>> {
+    pub fn authority(self) -> Option<IAuthority<'v>> {
         let mut meta = self.meta.auth_meta?;
         let start = match self.meta.scheme_end {
             Some(i) => i.get() + 3,
@@ -847,22 +848,22 @@ impl<'v, 'm> Ref<'v, 'm> {
         Some(IAuthority::new(self.slice(start, end), meta))
     }
 
-    pub fn path(&self) -> &'v EStr<IPath> {
+    pub fn path(self) -> &'v EStr<IPath> {
         self.eslice(self.meta.path_bounds.0, self.meta.path_bounds.1)
     }
 
-    pub fn query(&self) -> Option<&'v EStr<IQuery>> {
+    pub fn query(self) -> Option<&'v EStr<IQuery>> {
         let end = self.meta.query_end?.get();
         Some(self.eslice(self.meta.path_bounds.1 + 1, end))
     }
 
-    fn fragment_start(&self) -> Option<usize> {
+    fn fragment_start(self) -> Option<usize> {
         Some(self.meta.query_or_path_end())
             .filter(|&i| i != self.val.len())
             .map(|i| i + 1)
     }
 
-    pub fn fragment(&self) -> Option<&'v EStr<IFragment>> {
+    pub fn fragment(self) -> Option<&'v EStr<IFragment>> {
         self.fragment_start()
             .map(|i| self.eslice(i, self.val.len()))
     }
@@ -876,7 +877,7 @@ impl<'v, 'm> Ref<'v, 'm> {
         }
     }
 
-    pub fn with_fragment(&self, opt: Option<&str>) -> String {
+    pub fn with_fragment(self, opt: Option<&str>) -> String {
         let stripped_len = self.meta.query_or_path_end();
         let additional_len = opt.map_or(0, |s| s.len() + 1);
 
@@ -890,26 +891,26 @@ impl<'v, 'm> Ref<'v, 'm> {
     }
 
     #[inline]
-    pub fn has_scheme(&self) -> bool {
+    pub fn has_scheme(self) -> bool {
         self.meta.scheme_end.is_some()
     }
 
     #[inline]
-    pub fn has_authority(&self) -> bool {
+    pub fn has_authority(self) -> bool {
         self.meta.auth_meta.is_some()
     }
 
     #[inline]
-    pub fn has_query(&self) -> bool {
+    pub fn has_query(self) -> bool {
         self.meta.query_end.is_some()
     }
 
     #[inline]
-    pub fn has_fragment(&self) -> bool {
+    pub fn has_fragment(self) -> bool {
         self.meta.query_or_path_end() != self.val.len()
     }
 
-    pub fn ensure_has_scheme(&self) -> Result<(), ParseError> {
+    pub fn ensure_has_scheme(self) -> Result<(), ParseError> {
         if self.has_scheme() {
             Ok(())
         } else {
@@ -922,7 +923,7 @@ impl<'v, 'm> Ref<'v, 'm> {
         }
     }
 
-    pub fn ensure_ascii(&self) -> Result<(), ParseError> {
+    pub fn ensure_ascii(self) -> Result<(), ParseError> {
         if let Some(pos) = self.as_str().bytes().position(|x| !x.is_ascii()) {
             parser::err!(pos, UnexpectedChar);
         } else {
