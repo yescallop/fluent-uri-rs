@@ -24,13 +24,11 @@ pub(crate) fn resolve(
     let (t_scheme, t_authority, t_path, t_query, t_fragment);
     let mut buf = String::new();
 
-    let (r_scheme, r_authority, r_path, r_query, r_fragment) = (
-        r.scheme_opt(),
-        r.authority(),
-        r.path(),
-        r.query(),
-        r.fragment(),
-    );
+    let r_scheme = r.scheme_opt();
+    let r_authority = r.authority();
+    let r_path = r.path();
+    let r_query = r.query();
+    let r_fragment = r.fragment();
 
     if let Some(r_scheme) = r_scheme {
         t_scheme = r_scheme;
