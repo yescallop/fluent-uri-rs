@@ -49,13 +49,13 @@ fn convert_error() {
     let uri_ref = UriRef::parse("rel/ref").unwrap();
     assert_eq!(
         Uri::try_from(uri_ref).unwrap_err().to_string(),
-        "unexpected character at index 3"
+        "scheme not present"
     );
 
     let uri_ref = UriRef::parse("").unwrap();
     assert_eq!(
         Uri::try_from(uri_ref).unwrap_err().to_string(),
-        "unexpected character at index 0"
+        "scheme not present"
     );
 
     let iri = Iri::parse("http://你好.example.com/").unwrap();
@@ -67,7 +67,7 @@ fn convert_error() {
     let iri_ref = IriRef::parse("réf/rel").unwrap();
     assert_eq!(
         Uri::try_from(iri_ref).unwrap_err().to_string(),
-        "unexpected character at index 1"
+        "scheme not present"
     );
     assert_eq!(
         UriRef::try_from(iri_ref).unwrap_err().to_string(),
@@ -75,6 +75,6 @@ fn convert_error() {
     );
     assert_eq!(
         Iri::try_from(iri_ref).unwrap_err().to_string(),
-        "unexpected character at index 1"
+        "scheme not present"
     );
 }
