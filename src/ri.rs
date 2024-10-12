@@ -870,8 +870,8 @@ impl<'v, 'm> Ref<'v, 'm> {
 
     pub fn set_fragment(buf: &mut String, meta: &Meta, opt: Option<&str>) {
         buf.truncate(meta.query_or_path_end());
-        buf.reserve_exact(opt.map_or(0, |s| s.len() + 1));
         if let Some(s) = opt {
+            buf.reserve(s.len() + 1);
             buf.push('#');
             buf.push_str(s);
         }
