@@ -397,6 +397,12 @@ macro_rules! ri_maybe_ref {
                 /// **must** contain no fragment, i.e., match the
                 #[doc = concat!("[`", $abnf_abs, "`][abnf] ABNF rule from RFC ", $rfc, ".")]
                 ///
+                #[doc = concat!("To prepare a base ", $nr_name, ",")]
+                /// you can use [`with_fragment`] or [`set_fragment`] to remove the fragment
+                #[doc = concat!("from any ", $nr_name, ".")]
+                /// Note that a base without fragment does **not** guarantee a successful resolution
+                /// (see the **must** below).
+                ///
                 /// This method applies the reference resolution algorithm defined in
                 /// [Section 5 of RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986#section-5),
                 /// except for the following deviations:
@@ -420,6 +426,8 @@ macro_rules! ri_maybe_ref {
                 /// Use [`normalize`] if necessary.
                 ///
                 #[doc = concat!("[abnf]: ", $abnf_abs_link)]
+                #[doc = concat!("[`with_fragment`]: ", stringify!($NonRefTy), "::with_fragment")]
+                #[doc = concat!("[`set_fragment`]: ", stringify!($NonRefTy), "::set_fragment")]
                 /// [rootless]: EStr::<Path>::is_rootless
                 /// [`normalize`]: Self::normalize
                 ///
@@ -558,6 +566,59 @@ macro_rules! ri_maybe_ref {
             #[must_use]
             pub fn has_fragment(&self) -> bool {
                 self.as_ref().has_fragment()
+            }
+
+            #[doc = concat!("Creates a new ", $name)]
+            /// by replacing the fragment component of `self` with the given one.
+            ///
+            /// The fragment component is removed when `opt.is_none()`.
+            ///
+            /// # Examples
+            ///
+            /// ```
+            #[doc = concat!("use fluent_uri::{encoding::EStr, ", $ty, "};")]
+            ///
+            #[doc = concat!("let ", $var, " = ", $ty, "::parse(\"http://example.com/\")?;")]
+            /// assert_eq!(
+            #[doc = concat!("    ", $var, ".with_fragment(Some(EStr::new_or_panic(\"fragment\"))),")]
+            ///     "http://example.com/#fragment"
+            /// );
+            ///
+            #[doc = concat!("let ", $var, " = ", $ty, "::parse(\"http://example.com/#fragment\")?;")]
+            /// assert_eq!(
+            #[doc = concat!("    ", $var, ".with_fragment(None),")]
+            ///     "http://example.com/"
+            /// );
+            /// # Ok::<_, fluent_uri::error::ParseError>(())
+            /// ```
+            #[must_use]
+            pub fn with_fragment(&self, opt: Option<&EStr<$FragmentE>>) -> $Ty<String> {
+                // Altering only the fragment does not change the metadata.
+                RiRef::new(self.as_ref().with_fragment(opt.map(EStr::as_str)), self.meta)
+            }
+        }
+
+        impl $Ty<String> {
+            /// Replaces the fragment component of `self` with the given one.
+            ///
+            /// The fragment component is removed when `opt.is_none()`.
+            ///
+            /// # Examples
+            ///
+            /// ```
+            #[doc = concat!("use fluent_uri::{encoding::EStr, ", $ty, "};")]
+            ///
+            #[doc = concat!("let mut ", $var, " = ", $ty, "::parse(\"http://example.com/\")?.to_owned();")]
+            ///
+            #[doc = concat!($var, ".set_fragment(Some(EStr::new_or_panic(\"fragment\")));")]
+            #[doc = concat!("assert_eq!(", $var, ", \"http://example.com/#fragment\");")]
+            ///
+            #[doc = concat!($var, ".set_fragment(None);")]
+            #[doc = concat!("assert_eq!(", $var, ", \"http://example.com/\");")]
+            /// # Ok::<_, fluent_uri::error::ParseError>(())
+            /// ```
+            pub fn set_fragment(&mut self, opt: Option<&EStr<$FragmentE>>) {
+                Ref::set_fragment(&mut self.val, &self.meta, opt.map(EStr::as_str))
             }
         }
 
@@ -796,16 +857,36 @@ impl<'v, 'm> Ref<'v, 'm> {
     }
 
     fn fragment_start(&self) -> Option<usize> {
-        let query_or_path_end = match self.meta.query_end {
-            Some(i) => i.get(),
-            None => self.meta.path_bounds.1,
-        };
-        (query_or_path_end != self.val.len()).then_some(query_or_path_end + 1)
+        Some(self.meta.query_or_path_end())
+            .filter(|&i| i != self.val.len())
+            .map(|i| i + 1)
     }
 
     pub fn fragment(&self) -> Option<&'v EStr<IFragment>> {
         self.fragment_start()
             .map(|i| self.eslice(i, self.val.len()))
+    }
+
+    pub fn set_fragment(buf: &mut String, meta: &Meta, opt: Option<&str>) {
+        buf.truncate(meta.query_or_path_end());
+        buf.reserve_exact(opt.map_or(0, |s| s.len() + 1));
+        if let Some(s) = opt {
+            buf.push('#');
+            buf.push_str(s);
+        }
+    }
+
+    pub fn with_fragment(&self, opt: Option<&str>) -> String {
+        let stripped_len = self.meta.query_or_path_end();
+        let additional_len = opt.map_or(0, |s| s.len() + 1);
+
+        let mut buf = String::with_capacity(stripped_len + additional_len);
+        buf.push_str(&self.val[..stripped_len]);
+        if let Some(s) = opt {
+            buf.push('#');
+            buf.push_str(s);
+        }
+        buf
     }
 
     #[inline]
@@ -823,8 +904,9 @@ impl<'v, 'm> Ref<'v, 'm> {
         self.meta.query_end.is_some()
     }
 
+    #[inline]
     pub fn has_fragment(&self) -> bool {
-        self.fragment_start().is_some()
+        self.meta.query_or_path_end() != self.val.len()
     }
 
     pub fn ensure_has_scheme(&self) -> Result<(), ParseError> {

@@ -78,6 +78,13 @@ pub struct Meta {
     pub query_end: Option<NonZeroUsize>,
 }
 
+impl Meta {
+    #[inline]
+    pub fn query_or_path_end(&self) -> usize {
+        self.query_end.map_or(self.path_bounds.1, |i| i.get())
+    }
+}
+
 #[derive(Clone, Copy, Default)]
 pub struct AuthMeta {
     pub host_bounds: (usize, usize),
