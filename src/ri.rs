@@ -4,7 +4,7 @@ use crate::{
         Builder,
     },
     component::{Authority, IAuthority, Scheme},
-    encoding::{encode_byte, encoder::*, table::SCHEME, EStr, Encoder},
+    encoding::{encode_byte, encoder::*, EStr, Encoder},
     error::{ParseError, ResolveError},
     internal::{Criteria, HostMeta, Meta, Parse, RiRef, Value},
     normalizer, parser, resolver,
@@ -914,12 +914,7 @@ impl<'v, 'm> Ref<'v, 'm> {
         if self.has_scheme() {
             Ok(())
         } else {
-            let pos = self
-                .as_str()
-                .bytes()
-                .position(|x| !SCHEME.allows_ascii(x))
-                .unwrap_or(0);
-            parser::err!(pos, UnexpectedChar);
+            parser::err!(0, NoScheme);
         }
     }
 

@@ -46,6 +46,7 @@ impl<I> Display for ParseError<I> {
             ParseErrorKind::InvalidOctet => "invalid percent-encoded octet at index ",
             ParseErrorKind::UnexpectedChar => "unexpected character at index ",
             ParseErrorKind::InvalidIpv6Addr => "invalid IPv6 address at index ",
+            ParseErrorKind::NoScheme => return f.write_str("scheme not present"),
         };
         write!(f, "{}{}", msg, self.index)
     }

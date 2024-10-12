@@ -17,6 +17,8 @@ pub(crate) enum ParseErrorKind {
     ///
     /// The error index points to the first byte of the address.
     InvalidIpv6Addr,
+    /// The scheme component is not present.
+    NoScheme,
 }
 
 /// An error occurred when parsing a URI/IRI (reference).
