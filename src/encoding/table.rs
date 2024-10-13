@@ -35,7 +35,7 @@ impl Table {
     ///
     /// Panics if any of the bytes is not ASCII or equals `b'%'`.
     #[must_use]
-    pub const fn new(mut bytes: &[u8]) -> Table {
+    pub const fn new(mut bytes: &[u8]) -> Self {
         let mut table = [false; TABLE_LEN];
         while let [cur, rem @ ..] = bytes {
             assert!(
@@ -45,7 +45,7 @@ impl Table {
             table[*cur as usize] = true;
             bytes = rem;
         }
-        Table { table }
+        Self { table }
     }
 
     /// Combines two tables into one.
@@ -53,7 +53,7 @@ impl Table {
     /// Returns a new table that allows all the byte patterns allowed
     /// by `self` or by `other`.
     #[must_use]
-    pub const fn or(mut self, other: &Table) -> Table {
+    pub const fn or(mut self, other: &Self) -> Self {
         let mut i = 0;
         while i < TABLE_LEN {
             self.table[i] |= other.table[i];
@@ -64,7 +64,7 @@ impl Table {
 
     /// Marks this table as allowing percent-encoded octets.
     #[must_use]
-    pub const fn or_pct_encoded(mut self) -> Table {
+    pub const fn or_pct_encoded(mut self) -> Self {
         self.table[INDEX_PCT_ENCODED] = true;
         self
     }
@@ -74,7 +74,7 @@ impl Table {
     ///
     /// [`ucschar`]: https://datatracker.ietf.org/doc/html/rfc3987#section-2.2
     #[must_use]
-    pub const fn or_ucschar(mut self) -> Table {
+    pub const fn or_ucschar(mut self) -> Self {
         self.table[INDEX_UCSCHAR] = true;
         self
     }
@@ -84,7 +84,7 @@ impl Table {
     ///
     /// [`iprivate`]: https://datatracker.ietf.org/doc/html/rfc3987#section-2.2
     #[must_use]
-    pub const fn or_iprivate(mut self) -> Table {
+    pub const fn or_iprivate(mut self) -> Self {
         self.table[INDEX_IPRIVATE] = true;
         self
     }
@@ -94,7 +94,7 @@ impl Table {
     /// Returns a new table that allows all the byte patterns allowed
     /// by `self` but not allowed by `other`.
     #[must_use]
-    pub const fn sub(mut self, other: &Table) -> Table {
+    pub const fn sub(mut self, other: &Self) -> Self {
         let mut i = 0;
         while i < TABLE_LEN {
             self.table[i] &= !other.table[i];
@@ -106,7 +106,7 @@ impl Table {
     /// Checks whether the table is a subset of another, i.e., `other`
     /// allows at least all the byte patterns allowed by `self`.
     #[must_use]
-    pub const fn is_subset(&self, other: &Table) -> bool {
+    pub const fn is_subset(&self, other: &Self) -> bool {
         let mut i = 0;
         while i < TABLE_LEN {
             if self.table[i] & !other.table[i] {

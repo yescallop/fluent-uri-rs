@@ -89,7 +89,7 @@ impl<E: Encoder> Deref for EString<E> {
 
 impl<E: Encoder> EString<E> {
     pub(crate) fn new_validated(buf: String) -> Self {
-        EString {
+        Self {
             buf,
             encoder: PhantomData,
         }

@@ -13,6 +13,8 @@
     // clippy::redundant_closure_for_method_calls,
     clippy::semicolon_if_nothing_returned,
     clippy::single_match_else,
+    clippy::redundant_else,
+    clippy::use_self,
 )]
 #![forbid(unsafe_code)]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]

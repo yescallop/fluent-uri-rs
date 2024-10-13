@@ -122,7 +122,7 @@ impl<E: Encoder> EStr<E> {
     #[must_use]
     pub const fn new(s: &str) -> Option<&Self> {
         if E::TABLE.validate(s.as_bytes()) {
-            Some(EStr::new_validated(s))
+            Some(Self::new_validated(s))
         } else {
             None
         }
@@ -423,7 +423,7 @@ impl<E: PathEncoder> EStr<E> {
     pub fn segments_if_absolute(&self) -> Option<Split<'_, E>> {
         self.inner
             .strip_prefix('/')
-            .map(|s| EStr::new_validated(s).split('/'))
+            .map(|s| Self::new_validated(s).split('/'))
     }
 }
 

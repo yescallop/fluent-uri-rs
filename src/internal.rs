@@ -57,8 +57,8 @@ impl<'a> Parse for &'a str {
 }
 
 impl Parse for String {
-    type Val = String;
-    type Err = ParseError<String>;
+    type Val = Self;
+    type Err = ParseError<Self>;
 
     fn parse<R: RiRef<Val = Self::Val>>(self) -> Result<R, Self::Err> {
         match parser::parse(self.as_bytes(), R::criteria()) {

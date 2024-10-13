@@ -911,19 +911,17 @@ impl<'v, 'm> Ref<'v, 'm> {
     }
 
     pub fn ensure_has_scheme(self) -> Result<(), ParseError> {
-        if self.has_scheme() {
-            Ok(())
-        } else {
+        if !self.has_scheme() {
             parser::err!(0, NoScheme);
         }
+        Ok(())
     }
 
     pub fn ensure_ascii(self) -> Result<(), ParseError> {
         if let Some(pos) = self.as_str().bytes().position(|x| !x.is_ascii()) {
             parser::err!(pos, UnexpectedChar);
-        } else {
-            Ok(())
         }
+        Ok(())
     }
 }
 

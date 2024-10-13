@@ -58,7 +58,7 @@ pub struct Scheme {
 impl Scheme {
     #[ref_cast_custom]
     #[inline]
-    pub(crate) const fn new_validated(scheme: &str) -> &Scheme;
+    pub(crate) const fn new_validated(scheme: &str) -> &Self;
 
     /// Converts a string slice to `&Scheme`.
     ///
@@ -71,7 +71,7 @@ impl Scheme {
     /// [scheme]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.1
     #[inline]
     #[must_use]
-    pub const fn new_or_panic(s: &str) -> &Scheme {
+    pub const fn new_or_panic(s: &str) -> &Self {
         match Self::new(s) {
             Some(scheme) => scheme,
             None => panic!("invalid scheme"),
@@ -81,11 +81,11 @@ impl Scheme {
     /// Converts a string slice to `&Scheme`, returning `None` if the conversion fails.
     #[inline]
     #[must_use]
-    pub const fn new(s: &str) -> Option<&Scheme> {
+    pub const fn new(s: &str) -> Option<&Self> {
         if matches!(s.as_bytes(), [first, rem @ ..]
         if first.is_ascii_alphabetic() && table::SCHEME.validate(rem))
         {
-            Some(Scheme::new_validated(s))
+            Some(Self::new_validated(s))
         } else {
             None
         }

@@ -247,7 +247,7 @@ impl<R, S> Builder<R, S> {
     /// ```
     pub fn optional<F, V, T>(self, f: F, opt: Option<V>) -> Builder<R, T>
     where
-        F: FnOnce(Builder<R, S>, V) -> Builder<R, T>,
+        F: FnOnce(Self, V) -> Builder<R, T>,
         S: AdvanceTo<T>,
     {
         match opt {
