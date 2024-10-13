@@ -871,23 +871,19 @@ impl<'v, 'm> Ref<'v, 'm> {
     pub fn set_fragment(buf: &mut String, meta: &Meta, opt: Option<&str>) {
         buf.truncate(meta.query_or_path_end());
         if let Some(s) = opt {
-            buf.reserve(s.len() + 1);
+            buf.reserve_exact(s.len() + 1);
             buf.push('#');
             buf.push_str(s);
         }
     }
 
     pub fn with_fragment(self, opt: Option<&str>) -> String {
-        let stripped_len = self.meta.query_or_path_end();
-        let additional_len = opt.map_or(0, |s| s.len() + 1);
-
-        let mut buf = String::with_capacity(stripped_len + additional_len);
-        buf.push_str(&self.val[..stripped_len]);
+        let stripped = &self.val[..self.meta.query_or_path_end()];
         if let Some(s) = opt {
-            buf.push('#');
-            buf.push_str(s);
+            [stripped, "#", s].concat()
+        } else {
+            stripped.to_owned()
         }
-        buf
     }
 
     #[inline]

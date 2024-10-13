@@ -12,7 +12,7 @@ fn parse_absolute() {
     assert_eq!(a.as_str(), "");
     assert_eq!(a.userinfo(), None);
     assert_eq!(a.host(), "");
-    assert!(matches!(a.host_parsed(), Host::RegName(n) if n == ""));
+    assert!(matches!(a.host_parsed(), Host::RegName(n) if n.is_empty()));
     assert_eq!(a.port(), None);
     assert_eq!(r.path(), "/etc/hosts");
     assert_eq!(r.query(), None);
