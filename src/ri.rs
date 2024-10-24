@@ -568,6 +568,24 @@ macro_rules! ri_maybe_ref {
                 self.as_ref().has_fragment()
             }
 
+            #[doc = concat!("Returns a slice of this ", $name)]
+            /// with the fragment component removed.
+            ///
+            /// # Examples
+            ///
+            /// ```
+            #[doc = concat!("use fluent_uri::", $ty, ";")]
+            ///
+            #[doc = concat!("let ", $var, " = ", $ty, "::parse(\"http://example.com/#fragment\")?;")]
+            #[doc = concat!("assert_eq!(", $var, ".strip_fragment(), \"http://example.com/\");")]
+            /// # Ok::<_, fluent_uri::error::ParseError>(())
+            /// ```
+            #[must_use]
+            pub fn strip_fragment(&self) -> $Ty<&str> {
+                // Altering only the fragment does not change the metadata.
+                RiRef::new(self.as_ref().strip_fragment(), self.meta)
+            }
+
             #[doc = concat!("Creates a new ", $name)]
             /// by replacing the fragment component of `self` with the given one.
             ///
@@ -585,10 +603,7 @@ macro_rules! ri_maybe_ref {
             /// );
             ///
             #[doc = concat!("let ", $var, " = ", $ty, "::parse(\"http://example.com/#fragment\")?;")]
-            /// assert_eq!(
-            #[doc = concat!("    ", $var, ".with_fragment(None),")]
-            ///     "http://example.com/"
-            /// );
+            #[doc = concat!("assert_eq!(", $var, ".with_fragment(None), \"http://example.com/\");")]
             /// # Ok::<_, fluent_uri::error::ParseError>(())
             /// ```
             #[must_use]
@@ -618,6 +633,7 @@ macro_rules! ri_maybe_ref {
             /// # Ok::<_, fluent_uri::error::ParseError>(())
             /// ```
             pub fn set_fragment(&mut self, opt: Option<&EStr<$FragmentE>>) {
+                // Altering only the fragment does not change the metadata.
                 Ref::set_fragment(&mut self.val, &self.meta, opt.map(EStr::as_str))
             }
         }
@@ -877,8 +893,12 @@ impl<'v, 'm> Ref<'v, 'm> {
         }
     }
 
+    pub fn strip_fragment(self) -> &'v str {
+        &self.val[..self.meta.query_or_path_end()]
+    }
+
     pub fn with_fragment(self, opt: Option<&str>) -> String {
-        let stripped = &self.val[..self.meta.query_or_path_end()];
+        let stripped = self.strip_fragment();
         if let Some(s) = opt {
             [stripped, "#", s].concat()
         } else {
