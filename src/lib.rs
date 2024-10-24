@@ -11,9 +11,9 @@
     clippy::missing_errors_doc,
     clippy::must_use_candidate,
     // clippy::redundant_closure_for_method_calls,
+    clippy::redundant_else,
     clippy::semicolon_if_nothing_returned,
     clippy::single_match_else,
-    clippy::redundant_else,
     clippy::use_self,
 )]
 #![forbid(unsafe_code)]
