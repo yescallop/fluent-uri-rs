@@ -19,7 +19,12 @@ net = []
 [dependencies]
 borrow-or-share = "0.2"
 ref-cast = "1.0"
-serde = { version = "1.0", default-features = false, optional = true }
+
+[dependencies.serde]
+version = "1.0"
+default-features = false
+features = ["alloc"]
+optional = true
 
 [package.metadata.docs.rs]
 all-features = true
