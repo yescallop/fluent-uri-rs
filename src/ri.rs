@@ -398,7 +398,7 @@ macro_rules! ri_maybe_ref {
                 #[doc = concat!("[`", $abnf_abs, "`][abnf] ABNF rule from RFC ", $rfc, ".")]
                 ///
                 #[doc = concat!("To prepare a base ", $nr_name, ",")]
-                /// you can use [`with_fragment`] or [`set_fragment`] to remove the fragment
+                /// you can use [`strip_fragment`], [`with_fragment`] or [`set_fragment`] to remove the fragment
                 #[doc = concat!("from any ", $nr_name, ".")]
                 /// Note that a base without fragment does **not** guarantee a successful resolution
                 /// (see the **must** below).
@@ -426,6 +426,7 @@ macro_rules! ri_maybe_ref {
                 /// Use [`normalize`] if necessary.
                 ///
                 #[doc = concat!("[abnf]: ", $abnf_abs_link)]
+                #[doc = concat!("[`strip_fragment`]: ", stringify!($NonRefTy), "::strip_fragment")]
                 #[doc = concat!("[`with_fragment`]: ", stringify!($NonRefTy), "::with_fragment")]
                 #[doc = concat!("[`set_fragment`]: ", stringify!($NonRefTy), "::set_fragment")]
                 /// [rootless]: EStr::<Path>::is_rootless
