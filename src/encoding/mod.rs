@@ -163,7 +163,7 @@ impl<E: Encoder> EStr<E> {
     #[cfg(fluent_uri_unstable)]
     #[must_use]
     pub fn upcast<SuperE: Encoder>(&self) -> &EStr<SuperE> {
-        let () = Assert::<E, SuperE>::L_IS_SUB_ENCODER_OF_R;
+        () = Assert::<E, SuperE>::L_IS_SUB_ENCODER_OF_R;
         EStr::new_validated(self.as_str())
     }
 
@@ -193,7 +193,7 @@ impl<E: Encoder> EStr<E> {
     /// ```
     #[must_use]
     pub fn decode(&self) -> Decode<'_> {
-        let () = Self::ASSERT_ALLOWS_PCT_ENCODED;
+        () = Self::ASSERT_ALLOWS_PCT_ENCODED;
 
         match imp::decode(self.inner.as_bytes()) {
             Some(vec) => Decode::Owned(vec),

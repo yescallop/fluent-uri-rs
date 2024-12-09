@@ -137,8 +137,8 @@ impl<E: Encoder> EString<E> {
     ///
     /// [allow percent-encoded octets]: super::Table::allows_pct_encoded
     pub fn encode<SubE: Encoder>(&mut self, s: &(impl AsRef<[u8]> + ?Sized)) {
-        let () = Assert::<SubE, E>::L_IS_SUB_ENCODER_OF_R;
-        let () = EStr::<SubE>::ASSERT_ALLOWS_PCT_ENCODED;
+        () = Assert::<SubE, E>::L_IS_SUB_ENCODER_OF_R;
+        () = EStr::<SubE>::ASSERT_ALLOWS_PCT_ENCODED;
 
         for chunk in Utf8Chunks::new(s.as_ref()) {
             for ch in chunk.valid().chars() {

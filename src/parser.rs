@@ -69,7 +69,7 @@ impl<'a> Deref for Parser<'a> {
     }
 }
 
-impl<'a> DerefMut for Parser<'a> {
+impl DerefMut for Parser<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.reader
     }
@@ -372,7 +372,7 @@ pub(crate) fn parse_v6(bytes: &[u8]) -> [u16; 8] {
     Reader::new(bytes).read_v6().unwrap()
 }
 
-impl<'a> Parser<'a> {
+impl Parser<'_> {
     fn select<T>(&self, for_uri: T, for_iri: T) -> T {
         if self.criteria.must_be_ascii {
             for_uri
