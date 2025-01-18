@@ -388,7 +388,7 @@ macro_rules! ri_maybe_ref {
             }
         }
 
-        impl<'i, 'o, T: Bos<str>> $Ty<T> {
+        impl<T: Bos<str>> $Ty<T> {
             $(
                 #[doc = concat!("Resolves the ", $name, " against the given base ", $nr_name)]
                 #[doc = concat!("and returns the target ", $nr_name, ".")]
