@@ -27,10 +27,10 @@ pub const fn next_code_point(bytes: &[u8], i: usize) -> (u32, usize) {
         let z = bytes[i + 2];
         let y_z = utf8_acc_cont_byte((y & CONT_MASK) as u32, z);
         if x < 0xF0 {
-            (init << 12 | y_z, 3)
+            ((init << 12) | y_z, 3)
         } else {
             let w = bytes[i + 3];
-            ((init & 7) << 18 | utf8_acc_cont_byte(y_z, w), 4)
+            (((init & 7) << 18) | utf8_acc_cont_byte(y_z, w), 4)
         }
     }
 }
