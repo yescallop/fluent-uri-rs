@@ -3,12 +3,12 @@
 use crate::{
     build::{
         state::{NonRefStart, Start},
-        Builder,
+        BuildError, Builder,
     },
     component::{Authority, IAuthority, Scheme},
     normalize,
     parse::{self, ParseError},
-    pct_enc::{encoder::*, EStr, Encoder},
+    pct_enc::{encoder::*, EStr, Encoder, Split},
     resolve::{self, ResolveError},
 };
 use alloc::{borrow::ToOwned, string::String};
@@ -1098,6 +1098,408 @@ ri_maybe_ref! {
     PathEncoderType = Path,
     QueryEncoderType = Query,
     FragmentEncoderType = Fragment,
+}
+
+/// The error describe what happened during converting [std::path::Path] to [Uri] or converting
+/// [Uri] to [std::path::Path]
+#[derive(Debug, thiserror::Error)]
+pub enum UriPathError {
+    #[error("No Segments")]
+    NoSegments,
+    #[error("HostError")]
+    HostError,
+    #[error("build error")]
+    BuildError(#[from] BuildError),
+    #[error("not absolute path")]
+    NotAbsolutePath,
+    #[error("Path illegal")]
+    IllegalPath,
+    #[cfg(target_os = "windows")]
+    #[error("Path component not know")]
+    PathComponentNotKnow,
+}
+const SCHEME_FILE: &Scheme = Scheme::new_or_panic("file");
+impl<'i, 'o, T: BorrowOrShare<'i, 'o, str>> Uri<T> {
+    /// Assuming the URL is in the `file` scheme or similar,
+    /// convert its path to an absolute `std::path::Path`.
+    ///
+    /// **Note:** This does not actually check the URL’s `scheme`,
+    /// and may give nonsensical results for other schemes.
+    /// It is the user’s responsibility to check the URL’s scheme before calling this.
+    ///
+    /// ```
+    /// # use fluent_uri::Uri;
+    /// # let url = Uri::parse("file:///etc/passwd").unwrap();
+    /// let path = url.to_file_path();
+    /// ```
+    ///
+    /// # Errors
+    /// Returns `Err` if the host is neither empty nor `"localhost"` (except on Windows, where
+    /// `file:` URLs may have a non-local host),
+    /// or if `Path::new_opt()` returns `None`.
+    /// (That is, if the percent-decoded path contains a NUL byte or,
+    /// for a Windows path, is not UTF-8.)
+    ///
+    /// This method is only available if the `std` Cargo feature is enabled.
+    ///
+    pub fn to_file_path(&'i self) -> Result<std::path::PathBuf, UriPathError> {
+        let segments = self.path();
+        let segments = segments
+            .segments_if_absolute()
+            .ok_or(UriPathError::NoSegments)?;
+        let host: Option<&str> = match self.authority().map(|authority| authority.host()) {
+            None => None,
+            Some(host_data) if host_data.is_empty() || host_data == "localhost" => None,
+            Some(host_data) if self.scheme().as_str() == "file" => Some(host_data),
+            Some(_) => return Err(UriPathError::NoSegments),
+        };
+        file_url_segments_to_pathbuf(host, segments)
+    }
+}
+
+mod control_chars {
+    use percent_encoding::AsciiSet;
+    /// https://url.spec.whatwg.org/#fragment-percent-encode-set
+    const FRAGMENT: &AsciiSet = &percent_encoding::CONTROLS
+        .add(b' ')
+        .add(b'"')
+        .add(b'<')
+        .add(b'>')
+        .add(b'`');
+
+    /// https://url.spec.whatwg.org/#path-percent-encode-set
+    const PATH: &AsciiSet = &FRAGMENT.add(b'#').add(b'?').add(b'{').add(b'}');
+    pub(crate) const PATH_SEGMENT: &AsciiSet = &PATH.add(b'/').add(b'%');
+
+    pub(crate) const SPECIAL_PATH_SEGMENT: &AsciiSet = &PATH_SEGMENT.add(b'\\');
+}
+
+impl Uri<String> {
+    /// Convert a file name as `std::path::Path` into an URL in the `file` scheme.
+    ///
+    /// This returns `Err` if the given path is not absolute or,
+    /// on Windows, if the prefix is not a disk prefix (e.g. `C:`) or a UNC prefix (`\\`).
+    ///
+    /// # Examples
+    ///
+    /// On Unix-like platforms:
+    ///
+    /// ```
+    /// # if cfg!(unix) {
+    /// # use fluent_uri::Uri;
+    ///
+    /// let uri = Uri::from_file_path("/tmp/foo.txt").unwrap();
+    /// assert_eq!(uri.as_str(), "file:///tmp/foo.txt");
+    ///
+    /// let uri = Uri::from_file_path("../foo.txt");
+    /// assert!(uri.is_err());
+    ///
+    /// let uri = Uri::from_file_path("https://google.com/");
+    /// assert!(uri.is_err());
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Will return error when the path is illegal
+    #[cfg(not(windows))]
+    pub fn from_file_path<P: AsRef<std::path::Path>>(path: P) -> Result<Self, UriPathError> {
+        use control_chars::*;
+        use percent_encoding::percent_encode;
+        #[cfg(target_os = "hermit")]
+        use std::os::hermit::ffi::osstrext;
+        #[cfg(any(unix, target_os = "redox"))]
+        use std::os::unix::ffi::OsStrExt;
+        let path = path.as_ref();
+        if !path.is_absolute() {
+            return Err(UriPathError::NotAbsolutePath);
+        }
+        let mut serialization = "".to_owned();
+        let mut empty = true;
+        for component in path.components().skip(1) {
+            empty = false;
+            serialization.push('/');
+            #[cfg(all(not(target_os = "wasi"), not(target_os = "windows")))]
+            serialization.extend(percent_encode(
+                component.as_os_str().as_bytes(),
+                SPECIAL_PATH_SEGMENT,
+            ));
+
+            #[cfg(target_os = "wasi")]
+            serialization.extend(percent_encode(
+                component.as_os_str().to_string_lossy().as_bytes(),
+                SPECIAL_PATH_SEGMENT,
+            ));
+        }
+        if empty {
+            serialization.push('/');
+        }
+        let path = EStr::new(&serialization).ok_or(UriPathError::IllegalPath)?;
+        Ok(Self::builder()
+            .scheme(SCHEME_FILE)
+            .authority(Authority::EMPTY)
+            .path(path)
+            .build()?)
+    }
+
+    /// Convert a file name as `std::path::Path` into an URL in the `file` scheme.
+    ///
+    /// This returns `Err` if the given path is not absolute or,
+    /// on Windows, if the prefix is not a disk prefix (e.g. `C:`) or a UNC prefix (`\\`).
+    ///
+    /// # Examples
+    ///
+    /// On Unix-like platforms:
+    ///
+    /// ```
+    /// # if cfg!(windows) {
+    /// # use fluent_uri::Uri;
+    ///
+    /// let uri = Uri::from_file_path("/tmp/foo.txt").unwrap();
+    /// assert_eq!(uri.as_str(), "file:///tmp/foo.txt");
+    ///
+    /// let uri = Uri::from_file_path("../foo.txt");
+    /// assert!(uri.is_err());
+    ///
+    /// let uri = Uri::from_file_path("https://google.com/");
+    /// assert!(uri.is_err());
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Will return error when the path is illegal
+    #[cfg(windows)]
+    pub fn from_file_path_w<P: AsRef<std::path::Path>>(path: P) -> Result<Self, UriPathError> {
+        use control_chars::*;
+        use core::fmt::Write;
+        use percent_encoding::percent_encode;
+        use std::path::{Component, Prefix};
+        let path = path.as_ref();
+        if !path.is_absolute() {
+            return Err(UriPathError::NotAbsolutePath);
+        }
+        let mut serialization = "".to_owned();
+        let mut components = path.components();
+        let host_start = serialization.len() + 1;
+        match components.next() {
+            Some(Component::Prefix(ref p)) => match p.kind() {
+                Prefix::Disk(letter) | Prefix::VerbatimDisk(letter) => {
+                    serialization.push('/');
+
+                    serialization.push(letter as char);
+
+                    serialization.push(':');
+                }
+
+                Prefix::UNC(server, share) | Prefix::VerbatimUNC(server, share) => {
+                    let server = server.to_str().ok_or(UriPathError::HostError)?;
+                    write!(&mut serialization, "{}", server).unwrap();
+
+                    serialization.push('/');
+
+                    let share = share.to_str().ok_or(UriPathError::HostError)?;
+
+                    serialization.extend(percent_encode(share.as_bytes(), PATH_SEGMENT));
+                }
+
+                _ => return Err(UriPathError::HostError),
+            },
+
+            _ => return Err(UriPathError::HostError),
+        }
+        let mut path_only_has_prefix = true;
+
+        for component in components {
+            if component == Component::RootDir {
+                continue;
+            }
+
+            path_only_has_prefix = false;
+
+            // FIXME: somehow work with non-unicode?
+            let component = component
+                .as_os_str()
+                .to_str()
+                .ok_or(UriPathError::HostError)?;
+
+            serialization.push('/');
+
+            serialization.extend(percent_encode(component.as_bytes(), PATH_SEGMENT));
+        }
+
+        // A windows drive letter must end with a slash.
+
+        if serialization.len() > host_start
+            && is_windows_drive_letter(&serialization[host_start..])
+            && path_only_has_prefix
+        {
+            serialization.push('/');
+        }
+        let path = EStr::new(&serialization).ok_or(UriPathError::IllegalPath)?;
+        Ok(Self::builder()
+            .scheme(SCHEME_FILE)
+            .authority(Authority::EMPTY)
+            .path(path)
+            .build()?)
+    }
+}
+
+#[cfg(windows)]
+fn starts_with_windows_drive_letter(s: &str) -> bool {
+    s.len() >= 2
+        && ascii_alpha(s.as_bytes()[0] as char)
+        && matches!(s.as_bytes()[1], b':' | b'|')
+        && (s.len() == 2 || matches!(s.as_bytes()[2], b'/' | b'\\' | b'?' | b'#'))
+}
+#[cfg(windows)]
+#[inline]
+fn is_windows_drive_letter(segment: &str) -> bool {
+    segment.len() == 2 && starts_with_windows_drive_letter(segment)
+}
+
+#[cfg(all(
+    feature = "std",
+    any(unix, target_os = "redox", target_os = "wasi", target_os = "hermit")
+))]
+fn file_url_segments_to_pathbuf(
+    host: Option<&str>,
+
+    segments: Split<'_, Path>,
+) -> Result<std::path::PathBuf, UriPathError> {
+    use alloc::vec::Vec;
+
+    use percent_encoding::percent_decode;
+
+    #[cfg(not(target_os = "wasi"))]
+    use std::ffi::OsStr;
+
+    #[cfg(target_os = "hermit")]
+    use std::os::hermit::ffi::OsStrExt;
+
+    #[cfg(any(unix, target_os = "redox"))]
+    use std::os::unix::prelude::OsStrExt;
+
+    use std::path::PathBuf;
+
+    if host.is_some() {
+        return Err(UriPathError::HostError);
+    }
+
+    let mut bytes = if cfg!(target_os = "redox") {
+        b"file:".to_vec()
+    } else {
+        Vec::new()
+    };
+
+    for segment in segments {
+        bytes.push(b'/');
+
+        bytes.extend(percent_decode(segment.as_str().as_bytes()));
+    }
+
+    // A windows drive letter must end with a slash.
+
+    if bytes.len() > 2
+        && bytes[bytes.len() - 2].is_ascii_alphabetic()
+        && matches!(bytes[bytes.len() - 1], b':' | b'|')
+    {
+        bytes.push(b'/');
+    }
+
+    #[cfg(not(target_os = "wasi"))]
+    let path = PathBuf::from(OsStr::from_bytes(&bytes));
+
+    #[cfg(target_os = "wasi")]
+    let path = String::from_utf8(bytes)
+        .map(|path| PathBuf::from(path))
+        .map_err(|_| ())?;
+
+    debug_assert!(
+        path.is_absolute(),
+        "to_file_path() failed to produce an absolute Path"
+    );
+
+    Ok(path)
+}
+
+#[cfg(all(feature = "std", windows))]
+fn file_url_segments_to_pathbuf(
+    host: Option<&str>,
+    segments: Split<'_, Path>,
+) -> Result<std::path::PathBuf, UriPathError> {
+    file_url_segments_to_pathbuf_windows(host, segments)
+}
+
+/// https://url.spec.whatwg.org/#ascii-alpha
+#[allow(unused)]
+#[inline]
+fn ascii_alpha(ch: char) -> bool {
+    ch.is_ascii_alphabetic()
+}
+
+// Build this unconditionally to alleviate https://github.com/servo/rust-url/issues/102
+#[cfg(feature = "std")]
+#[cfg_attr(not(windows), allow(dead_code))]
+fn file_url_segments_to_pathbuf_windows(
+    host: Option<&str>,
+    mut segments: Split<'_, Path>,
+) -> Result<std::path::PathBuf, UriPathError> {
+    use percent_encoding::percent_decode;
+    use std::path::PathBuf;
+
+    let mut string = if let Some(host) = host {
+        r"\\".to_owned() + host
+    } else {
+        let first = segments.next().ok_or(UriPathError::HostError)?.as_str();
+
+        match first.len() {
+            2 => {
+                if !first.starts_with(ascii_alpha) || first.as_bytes()[1] != b':' {
+                    return Err(UriPathError::HostError);
+                }
+
+                first.to_owned()
+            }
+
+            4 => {
+                if !first.starts_with(ascii_alpha) {
+                    return Err(UriPathError::HostError);
+                }
+
+                let bytes = first.as_bytes();
+
+                if bytes[1] != b'%' || bytes[2] != b'3' || (bytes[3] != b'a' && bytes[3] != b'A') {
+                    return Err(UriPathError::HostError);
+                }
+
+                first[0..1].to_owned() + ":"
+            }
+
+            _ => return Err(UriPathError::HostError),
+        }
+    };
+
+    for segment in segments.map(|seg| seg.as_str()) {
+        string.push('\\');
+
+        // Currently non-unicode windows paths cannot be represented
+
+        match String::from_utf8(percent_decode(segment.as_bytes()).collect()) {
+            Ok(s) => string.push_str(&s),
+
+            Err(..) => return Err(UriPathError::HostError),
+        }
+    }
+
+    let path = PathBuf::from(string);
+
+    debug_assert!(
+        path.is_absolute(),
+        "to_file_path() failed to produce an absolute Path"
+    );
+
+    Ok(path)
 }
 
 ri_maybe_ref! {
