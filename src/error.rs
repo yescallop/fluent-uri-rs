@@ -57,8 +57,7 @@ impl<I: AsRef<str>> ParseError<I> {
     }
 }
 
-#[cfg(feature = "std")]
-impl<I> std::error::Error for ParseError<I> {}
+impl<I> core::error::Error for ParseError<I> {}
 
 /// Detailed cause of a [`BuildError`].
 #[derive(Clone, Copy, Debug)]
@@ -72,8 +71,7 @@ pub(crate) enum BuildErrorKind {
 #[derive(Clone, Copy, Debug)]
 pub struct BuildError(pub(crate) BuildErrorKind);
 
-#[cfg(feature = "std")]
-impl std::error::Error for BuildError {}
+impl core::error::Error for BuildError {}
 
 /// Detailed cause of a [`ResolveError`].
 #[derive(Clone, Copy, Debug)]
@@ -87,5 +85,4 @@ pub(crate) enum ResolveErrorKind {
 #[derive(Clone, Copy, Debug)]
 pub struct ResolveError(pub(crate) ResolveErrorKind);
 
-#[cfg(feature = "std")]
-impl std::error::Error for ResolveError {}
+impl core::error::Error for ResolveError {}
