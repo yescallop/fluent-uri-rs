@@ -3,7 +3,7 @@
 use crate::internal::NoInput;
 
 /// Detailed cause of a [`ParseError`].
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ParseErrorKind {
     /// Invalid percent-encoded octet that is either non-hexadecimal or incomplete.
     ///
@@ -22,7 +22,7 @@ pub(crate) enum ParseErrorKind {
 }
 
 /// An error occurred when parsing a URI/IRI (reference).
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub struct ParseError<I = NoInput> {
     pub(crate) index: usize,
     pub(crate) kind: ParseErrorKind,

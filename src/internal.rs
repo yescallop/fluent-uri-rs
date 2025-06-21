@@ -16,6 +16,7 @@ pub trait Value: Default {}
 impl Value for &str {}
 impl Value for String {}
 
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub struct NoInput;
 
 pub struct Criteria {
