@@ -18,6 +18,7 @@ uriparser-sys = { path = "uriparser-sys" }
 
 [dependencies.fluent-uri]
 path = ".."
+features = ["net"]
 
 # Prevent this from interfering with workspaces
 [workspace]
