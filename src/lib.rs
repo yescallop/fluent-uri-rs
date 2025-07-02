@@ -61,8 +61,10 @@
 //!
 //! # Crate features
 //!
-//! - `std` (default): Enables [`std`] support. Required for [`Error`] implementations
-//!   and [`Authority::socket_addrs`].
+//! - `std` (default): Enables [`std`] support. Required for [`Authority::socket_addrs`].
+//!
+//! - `impl-error` (default): Required for [`Error`] implementations. Disabling `std`
+//!   while enabling `impl-error` requires a minimum Rust version of 1.81.
 //!
 //! - `net`: Enables [`std::net`] or [`core::net`] support.
 //!   Required for IP address fields in [`Host`], for [`Builder::host`] to take an IP

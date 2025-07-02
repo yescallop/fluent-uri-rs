@@ -1,5 +1,10 @@
 //! Error types.
 
+#[cfg(all(feature = "impl-error", not(feature = "std")))]
+use core::error::Error;
+#[cfg(all(feature = "impl-error", feature = "std"))]
+use std::error::Error;
+
 use crate::internal::NoInput;
 
 /// Detailed cause of a [`ParseError`].
@@ -57,7 +62,8 @@ impl<I: AsRef<str>> ParseError<I> {
     }
 }
 
-impl<I> core::error::Error for ParseError<I> {}
+#[cfg(feature = "impl-error")]
+impl<I> Error for ParseError<I> {}
 
 /// Detailed cause of a [`BuildError`].
 #[derive(Clone, Copy, Debug)]
@@ -71,7 +77,8 @@ pub(crate) enum BuildErrorKind {
 #[derive(Clone, Copy, Debug)]
 pub struct BuildError(pub(crate) BuildErrorKind);
 
-impl core::error::Error for BuildError {}
+#[cfg(feature = "impl-error")]
+impl Error for BuildError {}
 
 /// Detailed cause of a [`ResolveError`].
 #[derive(Clone, Copy, Debug)]
@@ -85,4 +92,5 @@ pub(crate) enum ResolveErrorKind {
 #[derive(Clone, Copy, Debug)]
 pub struct ResolveError(pub(crate) ResolveErrorKind);
 
-impl core::error::Error for ResolveError {}
+#[cfg(feature = "impl-error")]
+impl Error for ResolveError {}

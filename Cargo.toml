@@ -13,7 +13,8 @@ categories = ["encoding", "parser-implementations"]
 
 [features]
 default = ["std"]
-std = []
+std = ["impl-error"]
+impl-error = []
 net = []
 
 [dependencies]
