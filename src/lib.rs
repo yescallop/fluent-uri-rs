@@ -74,7 +74,7 @@
 //!
 //! [`Host`]: component::Host
 //! [`Authority::socket_addrs`]: component::Authority::socket_addrs
-//! [`Error`]: std::error::Error
+//! [`Error`]: core::error::Error
 //! [`Serialize`]: serde::Serialize
 //! [`Deserialize`]: serde::Deserialize
 
