@@ -1,7 +1,7 @@
 use crate::{
     error::{ResolveError, ResolveErrorKind},
     internal::Meta,
-    ri::Ref,
+    ri_maybe_ref::Ref,
 };
 use alloc::string::String;
 use core::num::NonZeroUsize;

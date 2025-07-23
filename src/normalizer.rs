@@ -6,12 +6,12 @@ use crate::{
     },
     internal::{HostMeta, Meta},
     parser, resolver,
-    ri::Ref,
+    ri_maybe_ref::Ref,
 };
 use alloc::{string::String, vec::Vec};
 use core::{fmt::Write, num::NonZeroUsize};
 
-pub(crate) fn normalize(r: Ref<'_, '_>, must_be_ascii: bool) -> (String, Meta) {
+pub(crate) fn normalize(r: Ref<'_, '_>, ascii_only: bool) -> (String, Meta) {
     // For "a://[::ffff:5:9]/" the capacity is not enough,
     // but it's fine since this rarely happens.
     let mut buf = String::with_capacity(r.as_str().len());
@@ -20,12 +20,12 @@ pub(crate) fn normalize(r: Ref<'_, '_>, must_be_ascii: bool) -> (String, Meta) {
     let mut path_buf = String::with_capacity(path.len());
 
     if r.has_scheme() && path.starts_with('/') {
-        normalize_estr(&mut buf, path, false, must_be_ascii, false);
+        normalize_estr(&mut buf, path, false, ascii_only, false);
         resolver::remove_dot_segments(&mut path_buf, &buf);
         buf.clear();
     } else {
         // Don't remove dot segments from relative reference or rootless path.
-        normalize_estr(&mut path_buf, path, false, must_be_ascii, false);
+        normalize_estr(&mut path_buf, path, false, ascii_only, false);
     }
 
     let mut meta = Meta::default();
@@ -41,7 +41,7 @@ pub(crate) fn normalize(r: Ref<'_, '_>, must_be_ascii: bool) -> (String, Meta) {
         buf.push_str("//");
 
         if let Some(userinfo) = auth.userinfo() {
-            normalize_estr(&mut buf, userinfo.as_str(), false, must_be_ascii, false);
+            normalize_estr(&mut buf, userinfo.as_str(), false, ascii_only, false);
             buf.push('@');
         }
 
@@ -67,7 +67,7 @@ pub(crate) fn normalize(r: Ref<'_, '_>, must_be_ascii: bool) -> (String, Meta) {
             HostMeta::RegName => {
                 let start = buf.len();
                 let host = auth.host();
-                normalize_estr(&mut buf, host, true, must_be_ascii, false);
+                normalize_estr(&mut buf, host, true, ascii_only, false);
 
                 if buf.len() < start + host.len() {
                     // Only reparse when the length is less than before.
@@ -96,13 +96,13 @@ pub(crate) fn normalize(r: Ref<'_, '_>, must_be_ascii: bool) -> (String, Meta) {
 
     if let Some(query) = r.query() {
         buf.push('?');
-        normalize_estr(&mut buf, query.as_str(), false, must_be_ascii, true);
+        normalize_estr(&mut buf, query.as_str(), false, ascii_only, true);
         meta.query_end = NonZeroUsize::new(buf.len());
     }
 
     if let Some(fragment) = r.fragment() {
         buf.push('#');
-        normalize_estr(&mut buf, fragment.as_str(), false, must_be_ascii, false);
+        normalize_estr(&mut buf, fragment.as_str(), false, ascii_only, false);
     }
 
     (buf, meta)
@@ -112,13 +112,13 @@ fn normalize_estr(
     buf: &mut String,
     s: &str,
     to_ascii_lowercase: bool,
-    must_be_ascii: bool,
+    ascii_only: bool,
     is_query: bool,
 ) {
     let s = s.as_bytes();
     let mut i = 0;
 
-    if must_be_ascii {
+    if ascii_only {
         while i < s.len() {
             let mut x = s[i];
             if x == b'%' {

@@ -1,6 +1,6 @@
 use crate::{
     encoding::{next_code_point, table::*, Table, OCTET_TABLE_LO},
-    internal::{AuthMeta, Criteria, HostMeta, Meta},
+    internal::{AuthMeta, Constraints, HostMeta, Meta},
 };
 use core::{
     num::NonZeroUsize,
@@ -23,9 +23,9 @@ macro_rules! err {
 
 pub(crate) use err;
 
-pub(crate) fn parse(bytes: &[u8], criteria: Criteria) -> Result<Meta> {
+pub(crate) fn parse(bytes: &[u8], constraints: Constraints) -> Result<Meta> {
     let mut parser = Parser {
-        criteria,
+        constraints,
         reader: Reader::new(bytes),
         out: Meta::default(),
     };
@@ -51,7 +51,7 @@ pub(crate) fn parse(bytes: &[u8], criteria: Criteria) -> Result<Meta> {
 ///   and on the boundary of a UTF-8 code point.
 /// - All URI/IRI components defined by output indexes are validated.
 struct Parser<'a> {
-    criteria: Criteria,
+    constraints: Constraints,
     reader: Reader<'a>,
     out: Meta,
 }
@@ -374,7 +374,7 @@ pub(crate) fn parse_v6(bytes: &[u8]) -> [u16; 8] {
 
 impl Parser<'_> {
     fn select<T>(&self, for_uri: T, for_iri: T) -> T {
-        if self.criteria.must_be_ascii {
+        if self.constraints.ascii_only {
             for_uri
         } else {
             for_iri
@@ -417,7 +417,7 @@ impl Parser<'_> {
             } else {
                 self.parse_from_path(PathKind::General)
             };
-        } else if self.criteria.must_have_scheme {
+        } else if self.constraints.scheme_required {
             err!(self.pos, UnexpectedChar);
         } else if self.pos == 0 {
             // Nothing read.

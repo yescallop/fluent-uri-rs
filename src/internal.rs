@@ -18,12 +18,12 @@ impl Value for String {}
 
 pub struct NoInput;
 
-pub struct Criteria {
-    pub must_be_ascii: bool,
-    pub must_have_scheme: bool,
+pub struct Constraints {
+    pub ascii_only: bool,
+    pub scheme_required: bool,
 }
 
-pub trait RiRef: Sized {
+pub trait RiMaybeRef: Sized {
     type Val;
     type UserinfoE: Encoder;
     type RegNameE: Encoder;
@@ -37,22 +37,22 @@ pub trait RiRef: Sized {
         Self::new(val, meta)
     }
 
-    fn criteria() -> Criteria;
+    fn constraints() -> Constraints;
 }
 
 pub trait Parse {
     type Val;
     type Err;
 
-    fn parse<R: RiRef<Val = Self::Val>>(self) -> Result<R, Self::Err>;
+    fn parse<R: RiMaybeRef<Val = Self::Val>>(self) -> Result<R, Self::Err>;
 }
 
 impl<'a> Parse for &'a str {
     type Val = &'a str;
     type Err = ParseError;
 
-    fn parse<R: RiRef<Val = Self::Val>>(self) -> Result<R, Self::Err> {
-        parser::parse(self.as_bytes(), R::criteria()).map(|meta| R::new(self, meta))
+    fn parse<R: RiMaybeRef<Val = Self::Val>>(self) -> Result<R, Self::Err> {
+        parser::parse(self.as_bytes(), R::constraints()).map(|meta| R::new(self, meta))
     }
 }
 
@@ -60,8 +60,8 @@ impl Parse for String {
     type Val = Self;
     type Err = ParseError<Self>;
 
-    fn parse<R: RiRef<Val = Self::Val>>(self) -> Result<R, Self::Err> {
-        match parser::parse(self.as_bytes(), R::criteria()) {
+    fn parse<R: RiMaybeRef<Val = Self::Val>>(self) -> Result<R, Self::Err> {
+        match parser::parse(self.as_bytes(), R::constraints()) {
             Ok(meta) => Ok(R::new(self, meta)),
             Err(e) => Err(e.with_input(self)),
         }

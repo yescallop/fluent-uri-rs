@@ -89,10 +89,10 @@ mod internal;
 mod normalizer;
 mod parser;
 mod resolver;
-mod ri;
+mod ri_maybe_ref;
 
 pub use builder::Builder;
-pub use ri::{Iri, IriRef, Uri, UriRef};
+pub use ri_maybe_ref::{Iri, IriRef, Uri, UriRef};
 
 #[cfg(feature = "std")]
 extern crate std;

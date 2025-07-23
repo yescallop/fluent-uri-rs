@@ -6,7 +6,7 @@ use crate::{
     component::{Authority, IAuthority, Scheme},
     encoding::{encode_byte, encoder::*, EStr, Encoder},
     error::{ParseError, ResolveError},
-    internal::{Criteria, HostMeta, Meta, Parse, RiRef, Value},
+    internal::{Constraints, HostMeta, Meta, Parse, RiMaybeRef, Value},
     normalizer, parser, resolver,
 };
 use alloc::{borrow::ToOwned, string::String};
@@ -35,8 +35,8 @@ macro_rules! ri_maybe_ref {
         name = $name:literal,
         indefinite_article = $art:literal,
         description = $desc:literal,
-        must_be_ascii = $must_be_ascii:literal,
-        must_have_scheme = $must_have_scheme:tt,
+        ascii_only = $ascii_only:literal,
+        scheme_required = $scheme_required:tt,
         rfc = $rfc:literal,
         abnf_rule = ($abnf:literal, $abnf_link:literal),
         $(
@@ -102,7 +102,7 @@ macro_rules! ri_maybe_ref {
         #[doc = concat!("let ", $var, " = ", $ty, "::parse(s)?;")]
         ///
         #[doc = concat!("assert_eq!(", $var, ".scheme()",
-            cond!(if $must_have_scheme { "" } else { ".unwrap()" }), ", SCHEME_FOO);")]
+            cond!(if $scheme_required { "" } else { ".unwrap()" }), ", SCHEME_FOO);")]
         ///
         #[doc = concat!("let auth = ", $var, ".authority().unwrap();")]
         /// assert_eq!(auth.as_str(), "user@example.com:8042");
@@ -148,7 +148,7 @@ macro_rules! ri_maybe_ref {
             meta: Meta,
         }
 
-        impl<T> RiRef for $Ty<T> {
+        impl<T> RiMaybeRef for $Ty<T> {
             type Val = T;
             type UserinfoE = $UserinfoE;
             type RegNameE = $RegNameE;
@@ -160,10 +160,10 @@ macro_rules! ri_maybe_ref {
                 Self { val, meta }
             }
 
-            fn criteria() -> Criteria {
-                Criteria {
-                    must_be_ascii: $must_be_ascii,
-                    must_have_scheme: $must_have_scheme,
+            fn constraints() -> Constraints {
+                Constraints {
+                    ascii_only: $ascii_only,
+                    scheme_required: $scheme_required,
                 }
             }
         }
@@ -198,7 +198,7 @@ macro_rules! ri_maybe_ref {
         impl $Ty<String> {
             #[doc = concat!("Creates a new builder for ", $name, ".")]
             #[inline]
-            pub fn builder() -> Builder<Self, cond!(if $must_have_scheme { NonRefStart } else { Start })> {
+            pub fn builder() -> Builder<Self, cond!(if $scheme_required { NonRefStart } else { Start })> {
                 Builder::new()
             }
 
@@ -244,7 +244,7 @@ macro_rules! ri_maybe_ref {
                 Ref::new(self.as_str(), &self.meta)
             }
 
-            cond!(if $must_have_scheme {
+            cond!(if $scheme_required {
                 /// Returns the [scheme] component.
                 ///
                 /// Note that the scheme component is *case-insensitive*.
@@ -461,7 +461,7 @@ macro_rules! ri_maybe_ref {
                     &self,
                     base: &$NonRefTy<U>,
                 ) -> Result<$NonRefTy<String>, ResolveError> {
-                    resolver::resolve(base.as_ref(), self.as_ref()).map(RiRef::from_pair)
+                    resolver::resolve(base.as_ref(), self.as_ref()).map(RiMaybeRef::from_pair)
                 }
             )?
 
@@ -500,10 +500,10 @@ macro_rules! ri_maybe_ref {
             /// ```
             #[must_use]
             pub fn normalize(&self) -> $Ty<String> {
-                RiRef::from_pair(normalizer::normalize(self.as_ref(), $must_be_ascii))
+                RiMaybeRef::from_pair(normalizer::normalize(self.as_ref(), $ascii_only))
             }
 
-            cond!(if $must_have_scheme {} else {
+            cond!(if $scheme_required {} else {
                 /// Checks whether a scheme component is present.
                 ///
                 /// # Examples
@@ -584,7 +584,7 @@ macro_rules! ri_maybe_ref {
             #[must_use]
             pub fn strip_fragment(&self) -> $Ty<&str> {
                 // Altering only the fragment does not change the metadata.
-                RiRef::new(self.as_ref().strip_fragment(), self.meta)
+                RiMaybeRef::new(self.as_ref().strip_fragment(), self.meta)
             }
 
             #[doc = concat!("Creates a new ", $name)]
@@ -610,7 +610,7 @@ macro_rules! ri_maybe_ref {
             #[must_use]
             pub fn with_fragment(&self, opt: Option<&EStr<$FragmentE>>) -> $Ty<String> {
                 // Altering only the fragment does not change the metadata.
-                RiRef::new(self.as_ref().with_fragment(opt.map(EStr::as_str)), self.meta)
+                RiMaybeRef::new(self.as_ref().with_fragment(opt.map(EStr::as_str)), self.meta)
             }
         }
 
@@ -949,8 +949,8 @@ ri_maybe_ref! {
     name = "URI",
     indefinite_article = "a",
     description = "A URI.",
-    must_be_ascii = true,
-    must_have_scheme = true,
+    ascii_only = true,
+    scheme_required = true,
     rfc = 3986,
     abnf_rule = ("URI", "https://datatracker.ietf.org/doc/html/rfc3986#section-3"),
     RefType = UriRef,
@@ -970,8 +970,8 @@ ri_maybe_ref! {
     name = "URI reference",
     indefinite_article = "a",
     description = "A URI reference, i.e., either a URI or a relative reference.",
-    must_be_ascii = true,
-    must_have_scheme = false,
+    ascii_only = true,
+    scheme_required = false,
     rfc = 3986,
     abnf_rule = ("URI-reference", "https://datatracker.ietf.org/doc/html/rfc3986#section-4.1"),
     NonRefType = Uri,
@@ -993,8 +993,8 @@ ri_maybe_ref! {
     name = "IRI",
     indefinite_article = "an",
     description = "An IRI.",
-    must_be_ascii = false,
-    must_have_scheme = true,
+    ascii_only = false,
+    scheme_required = true,
     rfc = 3987,
     abnf_rule = ("IRI", "https://datatracker.ietf.org/doc/html/rfc3987#section-2.2"),
     RefType = IriRef,
@@ -1014,8 +1014,8 @@ ri_maybe_ref! {
     name = "IRI reference",
     indefinite_article = "an",
     description = "An IRI reference, i.e., either a IRI or a relative reference.",
-    must_be_ascii = false,
-    must_have_scheme = false,
+    ascii_only = false,
+    scheme_required = false,
     rfc = 3987,
     abnf_rule = ("IRI-reference", "https://datatracker.ietf.org/doc/html/rfc3987#section-2.2"),
     NonRefType = Iri,
@@ -1036,7 +1036,7 @@ macro_rules! impl_from {
             impl<T: Bos<str>> From<$x<T>> for $y<T> {
                 #[doc = concat!("Consumes the `", stringify!($x), "` and creates a new [`", stringify!($y), "`] with the same contents.")]
                 fn from(value: $x<T>) -> Self {
-                    RiRef::new(value.val, value.meta)
+                    RiMaybeRef::new(value.val, value.meta)
                 }
             }
         )+)*
@@ -1059,7 +1059,7 @@ macro_rules! impl_try_from {
                 fn try_from(value: $x<&'a str>) -> Result<Self, Self::Error> {
                     let r = value.as_ref();
                     $(r.$cond()?;)+
-                    Ok((RiRef::new(value.val, value.meta)))
+                    Ok((RiMaybeRef::new(value.val, value.meta)))
                 }
             }
 
@@ -1074,7 +1074,7 @@ macro_rules! impl_try_from {
                             return Err(e.with_input(value));
                         }
                     )+
-                    Ok((RiRef::new(value.val, value.meta)))
+                    Ok((RiMaybeRef::new(value.val, value.meta)))
                 }
             }
         )*
@@ -1111,7 +1111,7 @@ impl<T: Bos<str>> Iri<T> {
     /// assert_eq!(iri.to_uri(), "http://r%C3%A9sum%C3%A9.example.org");
     /// ```
     pub fn to_uri(&self) -> Uri<String> {
-        RiRef::from_pair(encode_non_ascii(self.as_ref()))
+        RiMaybeRef::from_pair(encode_non_ascii(self.as_ref()))
     }
 }
 
@@ -1132,7 +1132,7 @@ impl<T: Bos<str>> IriRef<T> {
     /// assert_eq!(iri_ref.to_uri_ref(), "//r%C3%A9sum%C3%A9.example.org");
     /// ```
     pub fn to_uri_ref(&self) -> UriRef<String> {
-        RiRef::from_pair(encode_non_ascii(self.as_ref()))
+        RiMaybeRef::from_pair(encode_non_ascii(self.as_ref()))
     }
 }
 

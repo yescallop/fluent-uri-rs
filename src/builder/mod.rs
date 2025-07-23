@@ -9,7 +9,7 @@ use crate::{
         EStr,
     },
     error::{BuildError, BuildErrorKind},
-    internal::{AuthMeta, HostMeta, Meta, RiRef},
+    internal::{AuthMeta, HostMeta, Meta, RiMaybeRef},
     parser,
 };
 use alloc::string::String;
@@ -270,7 +270,7 @@ impl<R, S: To<SchemeEnd>> Builder<R, S> {
     }
 }
 
-impl<R: RiRef, S: To<AuthorityStart>> Builder<R, S> {
+impl<R: RiMaybeRef, S: To<AuthorityStart>> Builder<R, S> {
     /// Builds the [authority] component with the given function.
     ///
     /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2
@@ -334,7 +334,7 @@ impl<R: RiRef, S: To<AuthorityStart>> Builder<R, S> {
     }
 }
 
-impl<R: RiRef, S: To<UserinfoEnd>> Builder<R, S> {
+impl<R: RiMaybeRef, S: To<UserinfoEnd>> Builder<R, S> {
     /// Sets the [userinfo][userinfo-spec] subcomponent of authority.
     ///
     /// This method takes an <code>&amp;[EStr]&lt;[Userinfo]&gt;</code> (for URI)
@@ -409,7 +409,7 @@ impl<E> WithEncoder<E> for IpAddr {}
 impl WithEncoder<RegName> for &EStr<RegName> {}
 impl WithEncoder<IRegName> for &EStr<IRegName> {}
 
-impl<R: RiRef, S: To<HostEnd>> Builder<R, S> {
+impl<R: RiMaybeRef, S: To<HostEnd>> Builder<R, S> {
     /// Sets the [host] subcomponent of authority.
     ///
     /// This method takes either an [`Ipv4Addr`], [`Ipv6Addr`], [`IpAddr`],
@@ -493,7 +493,7 @@ impl<R, S: To<PortEnd>> Builder<R, S> {
     }
 }
 
-impl<R: RiRef, S: To<PathEnd>> Builder<R, S> {
+impl<R: RiMaybeRef, S: To<PathEnd>> Builder<R, S> {
     /// Sets the [path][path-spec] component.
     ///
     /// This method takes an <code>&amp;[EStr]&lt;[Path]&gt;</code> (for URI)
@@ -508,7 +508,7 @@ impl<R: RiRef, S: To<PathEnd>> Builder<R, S> {
     }
 }
 
-impl<R: RiRef, S: To<QueryEnd>> Builder<R, S> {
+impl<R: RiMaybeRef, S: To<QueryEnd>> Builder<R, S> {
     /// Sets the [query][query-spec] component.
     ///
     /// This method takes an <code>&amp;[EStr]&lt;[Query]&gt;</code> (for URI)
@@ -523,7 +523,7 @@ impl<R: RiRef, S: To<QueryEnd>> Builder<R, S> {
     }
 }
 
-impl<R: RiRef, S: To<FragmentEnd>> Builder<R, S> {
+impl<R: RiMaybeRef, S: To<FragmentEnd>> Builder<R, S> {
     /// Sets the [fragment][fragment-spec] component.
     ///
     /// This method takes an <code>&amp;[EStr]&lt;[Fragment]&gt;</code> (for URI)
@@ -538,7 +538,7 @@ impl<R: RiRef, S: To<FragmentEnd>> Builder<R, S> {
     }
 }
 
-impl<R: RiRef<Val = String>, S: To<End>> Builder<R, S> {
+impl<R: RiMaybeRef<Val = String>, S: To<End>> Builder<R, S> {
     /// Builds the URI/IRI (reference).
     ///
     /// # Errors
