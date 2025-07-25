@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use fluent_uri::{component::Scheme, encoding::EStr, Iri, Uri, UriRef};
+use fluent_uri::{component::Scheme, pct_enc::EStr, Iri, Uri, UriRef};
 use iri_string::{
     build::Builder,
     format::ToDedicatedString,

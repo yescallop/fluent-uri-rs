@@ -1,24 +1,38 @@
-use crate::{
-    error::{ResolveError, ResolveErrorKind},
-    internal::Meta,
-    ri_maybe_ref::Ref,
-};
+//! Module for reference resolution.
+
+use crate::imp::{Meta, Ref};
 use alloc::string::String;
 use core::num::NonZeroUsize;
+
+/// An error occurred when resolving a URI/IRI reference.
+#[derive(Clone, Copy, Debug)]
+pub enum ResolveError {
+    /// The base has a fragment.
+    BaseWithFragment,
+    /// The base has no authority and its path is rootless, but the reference
+    /// is relative, is not empty and does not start with `'#'`.
+    InvalidReferenceAgainstOpaqueBase,
+    // PathUnderflow,
+}
+
+#[cfg(feature = "impl-error")]
+impl crate::Error for ResolveError {}
 
 pub(crate) fn resolve(
     base: Ref<'_, '_>,
     /* reference */ r: Ref<'_, '_>,
 ) -> Result<(String, Meta), ResolveError> {
-    if !base.has_scheme() || base.has_fragment() {
-        return Err(ResolveError(ResolveErrorKind::InvalidBase));
+    assert!(base.has_scheme());
+
+    if base.has_fragment() {
+        return Err(ResolveError::BaseWithFragment);
     }
     if !base.has_authority()
         && base.path().is_rootless()
         && !r.has_scheme()
         && !matches!(r.as_str().bytes().next(), None | Some(b'#'))
     {
-        return Err(ResolveError(ResolveErrorKind::OpaqueBase));
+        return Err(ResolveError::InvalidReferenceAgainstOpaqueBase);
     }
 
     let (t_scheme, t_authority, t_path, t_query, t_fragment);

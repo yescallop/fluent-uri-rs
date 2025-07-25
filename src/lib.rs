@@ -25,10 +25,10 @@
 //! [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986
 //! [RFC 3987]: https://datatracker.ietf.org/doc/html/rfc3987
 //!
-//! **Examples:** [Parsing](Uri#examples). [Building](Builder#examples).
+//! **Examples:** [Parsing](Uri#examples). [Building](build::Builder#examples).
 //! [Reference resolution](UriRef::resolve_against). [Normalization](Uri::normalize).
-//! [Percent-decoding](crate::encoding::EStr#examples).
-//! [Percent-encoding](crate::encoding::EString#examples).
+//! [Percent-decoding](crate::pct_enc::EStr#examples).
+//! [Percent-encoding](crate::pct_enc::EString#examples).
 //!
 //! # Terminology
 //!
@@ -61,38 +61,35 @@
 //!
 //! # Crate features
 //!
-//! - `std` (default): Enables [`std`] support. Required for [`Authority::socket_addrs`].
+//! - `std` (default): Required for [`Authority::socket_addrs`].
 //!
 //! - `impl-error` (default): Required for [`Error`] implementations. Disabling `std`
 //!   while enabling `impl-error` requires a minimum Rust version of 1.81.
 //!
-//! - `net`: Enables [`std::net`] or [`core::net`] support.
-//!   Required for IP address fields in [`Host`], for [`Builder::host`] to take an IP
-//!   address as argument, and for [`Authority::socket_addrs`].
+//! - `net`: Required for IP address fields in [`Host`], for [`Builder::host`] to
+//!   take an IP address as argument, and for [`Authority::socket_addrs`].
 //!   Disabling `std` while enabling `net` requires a minimum Rust version of 1.77.
 //!
-//! - `serde`: Enables [`serde`] support. Required for [`Serialize`] and [`Deserialize`]
-//!   implementations.
+//! - `serde`: Required for [`Serialize`] and [`Deserialize`] implementations.
 //!
 //! [`Host`]: component::Host
+//! [`Builder::host`]: build::Builder::host
 //! [`Authority::socket_addrs`]: component::Authority::socket_addrs
 //! [`Error`]: core::error::Error
 //! [`Serialize`]: serde::Serialize
 //! [`Deserialize`]: serde::Deserialize
 
-mod builder;
+pub mod build;
 pub mod component;
-pub mod encoding;
-pub mod error;
 mod fmt;
-mod internal;
-mod normalizer;
-mod parser;
-mod resolver;
-mod ri_maybe_ref;
+mod imp;
+mod normalize;
+mod parse;
+pub mod pct_enc;
+pub mod resolve;
 
-pub use builder::Builder;
-pub use ri_maybe_ref::{Iri, IriRef, Uri, UriRef};
+pub use imp::{Iri, IriRef, Uri, UriRef};
+pub use parse::{ParseError, ParseErrorKind};
 
 #[cfg(feature = "std")]
 extern crate std;
@@ -103,3 +100,8 @@ extern crate alloc;
 use core::net;
 #[cfg(all(feature = "net", feature = "std"))]
 use std::net;
+
+#[cfg(all(feature = "impl-error", not(feature = "std")))]
+use core::error::Error;
+#[cfg(all(feature = "impl-error", feature = "std"))]
+use std::error::Error;

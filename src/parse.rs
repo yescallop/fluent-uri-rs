@@ -1,6 +1,6 @@
 use crate::{
-    encoding::{next_code_point, table::*, Table, OCTET_TABLE_LO},
-    internal::{AuthMeta, Constraints, HostMeta, Meta},
+    imp::{AuthMeta, Constraints, HostMeta, Meta, NoInput},
+    pct_enc::{next_code_point, table::*, Table, OCTET_TABLE_LO},
 };
 use core::{
     num::NonZeroUsize,
@@ -8,15 +8,88 @@ use core::{
     str,
 };
 
-type Result<T> = core::result::Result<T, crate::error::ParseError>;
+/// Detailed cause of a [`ParseError`].
+#[derive(Clone, Copy, Debug)]
+pub enum ParseErrorKind {
+    /// Invalid percent-encoded octet that is either non-hexadecimal or incomplete.
+    ///
+    /// The error index points to the percent character "%" of the octet.
+    InvalidOctet,
+    /// Unexpected character that is not allowed by the URI/IRI syntax.
+    ///
+    /// The error index points to the first byte of the character.
+    UnexpectedChar,
+    /// Invalid IPv6 address.
+    ///
+    /// The error index points to the first byte of the address.
+    InvalidIpv6Addr,
+    /// Scheme is not present.
+    ///
+    /// The error index is undefined.
+    /// Used only when converting a URI/IRI reference to URI/IRI with `TryFrom` or `TryInto`.
+    SchemeNotPresent,
+}
+
+/// An error occurred when parsing a URI/IRI (reference).
+#[derive(Clone, Copy)]
+pub struct ParseError<I = NoInput> {
+    pub(crate) index: usize,
+    pub(crate) kind: ParseErrorKind,
+    pub(crate) input: I,
+}
+
+impl ParseError {
+    pub(crate) fn with_input<I>(self, input: I) -> ParseError<I> {
+        ParseError {
+            index: self.index,
+            kind: self.kind,
+            input,
+        }
+    }
+}
+
+impl<I: AsRef<str>> ParseError<I> {
+    /// Returns the index at which the error occurred.
+    #[must_use]
+    pub fn index(&self) -> usize {
+        self.index
+    }
+
+    /// Returns the detailed cause of the error.
+    #[must_use]
+    pub fn kind(&self) -> ParseErrorKind {
+        self.kind
+    }
+
+    /// Recovers the input that was attempted to parse into a URI/IRI (reference).
+    #[must_use]
+    pub fn into_input(self) -> I {
+        self.input
+    }
+
+    /// Returns the error with the input stripped.
+    #[must_use]
+    pub fn strip_input(&self) -> ParseError {
+        ParseError {
+            index: self.index,
+            kind: self.kind,
+            input: NoInput,
+        }
+    }
+}
+
+#[cfg(feature = "impl-error")]
+impl<I> crate::Error for ParseError<I> {}
+
+type Result<T> = core::result::Result<T, crate::parse::ParseError>;
 
 /// Returns immediately with an error.
 macro_rules! err {
     ($index:expr, $kind:ident) => {
-        return Err(crate::error::ParseError {
+        return Err(crate::parse::ParseError {
             index: $index,
-            kind: crate::error::ParseErrorKind::$kind,
-            input: crate::internal::NoInput,
+            kind: crate::parse::ParseErrorKind::$kind,
+            input: crate::imp::NoInput,
         })
     };
 }

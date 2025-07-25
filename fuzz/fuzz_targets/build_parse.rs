@@ -1,8 +1,9 @@
 #![no_main]
 use fluent_uri::{
+    build::Builder,
     component::{Host, Scheme},
-    encoding::{encoder::*, EStr, Encoder},
-    Builder, UriRef,
+    pct_enc::{encoder::*, EStr, Encoder},
+    UriRef,
 };
 use libfuzzer_sys::{
     arbitrary::{self, *},

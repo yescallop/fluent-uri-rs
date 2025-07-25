@@ -1,9 +1,9 @@
 use crate::{
+    build::BuildError,
     component::{Authority, Host, Scheme},
-    encoding::{EStr, EString, Encoder},
-    error::{
-        BuildError, BuildErrorKind, ParseError, ParseErrorKind, ResolveError, ResolveErrorKind,
-    },
+    parse::{ParseError, ParseErrorKind},
+    pct_enc::{EStr, EString, Encoder},
+    resolve::ResolveError,
 };
 use core::fmt::{Debug, Display, Formatter, Result};
 
@@ -46,7 +46,7 @@ impl<I> Display for ParseError<I> {
             ParseErrorKind::InvalidOctet => "invalid percent-encoded octet at index ",
             ParseErrorKind::UnexpectedChar => "unexpected character at index ",
             ParseErrorKind::InvalidIpv6Addr => "invalid IPv6 address at index ",
-            ParseErrorKind::NoScheme => return f.write_str("scheme not present"),
+            ParseErrorKind::SchemeNotPresent => return f.write_str("scheme not present"),
         };
         write!(f, "{}{}", msg, self.index)
     }
@@ -54,15 +54,15 @@ impl<I> Display for ParseError<I> {
 
 impl Display for BuildError {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        let msg = match self.0 {
-            BuildErrorKind::NonAbemptyPath => {
-                "path must either be empty or start with '/' when authority is present"
+        let msg = match self {
+            Self::NonemptyRootlessPath => {
+                "when authority is present, path should either be empty or start with '/'"
             }
-            BuildErrorKind::PathStartingWithDoubleSlash => {
-                "path cannot start with \"//\" when authority is absent"
+            Self::PathStartsWithDoubleSlash => {
+                "when authority is not present, path should not start with \"//\""
             }
-            BuildErrorKind::ColonInFirstPathSegment => {
-                "first path segment cannot contain ':' in relative-path reference"
+            Self::FirstPathSegmentContainsColon => {
+                "when neither scheme nor authority is present, first path segment should not contain ':'"
             }
         };
         f.write_str(msg)
@@ -71,10 +71,10 @@ impl Display for BuildError {
 
 impl Display for ResolveError {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        let msg = match self.0 {
-            ResolveErrorKind::InvalidBase => "base URI/IRI with fragment",
-            ResolveErrorKind::OpaqueBase => {
-                "relative reference must be empty or start with '#' when resolved against authority-less base URI/IRI with rootless path"
+        let msg = match self {
+            Self::BaseWithFragment => "base should not have fragment",
+            Self::InvalidReferenceAgainstOpaqueBase => {
+                "when base has no authority and its path is rootless, reference should either have scheme, be empty or start with '#'"
             }
         };
         f.write_str(msg)

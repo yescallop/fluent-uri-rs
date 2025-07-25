@@ -1,7 +1,7 @@
 #[cfg(feature = "net")]
 use core::net::{Ipv4Addr, Ipv6Addr};
 
-use fluent_uri::{component::Host, encoding::EStr, Uri, UriRef};
+use fluent_uri::{component::Host, pct_enc::EStr, Uri, UriRef};
 
 #[test]
 fn parse_absolute() {

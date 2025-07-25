@@ -18,7 +18,7 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 ///
 /// ```
 /// use fluent_uri::{
-///     encoding::{
+///     pct_enc::{
 ///         encoder::{Data, Query},
 ///         EStr, EString, Encoder, Table,
 ///     },
@@ -59,7 +59,7 @@ use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref}
 /// by using a custom encoder:
 ///
 /// ```
-/// use fluent_uri::encoding::{encoder::Path, EString, Encoder, Table};
+/// use fluent_uri::pct_enc::{encoder::Path, EString, Encoder, Table};
 ///
 /// struct PathSegment;
 ///

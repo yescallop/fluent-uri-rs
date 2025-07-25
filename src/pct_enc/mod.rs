@@ -12,7 +12,7 @@ pub use table::Table;
 pub(crate) use imp::{decode_octet, encode_byte, OCTET_TABLE_LO};
 pub(crate) use utf8::{next_code_point, Utf8Chunks};
 
-use crate::internal::PathEncoder;
+use crate::imp::PathEncoder;
 use alloc::{
     borrow::{Cow, ToOwned},
     string::{FromUtf8Error, String},
@@ -58,7 +58,7 @@ pub trait Encoder: 'static {
 /// Parse key-value pairs from a query string into a hash map:
 ///
 /// ```
-/// use fluent_uri::{encoding::EStr, UriRef};
+/// use fluent_uri::{pct_enc::EStr, UriRef};
 /// use std::collections::HashMap;
 ///
 /// let s = "?name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21";
@@ -155,7 +155,7 @@ impl<E: Encoder> EStr<E> {
     /// # Example
     ///
     /// ```
-    /// use fluent_uri::encoding::{encoder::{IPath, Path}, EStr};
+    /// use fluent_uri::pct_enc::{encoder::{IPath, Path}, EStr};
     ///
     /// let path = EStr::<Path>::new_or_panic("foo");
     /// let path: &EStr<IPath> = path.upcast();
@@ -185,7 +185,7 @@ impl<E: Encoder> EStr<E> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::encoding::{encoder::Path, EStr};
+    /// use fluent_uri::pct_enc::{encoder::Path, EStr};
     ///
     /// let dec = EStr::<Path>::new_or_panic("%C2%A1Hola%21").decode();
     /// assert_eq!(dec.as_bytes(), &[0xc2, 0xa1, 0x48, 0x6f, 0x6c, 0x61, 0x21]);
@@ -212,7 +212,7 @@ impl<E: Encoder> EStr<E> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::encoding::{encoder::Path, EStr};
+    /// use fluent_uri::pct_enc::{encoder::Path, EStr};
     ///
     /// assert!(EStr::<Path>::new_or_panic("a,b,c").split(',').eq(["a", "b", "c"]));
     /// assert!(EStr::<Path>::new_or_panic(",").split(',').eq(["", ""]));
@@ -243,7 +243,7 @@ impl<E: Encoder> EStr<E> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::encoding::{encoder::Path, EStr};
+    /// use fluent_uri::pct_enc::{encoder::Path, EStr};
     ///
     /// assert_eq!(
     ///     EStr::<Path>::new_or_panic("foo;bar;baz").split_once(';'),
@@ -277,7 +277,7 @@ impl<E: Encoder> EStr<E> {
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::encoding::{encoder::Path, EStr};
+    /// use fluent_uri::pct_enc::{encoder::Path, EStr};
     ///
     /// assert_eq!(
     ///     EStr::<Path>::new_or_panic("foo;bar;baz").rsplit_once(';'),

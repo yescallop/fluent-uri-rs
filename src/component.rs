@@ -1,11 +1,11 @@
 //! URI/IRI components.
 
 use crate::{
-    encoding::{
+    imp::{AuthMeta, HostMeta},
+    pct_enc::{
         encoder::{IRegName, IUserinfo, Port, RegName, Userinfo},
         table, EStr, Encoder,
     },
-    internal::{AuthMeta, HostMeta},
 };
 use core::{marker::PhantomData, num::ParseIntError};
 use ref_cast::{ref_cast_custom, RefCastCustom};
@@ -237,7 +237,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::{encoding::EStr, Uri};
+    /// use fluent_uri::{pct_enc::EStr, Uri};
     ///
     /// let uri = Uri::parse("http://user@example.com/")?;
     /// let auth = uri.authority().unwrap();
@@ -295,7 +295,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::{component::Host, encoding::EStr, Uri};
+    /// use fluent_uri::{component::Host, pct_enc::EStr, Uri};
     #[cfg_attr(feature = "net", doc = "use std::net::{Ipv4Addr, Ipv6Addr};")]
     ///
     /// let uri = Uri::parse("foo://127.0.0.1")?;
@@ -363,7 +363,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::{encoding::EStr, Uri};
+    /// use fluent_uri::{pct_enc::EStr, Uri};
     ///
     /// let uri = Uri::parse("foo://localhost:4673/")?;
     /// let auth = uri.authority().unwrap();

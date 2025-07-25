@@ -1,5 +1,5 @@
 #![no_main]
-use fluent_uri::encoding::{encoder::Query, EString};
+use fluent_uri::pct_enc::{encoder::Query, EString};
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {

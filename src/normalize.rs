@@ -1,12 +1,12 @@
 use crate::{
-    encoding::{
+    imp::{HostMeta, Meta, Ref},
+    parse,
+    pct_enc::{
         decode_octet, encode_byte, next_code_point,
         table::{is_iprivate, is_ucschar, UNRESERVED},
         Utf8Chunks,
     },
-    internal::{HostMeta, Meta},
-    parser, resolver,
-    ri_maybe_ref::Ref,
+    resolve,
 };
 use alloc::{string::String, vec::Vec};
 use core::{fmt::Write, num::NonZeroUsize};
@@ -21,7 +21,7 @@ pub(crate) fn normalize(r: Ref<'_, '_>, ascii_only: bool) -> (String, Meta) {
 
     if r.has_scheme() && path.starts_with('/') {
         normalize_estr(&mut buf, path, false, ascii_only, false);
-        resolver::remove_dot_segments(&mut path_buf, &buf);
+        resolve::remove_dot_segments(&mut path_buf, &buf);
         buf.clear();
     } else {
         // Don't remove dot segments from relative reference or rootless path.
@@ -55,7 +55,7 @@ pub(crate) fn normalize(r: Ref<'_, '_>, ascii_only: bool) -> (String, Meta) {
             #[cfg(not(feature = "net"))]
             HostMeta::Ipv6() => {
                 buf.push('[');
-                write_v6(&mut buf, parser::parse_v6(&auth.host().as_bytes()[1..]));
+                write_v6(&mut buf, parse::parse_v6(&auth.host().as_bytes()[1..]));
                 buf.push(']');
             }
             HostMeta::IpvFuture => {
@@ -71,7 +71,7 @@ pub(crate) fn normalize(r: Ref<'_, '_>, ascii_only: bool) -> (String, Meta) {
 
                 if buf.len() < start + host.len() {
                     // Only reparse when the length is less than before.
-                    auth_meta.host_meta = parser::parse_v4_or_reg_name(&buf.as_bytes()[start..]);
+                    auth_meta.host_meta = parse::parse_v4_or_reg_name(&buf.as_bytes()[start..]);
                 }
             }
         }

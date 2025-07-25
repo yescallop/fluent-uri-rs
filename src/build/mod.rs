@@ -1,23 +1,34 @@
+//! Module for URI/IRI (reference) building.
+
 #![allow(missing_debug_implementations)]
 
-pub mod state;
+mod imp;
+pub(crate) mod state;
 
-use crate::{
-    component::{Authority, IAuthority, Scheme},
-    encoding::{
-        encoder::{IRegName, Port, RegName},
-        EStr,
-    },
-    error::{BuildError, BuildErrorKind},
-    internal::{AuthMeta, HostMeta, Meta, RiMaybeRef},
-    parser,
-};
-use alloc::string::String;
-use core::{fmt::Write, marker::PhantomData, num::NonZeroUsize};
+use imp::*;
 use state::*;
 
-#[cfg(feature = "net")]
-use crate::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use crate::{
+    component::{Authority, Scheme},
+    imp::{Meta, RiMaybeRef},
+    pct_enc::EStr,
+};
+use alloc::string::String;
+use core::marker::PhantomData;
+
+/// An error occurred when building a URI/IRI (reference).
+#[derive(Clone, Copy, Debug)]
+pub enum BuildError {
+    /// Authority is present, but the path is not empty and does not start with `'/'`.
+    NonemptyRootlessPath,
+    /// Authority is not present, but the path starts with `"//"`.
+    PathStartsWithDoubleSlash,
+    /// Neither scheme nor authority is present, but the first path segment contains `':'`.
+    FirstPathSegmentContainsColon,
+}
+
+#[cfg(feature = "impl-error")]
+impl crate::Error for BuildError {}
 
 /// A builder for URI/IRI (reference).
 ///
@@ -34,7 +45,7 @@ use crate::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 /// Basic usage:
 ///
 /// ```
-/// use fluent_uri::{component::Scheme, encoding::EStr, Uri};
+/// use fluent_uri::{component::Scheme, pct_enc::EStr, Uri};
 ///
 /// const SCHEME_FOO: &Scheme = Scheme::new_or_panic("foo");
 ///
@@ -62,14 +73,14 @@ use crate::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 /// If you want to build a percent-encoded string from scratch,
 /// use [`EString`] instead.
 ///
-/// [`EString`]: crate::encoding::EString
+/// [`EString`]: crate::pct_enc::EString
 ///
 /// # Constraints
 ///
 /// Typestates are used to avoid misconfigurations,
 /// which puts the following constraints:
 ///
-/// - Components must be set from left to right, no repetition allowed.
+/// - Components must be set from start to end, no repetition allowed.
 /// - Setting [`scheme`] is mandatory when building a URI/IRI.
 /// - Setting [`path`] is mandatory.
 /// - Methods [`userinfo`], [`host`], and [`port`] are only available
@@ -96,88 +107,6 @@ use crate::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 pub struct Builder<R, S> {
     inner: BuilderInner,
     _marker: PhantomData<(R, S)>,
-}
-
-pub struct BuilderInner {
-    buf: String,
-    meta: Meta,
-}
-
-impl BuilderInner {
-    fn push_scheme(&mut self, v: &str) {
-        self.buf.push_str(v);
-        self.meta.scheme_end = NonZeroUsize::new(self.buf.len());
-        self.buf.push(':');
-    }
-
-    fn start_authority(&mut self) {
-        self.buf.push_str("//");
-    }
-
-    fn push_authority(&mut self, v: IAuthority<'_>) {
-        self.buf.push_str("//");
-        let start = self.buf.len();
-        self.buf.push_str(v.as_str());
-
-        let mut meta = v.meta();
-        meta.host_bounds.0 += start;
-        meta.host_bounds.1 += start;
-        self.meta.auth_meta = Some(meta);
-    }
-
-    fn push_userinfo(&mut self, v: &str) {
-        self.buf.push_str(v);
-        self.buf.push('@');
-    }
-
-    fn push_host(&mut self, meta: HostMeta, f: impl FnOnce(&mut String)) {
-        let start = self.buf.len();
-        f(&mut self.buf);
-        self.meta.auth_meta = Some(AuthMeta {
-            host_bounds: (start, self.buf.len()),
-            host_meta: meta,
-        });
-    }
-
-    fn push_path(&mut self, v: &str) {
-        self.meta.path_bounds.0 = self.buf.len();
-        self.buf.push_str(v);
-        self.meta.path_bounds.1 = self.buf.len();
-    }
-
-    fn push_query(&mut self, v: &str) {
-        self.buf.push('?');
-        self.buf.push_str(v);
-        self.meta.query_end = NonZeroUsize::new(self.buf.len());
-    }
-
-    fn push_fragment(&mut self, v: &str) {
-        self.buf.push('#');
-        self.buf.push_str(v);
-    }
-
-    fn validate(&self) -> Result<(), BuildError> {
-        fn first_segment_contains_colon(path: &str) -> bool {
-            path.split_once('/').map_or(path, |x| x.0).contains(':')
-        }
-
-        let (start, end) = self.meta.path_bounds;
-        let path = &self.buf[start..end];
-
-        if self.meta.auth_meta.is_some() {
-            if !path.is_empty() && !path.starts_with('/') {
-                return Err(BuildError(BuildErrorKind::NonAbemptyPath));
-            }
-        } else {
-            if path.starts_with("//") {
-                return Err(BuildError(BuildErrorKind::PathStartingWithDoubleSlash));
-            }
-            if self.meta.scheme_end.is_none() && first_segment_contains_colon(path) {
-                return Err(BuildError(BuildErrorKind::ColonInFirstPathSegment));
-            }
-        }
-        Ok(())
-    }
 }
 
 impl<R, S> Builder<R, S> {
@@ -208,7 +137,7 @@ impl<R, S> Builder<R, S> {
     /// Variable rebinding may be necessary as this changes the type of the builder.
     ///
     /// ```
-    /// use fluent_uri::{component::Scheme, encoding::EStr, UriRef};
+    /// use fluent_uri::{component::Scheme, pct_enc::EStr, UriRef};
     ///
     /// fn build(relative: bool) -> UriRef<String> {
     ///     let b = UriRef::builder();
@@ -234,7 +163,7 @@ impl<R, S> Builder<R, S> {
     /// Optionally calls a builder method with a value.
     ///
     /// ```
-    /// use fluent_uri::{encoding::EStr, Builder, UriRef};
+    /// use fluent_uri::{build::Builder, pct_enc::EStr, UriRef};
     ///
     /// let uri_ref = UriRef::builder()
     ///     .path(EStr::new_or_panic("foo"))
@@ -292,15 +221,17 @@ impl<R: RiMaybeRef, S: To<AuthorityStart>> Builder<R, S> {
     /// subcomponents (userinfo, host, and port), use [`authority_with`] instead.
     ///
     /// [authority]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2
+    /// [`IAuthority`]: crate::component::IAuthority
     /// [`authority_with`]: Self::authority_with
     ///
     /// # Examples
     ///
     /// ```
     /// use fluent_uri::{
+    ///     build::Builder,
     ///     component::{Authority, Scheme},
-    ///     encoding::EStr,
-    ///     Builder, Uri,
+    ///     pct_enc::EStr,
+    ///     Uri,
     /// };
     ///
     /// let uri = Uri::builder()
@@ -341,73 +272,13 @@ impl<R: RiMaybeRef, S: To<UserinfoEnd>> Builder<R, S> {
     /// or <code>&amp;[EStr]&lt;[IUserinfo]&gt;</code> (for IRI) as argument.
     ///
     /// [userinfo-spec]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.1
-    /// [Userinfo]: crate::encoding::encoder::Userinfo
-    /// [IUserinfo]: crate::encoding::encoder::IUserinfo
+    /// [Userinfo]: crate::pct_enc::encoder::Userinfo
+    /// [IUserinfo]: crate::pct_enc::encoder::IUserinfo
     pub fn userinfo(mut self, userinfo: &EStr<R::UserinfoE>) -> Builder<R, UserinfoEnd> {
         self.inner.push_userinfo(userinfo.as_str());
         self.cast()
     }
 }
-
-pub trait AsHost<'a> {
-    fn push_to(self, b: &mut BuilderInner);
-}
-
-#[cfg(feature = "net")]
-impl<'a> AsHost<'a> for Ipv4Addr {
-    fn push_to(self, b: &mut BuilderInner) {
-        b.push_host(HostMeta::Ipv4(self), |buf| {
-            write!(buf, "{self}").unwrap();
-        });
-    }
-}
-
-#[cfg(feature = "net")]
-impl<'a> AsHost<'a> for Ipv6Addr {
-    fn push_to(self, b: &mut BuilderInner) {
-        b.push_host(HostMeta::Ipv6(self), |buf| {
-            write!(buf, "[{self}]").unwrap();
-        });
-    }
-}
-
-#[cfg(feature = "net")]
-impl<'a> AsHost<'a> for IpAddr {
-    fn push_to(self, b: &mut BuilderInner) {
-        match self {
-            IpAddr::V4(addr) => addr.push_to(b),
-            IpAddr::V6(addr) => addr.push_to(b),
-        }
-    }
-}
-
-impl<'a> AsHost<'a> for &'a EStr<RegName> {
-    #[inline]
-    fn push_to(self, b: &mut BuilderInner) {
-        self.cast::<IRegName>().push_to(b);
-    }
-}
-
-impl<'a> AsHost<'a> for &'a EStr<IRegName> {
-    fn push_to(self, b: &mut BuilderInner) {
-        let meta = parser::parse_v4_or_reg_name(self.as_str().as_bytes());
-        b.push_host(meta, |buf| {
-            buf.push_str(self.as_str());
-        });
-    }
-}
-
-pub trait WithEncoder<E> {}
-
-#[cfg(feature = "net")]
-impl<E> WithEncoder<E> for Ipv4Addr {}
-#[cfg(feature = "net")]
-impl<E> WithEncoder<E> for Ipv6Addr {}
-#[cfg(feature = "net")]
-impl<E> WithEncoder<E> for IpAddr {}
-
-impl WithEncoder<RegName> for &EStr<RegName> {}
-impl WithEncoder<IRegName> for &EStr<IRegName> {}
 
 impl<R: RiMaybeRef, S: To<HostEnd>> Builder<R, S> {
     /// Sets the [host] subcomponent of authority.
@@ -425,13 +296,18 @@ impl<R: RiMaybeRef, S: To<HostEnd>> Builder<R, S> {
     /// For consistency, you should only produce [normalized] hosts.
     ///
     /// [host]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.2
+    /// [`Ipv4Addr`]: core::net::Ipv4Addr
+    /// [`Ipv6Addr`]: core::net::Ipv6Addr
+    /// [`IpAddr`]: core::net::IpAddr
+    /// [RegName]: crate::pct_enc::encoder::RegName
+    /// [IRegName]: crate::pct_enc::encoder::IRegName
     /// [`Host::Ipv4`]: crate::component::Host::Ipv4
     /// [normalized]: crate::Uri::normalize
     ///
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::{component::Host, encoding::EStr, UriRef};
+    /// use fluent_uri::{component::Host, pct_enc::EStr, UriRef};
     ///
     /// let uri_ref = UriRef::builder()
     ///     .authority_with(|b| b.host(EStr::new_or_panic("127.0.0.1")))
@@ -450,23 +326,6 @@ impl<R: RiMaybeRef, S: To<HostEnd>> Builder<R, S> {
     }
 }
 
-pub trait AsPort {
-    fn push_to(self, buf: &mut String);
-}
-
-impl AsPort for u16 {
-    fn push_to(self, buf: &mut String) {
-        write!(buf, ":{self}").unwrap();
-    }
-}
-
-impl AsPort for &EStr<Port> {
-    fn push_to(self, buf: &mut String) {
-        buf.push(':');
-        buf.push_str(self.as_str());
-    }
-}
-
 impl<R, S: To<PortEnd>> Builder<R, S> {
     /// Sets the [port][port-spec] subcomponent of authority.
     ///
@@ -475,6 +334,7 @@ impl<R, S: To<PortEnd>> Builder<R, S> {
     /// For consistency, you should not produce an empty port.
     ///
     /// [port-spec]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.3
+    /// [Port]: crate::pct_enc::encoder::Port
     pub fn port(mut self, port: impl AsPort) -> Builder<R, PortEnd> {
         port.push_to(&mut self.inner.buf);
         self.cast()
@@ -500,8 +360,8 @@ impl<R: RiMaybeRef, S: To<PathEnd>> Builder<R, S> {
     /// or <code>&amp;[EStr]&lt;[IPath]&gt;</code> (for IRI) as argument.
     ///
     /// [path-spec]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.3
-    /// [Path]: crate::encoding::encoder::Path
-    /// [IPath]: crate::encoding::encoder::IPath
+    /// [Path]: crate::pct_enc::encoder::Path
+    /// [IPath]: crate::pct_enc::encoder::IPath
     pub fn path(mut self, path: &EStr<R::PathE>) -> Builder<R, PathEnd> {
         self.inner.push_path(path.as_str());
         self.cast()
@@ -515,8 +375,8 @@ impl<R: RiMaybeRef, S: To<QueryEnd>> Builder<R, S> {
     /// or <code>&amp;[EStr]&lt;[IQuery]&gt;</code> (for IRI) as argument.
     ///
     /// [query-spec]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.4
-    /// [Query]: crate::encoding::encoder::Query
-    /// [IQuery]: crate::encoding::encoder::IQuery
+    /// [Query]: crate::pct_enc::encoder::Query
+    /// [IQuery]: crate::pct_enc::encoder::IQuery
     pub fn query(mut self, query: &EStr<R::QueryE>) -> Builder<R, QueryEnd> {
         self.inner.push_query(query.as_str());
         self.cast()
@@ -530,8 +390,8 @@ impl<R: RiMaybeRef, S: To<FragmentEnd>> Builder<R, S> {
     /// or <code>&amp;[EStr]&lt;[IFragment]&gt;</code> (for IRI) as argument.
     ///
     /// [fragment-spec]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.5
-    /// [Fragment]: crate::encoding::encoder::Fragment
-    /// [IFragment]: crate::encoding::encoder::IFragment
+    /// [Fragment]: crate::pct_enc::encoder::Fragment
+    /// [IFragment]: crate::pct_enc::encoder::IFragment
     pub fn fragment(mut self, fragment: &EStr<R::FragmentE>) -> Builder<R, FragmentEnd> {
         self.inner.push_fragment(fragment.as_str());
         self.cast()
@@ -547,7 +407,7 @@ impl<R: RiMaybeRef<Val = String>, S: To<End>> Builder<R, S> {
     ///
     /// - When authority is present, the path must either be empty or start with `'/'`.
     /// - When authority is not present, the path cannot start with `"//"`.
-    /// - In a [relative-path reference][rel-ref], the first path segment cannot contain `':'`.
+    /// - When neither scheme nor authority is present, the first path segment cannot contain `':'`.
     ///
     /// [rel-ref]: https://datatracker.ietf.org/doc/html/rfc3986#section-4.2
     pub fn build(self) -> Result<R, BuildError> {

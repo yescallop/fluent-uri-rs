@@ -1,13 +1,15 @@
+#![allow(missing_debug_implementations)]
+
 use crate::{
-    builder::{
+    build::{
         state::{NonRefStart, Start},
         Builder,
     },
     component::{Authority, IAuthority, Scheme},
-    encoding::{encode_byte, encoder::*, EStr, Encoder},
-    error::{ParseError, ResolveError},
-    internal::{Constraints, HostMeta, Meta, Parse, RiMaybeRef, Value},
-    normalizer, parser, resolver,
+    normalize,
+    parse::{self, ParseError},
+    pct_enc::{encode_byte, encoder::*, EStr, Encoder},
+    resolve::{self, ResolveError},
 };
 use alloc::{borrow::ToOwned, string::String};
 use borrow_or_share::{BorrowOrShare, Bos};
@@ -19,8 +21,112 @@ use core::{
     str::{self, FromStr},
 };
 
+#[cfg(feature = "net")]
+use crate::net::{Ipv4Addr, Ipv6Addr};
+
 #[cfg(feature = "serde")]
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+
+pub trait Value: Default {}
+
+impl Value for &str {}
+impl Value for String {}
+
+pub struct NoInput;
+
+pub struct Constraints {
+    pub ascii_only: bool,
+    pub scheme_required: bool,
+}
+
+pub trait RiMaybeRef: Sized {
+    type Val;
+    type UserinfoE: Encoder;
+    type RegNameE: Encoder;
+    type PathE: Encoder;
+    type QueryE: Encoder;
+    type FragmentE: Encoder;
+
+    fn new(val: Self::Val, meta: Meta) -> Self;
+
+    fn from_pair((val, meta): (Self::Val, Meta)) -> Self {
+        Self::new(val, meta)
+    }
+
+    fn constraints() -> Constraints;
+}
+
+pub trait Parse {
+    type Val;
+    type Err;
+
+    fn parse<R: RiMaybeRef<Val = Self::Val>>(self) -> Result<R, Self::Err>;
+}
+
+impl<'a> Parse for &'a str {
+    type Val = &'a str;
+    type Err = ParseError;
+
+    fn parse<R: RiMaybeRef<Val = Self::Val>>(self) -> Result<R, Self::Err> {
+        parse::parse(self.as_bytes(), R::constraints()).map(|meta| R::new(self, meta))
+    }
+}
+
+impl Parse for String {
+    type Val = Self;
+    type Err = ParseError<Self>;
+
+    fn parse<R: RiMaybeRef<Val = Self::Val>>(self) -> Result<R, Self::Err> {
+        match parse::parse(self.as_bytes(), R::constraints()) {
+            Ok(meta) => Ok(R::new(self, meta)),
+            Err(e) => Err(e.with_input(self)),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+pub struct Meta {
+    // The index of the trailing colon.
+    pub scheme_end: Option<NonZeroUsize>,
+    pub auth_meta: Option<AuthMeta>,
+    pub path_bounds: (usize, usize),
+    // One byte past the last byte of query.
+    pub query_end: Option<NonZeroUsize>,
+}
+
+impl Meta {
+    #[inline]
+    pub fn query_or_path_end(&self) -> usize {
+        self.query_end.map_or(self.path_bounds.1, |i| i.get())
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+pub struct AuthMeta {
+    pub host_bounds: (usize, usize),
+    pub host_meta: HostMeta,
+}
+
+impl AuthMeta {
+    pub const EMPTY: Self = Self {
+        host_bounds: (0, 0),
+        host_meta: HostMeta::RegName,
+    };
+}
+
+#[derive(Clone, Copy, Default)]
+pub enum HostMeta {
+    Ipv4(#[cfg(feature = "net")] Ipv4Addr),
+    Ipv6(#[cfg(feature = "net")] Ipv6Addr),
+    IpvFuture,
+    #[default]
+    RegName,
+}
+
+pub trait PathEncoder: Encoder {}
+
+impl PathEncoder for Path {}
+impl PathEncoder for IPath {}
 
 macro_rules! cond {
     (if true { $($then:tt)* } else { $($else:tt)* }) => { $($then)* };
@@ -92,7 +198,7 @@ macro_rules! ri_maybe_ref {
         /// ```
         /// use fluent_uri::{
         ///     component::{Host, Scheme},
-        ///     encoding::EStr,
+        ///     pct_enc::EStr,
         #[doc = concat!("    ", $ty, ",")]
         /// };
         ///
@@ -352,7 +458,7 @@ macro_rules! ri_maybe_ref {
             /// # Examples
             ///
             /// ```
-            #[doc = concat!("use fluent_uri::{encoding::EStr, ", $ty, "};")]
+            #[doc = concat!("use fluent_uri::{pct_enc::EStr, ", $ty, "};")]
             ///
             #[doc = concat!("let ", $var, " = ", $ty, "::parse(\"http://example.com/?lang=en\")?;")]
             #[doc = concat!("assert_eq!(", $var, ".query(), Some(EStr::new_or_panic(\"lang=en\")));")]
@@ -373,7 +479,7 @@ macro_rules! ri_maybe_ref {
             /// # Examples
             ///
             /// ```
-            #[doc = concat!("use fluent_uri::{encoding::EStr, ", $ty, "};")]
+            #[doc = concat!("use fluent_uri::{pct_enc::EStr, ", $ty, "};")]
             ///
             #[doc = concat!("let ", $var, " = ", $ty, "::parse(\"http://example.com/#usage\")?;")]
             #[doc = concat!("assert_eq!(", $var, ".fragment(), Some(EStr::new_or_panic(\"usage\")));")]
@@ -461,7 +567,7 @@ macro_rules! ri_maybe_ref {
                     &self,
                     base: &$NonRefTy<U>,
                 ) -> Result<$NonRefTy<String>, ResolveError> {
-                    resolver::resolve(base.as_ref(), self.as_ref()).map(RiMaybeRef::from_pair)
+                    resolve::resolve(base.as_ref(), self.as_ref()).map(RiMaybeRef::from_pair)
                 }
             )?
 
@@ -500,7 +606,7 @@ macro_rules! ri_maybe_ref {
             /// ```
             #[must_use]
             pub fn normalize(&self) -> $Ty<String> {
-                RiMaybeRef::from_pair(normalizer::normalize(self.as_ref(), $ascii_only))
+                RiMaybeRef::from_pair(normalize::normalize(self.as_ref(), $ascii_only))
             }
 
             cond!(if $scheme_required {} else {
@@ -595,7 +701,7 @@ macro_rules! ri_maybe_ref {
             /// # Examples
             ///
             /// ```
-            #[doc = concat!("use fluent_uri::{encoding::EStr, ", $ty, "};")]
+            #[doc = concat!("use fluent_uri::{pct_enc::EStr, ", $ty, "};")]
             ///
             #[doc = concat!("let ", $var, " = ", $ty, "::parse(\"http://example.com/\")?;")]
             /// assert_eq!(
@@ -622,7 +728,7 @@ macro_rules! ri_maybe_ref {
             /// # Examples
             ///
             /// ```
-            #[doc = concat!("use fluent_uri::{encoding::EStr, ", $ty, "};")]
+            #[doc = concat!("use fluent_uri::{pct_enc::EStr, ", $ty, "};")]
             ///
             #[doc = concat!("let mut ", $var, " = ", $ty, "::parse(\"http://example.com/\")?.to_owned();")]
             ///
@@ -929,14 +1035,14 @@ impl<'v, 'm> Ref<'v, 'm> {
 
     pub fn ensure_has_scheme(self) -> Result<(), ParseError> {
         if !self.has_scheme() {
-            parser::err!(0, NoScheme);
+            parse::err!(0, SchemeNotPresent);
         }
         Ok(())
     }
 
     pub fn ensure_ascii(self) -> Result<(), ParseError> {
         if let Some(pos) = self.as_str().bytes().position(|x| !x.is_ascii()) {
-            parser::err!(pos, UnexpectedChar);
+            parse::err!(pos, UnexpectedChar);
         }
         Ok(())
     }
