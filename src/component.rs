@@ -47,7 +47,7 @@ pub type IHost<'a> = Host<'a, IRegName>;
 /// assert_eq!(scheme, SCHEME_HTTP);
 /// // Case-sensitive comparison.
 /// assert_eq!(scheme.as_str(), "HTTP");
-/// # Ok::<_, fluent_uri::error::ParseError>(())
+/// # Ok::<_, fluent_uri::ParseError>(())
 /// ```
 #[derive(RefCastCustom)]
 #[repr(transparent)]
@@ -102,7 +102,7 @@ impl Scheme {
     /// assert_eq!(uri.scheme().as_str(), "http");
     /// let uri = Uri::parse("HTTP://EXAMPLE.COM/")?;
     /// assert_eq!(uri.scheme().as_str(), "HTTP");
-    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     #[inline]
     #[must_use]
@@ -222,7 +222,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     /// let uri = Uri::parse("http://user@example.com:8080/")?;
     /// let auth = uri.authority().unwrap();
     /// assert_eq!(auth.as_str(), "user@example.com:8080");
-    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     #[inline]
     #[must_use]
@@ -246,7 +246,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     /// let uri = Uri::parse("http://example.com/")?;
     /// let auth = uri.authority().unwrap();
     /// assert_eq!(auth.userinfo(), None);
-    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     #[must_use]
     pub fn userinfo(&self) -> Option<&'a EStr<UserinfoE>> {
@@ -279,7 +279,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     /// let uri = Uri::parse("http://[::1]")?;
     /// let auth = uri.authority().unwrap();
     /// assert_eq!(auth.host(), "[::1]");
-    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     #[must_use]
     pub fn host(&self) -> &'a str {
@@ -328,7 +328,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     /// let uri = Uri::parse("foo://localhost")?;
     /// let auth = uri.authority().unwrap();
     /// assert!(matches!(auth.host_parsed(), Host::RegName(name) if name == "localhost"));
-    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     #[must_use]
     pub fn host_parsed(&self) -> Host<'a, RegNameE> {
@@ -380,7 +380,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     /// let uri = Uri::parse("foo://localhost:123456/")?;
     /// let auth = uri.authority().unwrap();
     /// assert_eq!(auth.port(), Some(EStr::new_or_panic("123456")));
-    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     #[must_use]
     pub fn port(&self) -> Option<&'a EStr<Port>> {
@@ -417,7 +417,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     /// let uri = Uri::parse("foo://localhost:123456/")?;
     /// let auth = uri.authority().unwrap();
     /// assert!(auth.port_to_u16().is_err());
-    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     pub fn port_to_u16(&self) -> Result<Option<u16>, ParseIntError> {
         self.inner.port_to_u16()
@@ -455,7 +455,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     ///
     /// let uri = Uri::parse("http://example.com/")?;
     /// assert!(!uri.authority().unwrap().has_userinfo());
-    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// # Ok::<_, fluent_uri::ParseError>(())
     #[inline]
     #[must_use]
     pub fn has_userinfo(&self) -> bool {
@@ -479,7 +479,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     /// let uri = Uri::parse("foo://localhost/")?;
     /// let auth = uri.authority().unwrap();
     /// assert!(!uri.authority().unwrap().has_port());
-    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     #[inline]
     #[must_use]

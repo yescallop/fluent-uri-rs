@@ -181,7 +181,7 @@ macro_rules! ri_maybe_ref {
         #[doc = concat!("// Keep a reference to the path after dropping the `", $ty, "`.")]
         #[doc = concat!("let path = ", $ty, "::parse(\"foo:bar\")?.path();")]
         /// assert_eq!(path, "bar");
-        /// # Ok::<_, fluent_uri::error::ParseError>(())
+        /// # Ok::<_, fluent_uri::ParseError>(())
         /// ```
         ///
         /// # Comparison
@@ -221,7 +221,7 @@ macro_rules! ri_maybe_ref {
         #[doc = concat!("assert_eq!(", $var, ".path(), \"/over/there\");")]
         #[doc = concat!("assert_eq!(", $var, ".query().unwrap(), \"name=ferret\");")]
         #[doc = concat!("assert_eq!(", $var, ".fragment().unwrap(), \"nose\");")]
-        /// # Ok::<_, fluent_uri::error::ParseError>(())
+        /// # Ok::<_, fluent_uri::ParseError>(())
         /// ```
         ///
         /// Parse into and convert between
@@ -243,7 +243,7 @@ macro_rules! ri_maybe_ref {
         ///
         #[doc = concat!("// Borrow a `", $ty, "<String>` as `", $ty, "<&str>`.")]
         #[doc = concat!("let ", $var, ": ", $ty, "<&str> = ", $var, "_owned.borrow();")]
-        /// # Ok::<_, fluent_uri::error::ParseError>(())
+        /// # Ok::<_, fluent_uri::ParseError>(())
         /// ```
         #[derive(Clone, Copy)]
         pub struct $Ty<T> {
@@ -367,7 +367,7 @@ macro_rules! ri_maybe_ref {
                 ///
                 #[doc = concat!("let ", $var, " = ", $ty, "::parse(\"http://example.com/\")?;")]
                 #[doc = concat!("assert_eq!(", $var, ".scheme(), SCHEME_HTTP);")]
-                /// # Ok::<_, fluent_uri::error::ParseError>(())
+                /// # Ok::<_, fluent_uri::ParseError>(())
                 /// ```
                 #[must_use]
                 pub fn scheme(&'i self) -> &'o Scheme {
@@ -393,7 +393,7 @@ macro_rules! ri_maybe_ref {
                 ///
                 #[doc = concat!("let ", $var, " = ", $ty, "::parse(\"/path/to/file\")?;")]
                 #[doc = concat!("assert_eq!(", $var, ".scheme(), None);")]
-                /// # Ok::<_, fluent_uri::error::ParseError>(())
+                /// # Ok::<_, fluent_uri::ParseError>(())
                 /// ```
                 #[must_use]
                 pub fn scheme(&'i self) -> Option<&'o Scheme> {
@@ -415,7 +415,7 @@ macro_rules! ri_maybe_ref {
             ///
             #[doc = concat!("let ", $var, " = ", $ty, "::parse(\"mailto:user@example.com\")?;")]
             #[doc = concat!("assert!(", $var, ".authority().is_none());")]
-            /// # Ok::<_, fluent_uri::error::ParseError>(())
+            /// # Ok::<_, fluent_uri::ParseError>(())
             /// ```
             #[must_use]
             pub fn authority(&'i self) -> Option<$Authority<'o>> {
@@ -444,7 +444,7 @@ macro_rules! ri_maybe_ref {
             ///
             #[doc = concat!("let ", $var, " = ", $ty, "::parse(\"http://example.com\")?;")]
             #[doc = concat!("assert_eq!(", $var, ".path(), \"\");")]
-            /// # Ok::<_, fluent_uri::error::ParseError>(())
+            /// # Ok::<_, fluent_uri::ParseError>(())
             /// ```
             #[must_use]
             pub fn path(&'i self) -> &'o EStr<$PathE> {
@@ -465,7 +465,7 @@ macro_rules! ri_maybe_ref {
             ///
             #[doc = concat!("let ", $var, " = ", $ty, "::parse(\"ftp://192.0.2.1/\")?;")]
             #[doc = concat!("assert_eq!(", $var, ".query(), None);")]
-            /// # Ok::<_, fluent_uri::error::ParseError>(())
+            /// # Ok::<_, fluent_uri::ParseError>(())
             /// ```
             #[must_use]
             pub fn query(&'i self) -> Option<&'o EStr<$QueryE>> {
@@ -486,7 +486,7 @@ macro_rules! ri_maybe_ref {
             ///
             #[doc = concat!("let ", $var, " = ", $ty, "::parse(\"ftp://192.0.2.1/\")?;")]
             #[doc = concat!("assert_eq!(", $var, ".fragment(), None);")]
-            /// # Ok::<_, fluent_uri::error::ParseError>(())
+            /// # Ok::<_, fluent_uri::ParseError>(())
             /// ```
             #[must_use]
             pub fn fragment(&'i self) -> Option<&'o EStr<$FragmentE>> {
@@ -561,7 +561,7 @@ macro_rules! ri_maybe_ref {
                 ///
                 #[doc = concat!("let ", $var, " = ", $ty, "::parse(\"?baz\")?;")]
                 #[doc = concat!("assert_eq!(", $var, ".resolve_against(&base).unwrap(), \"http://example.com/foo/bar?baz\");")]
-                /// # Ok::<_, fluent_uri::error::ParseError>(())
+                /// # Ok::<_, fluent_uri::ParseError>(())
                 /// ```
                 pub fn resolve_against<U: Bos<str>>(
                     &self,
@@ -602,7 +602,7 @@ macro_rules! ri_maybe_ref {
             ///
             #[doc = concat!("let ", $var, " = ", $ty, "::parse(\"eXAMPLE://a/./b/../b/%63/%7bfoo%7d\")?;")]
             #[doc = concat!("assert_eq!(", $var, ".normalize(), \"example://a/b/c/%7Bfoo%7D\");")]
-            /// # Ok::<_, fluent_uri::error::ParseError>(())
+            /// # Ok::<_, fluent_uri::ParseError>(())
             /// ```
             #[must_use]
             pub fn normalize(&self) -> $Ty<String> {
@@ -619,7 +619,7 @@ macro_rules! ri_maybe_ref {
                 ///
                 #[doc = concat!("assert!(", $ty, "::parse(\"http://example.com/\")?.has_scheme());")]
                 #[doc = concat!("assert!(!", $ty, "::parse(\"/path/to/file\")?.has_scheme());")]
-                /// # Ok::<_, fluent_uri::error::ParseError>(())
+                /// # Ok::<_, fluent_uri::ParseError>(())
                 /// ```
                 #[must_use]
                 pub fn has_scheme(&self) -> bool {
@@ -636,7 +636,7 @@ macro_rules! ri_maybe_ref {
             ///
             #[doc = concat!("assert!(", $ty, "::parse(\"http://example.com/\")?.has_authority());")]
             #[doc = concat!("assert!(!", $ty, "::parse(\"mailto:user@example.com\")?.has_authority());")]
-            /// # Ok::<_, fluent_uri::error::ParseError>(())
+            /// # Ok::<_, fluent_uri::ParseError>(())
             /// ```
             #[must_use]
             pub fn has_authority(&self) -> bool {
@@ -652,7 +652,7 @@ macro_rules! ri_maybe_ref {
             ///
             #[doc = concat!("assert!(", $ty, "::parse(\"http://example.com/?lang=en\")?.has_query());")]
             #[doc = concat!("assert!(!", $ty, "::parse(\"ftp://192.0.2.1/\")?.has_query());")]
-            /// # Ok::<_, fluent_uri::error::ParseError>(())
+            /// # Ok::<_, fluent_uri::ParseError>(())
             /// ```
             #[must_use]
             pub fn has_query(&self) -> bool {
@@ -668,7 +668,7 @@ macro_rules! ri_maybe_ref {
             ///
             #[doc = concat!("assert!(", $ty, "::parse(\"http://example.com/#usage\")?.has_fragment());")]
             #[doc = concat!("assert!(!", $ty, "::parse(\"ftp://192.0.2.1/\")?.has_fragment());")]
-            /// # Ok::<_, fluent_uri::error::ParseError>(())
+            /// # Ok::<_, fluent_uri::ParseError>(())
             /// ```
             #[must_use]
             pub fn has_fragment(&self) -> bool {
@@ -685,7 +685,7 @@ macro_rules! ri_maybe_ref {
             ///
             #[doc = concat!("let ", $var, " = ", $ty, "::parse(\"http://example.com/#fragment\")?;")]
             #[doc = concat!("assert_eq!(", $var, ".strip_fragment(), \"http://example.com/\");")]
-            /// # Ok::<_, fluent_uri::error::ParseError>(())
+            /// # Ok::<_, fluent_uri::ParseError>(())
             /// ```
             #[must_use]
             pub fn strip_fragment(&self) -> $Ty<&str> {
@@ -711,7 +711,7 @@ macro_rules! ri_maybe_ref {
             ///
             #[doc = concat!("let ", $var, " = ", $ty, "::parse(\"http://example.com/#fragment\")?;")]
             #[doc = concat!("assert_eq!(", $var, ".with_fragment(None), \"http://example.com/\");")]
-            /// # Ok::<_, fluent_uri::error::ParseError>(())
+            /// # Ok::<_, fluent_uri::ParseError>(())
             /// ```
             #[must_use]
             pub fn with_fragment(&self, opt: Option<&EStr<$FragmentE>>) -> $Ty<String> {
@@ -737,7 +737,7 @@ macro_rules! ri_maybe_ref {
             ///
             #[doc = concat!($var, ".set_fragment(None);")]
             #[doc = concat!("assert_eq!(", $var, ", \"http://example.com/\");")]
-            /// # Ok::<_, fluent_uri::error::ParseError>(())
+            /// # Ok::<_, fluent_uri::ParseError>(())
             /// ```
             pub fn set_fragment(&mut self, opt: Option<&EStr<$FragmentE>>) {
                 // Altering only the fragment does not change the metadata.

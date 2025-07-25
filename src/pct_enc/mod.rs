@@ -70,7 +70,7 @@ pub trait Encoder: 'static {
 ///     .collect();
 /// assert_eq!(map["name"], "张三");
 /// assert_eq!(map["speech"], "¡Olé!");
-/// # Ok::<_, fluent_uri::error::ParseError>(())
+/// # Ok::<_, fluent_uri::ParseError>(())
 /// ```
 #[derive(RefCastCustom)]
 #[repr(transparent)]
@@ -416,7 +416,7 @@ impl<E: PathEncoder> EStr<E> {
     /// let path = Uri::parse("http://example.com")?.path();
     /// assert!(path.is_empty());
     /// assert!(path.segments_if_absolute().is_none());
-    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     #[inline]
     #[must_use]

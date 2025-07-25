@@ -9,12 +9,12 @@ use core::{
 };
 
 /// Detailed cause of a [`ParseError`].
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ParseErrorKind {
     /// Invalid percent-encoded octet that is either non-hexadecimal or incomplete.
     ///
     /// The error index points to the percent character "%" of the octet.
-    InvalidOctet,
+    InvalidPctEncodedOctet,
     /// Unexpected character that is not allowed by the URI/IRI syntax.
     ///
     /// The error index points to the first byte of the character.
@@ -48,7 +48,7 @@ impl ParseError {
     }
 }
 
-impl<I: AsRef<str>> ParseError<I> {
+impl<I> ParseError<I> {
     /// Returns the index at which the error occurred.
     #[must_use]
     pub fn index(&self) -> usize {
@@ -60,7 +60,9 @@ impl<I: AsRef<str>> ParseError<I> {
     pub fn kind(&self) -> ParseErrorKind {
         self.kind
     }
+}
 
+impl<I: AsRef<str>> ParseError<I> {
     /// Recovers the input that was attempted to parse into a URI/IRI (reference).
     #[must_use]
     pub fn into_input(self) -> I {
@@ -205,10 +207,10 @@ impl<'a> Reader<'a> {
             let x = self.bytes[i];
             if allow_pct_encoded && x == b'%' {
                 let [hi, lo, ..] = self.bytes[i + 1..] else {
-                    err!(i, InvalidOctet);
+                    err!(i, InvalidPctEncodedOctet);
                 };
                 if !(HEXDIG.allows_ascii(hi) & HEXDIG.allows_ascii(lo)) {
-                    err!(i, InvalidOctet);
+                    err!(i, InvalidPctEncodedOctet);
                 }
                 i += 3;
             } else if allow_non_ascii {

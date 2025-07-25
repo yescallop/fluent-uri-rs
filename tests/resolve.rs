@@ -1,21 +1,22 @@
-use fluent_uri::{Uri, UriRef};
+use fluent_uri::{resolve::ResolveError, Uri, UriRef};
 
 trait Test {
     fn pass(&self, r: &str, res: &str);
-    fn fail(&self, r: &str, msg: &str);
+    fn fail(&self, r: &str, err: ResolveError);
 }
 
 impl Test for Uri<&str> {
-    fn pass(&self, r: &str, res: &str) {
+    fn pass(&self, r: &str, expected: &str) {
         assert_eq!(
             UriRef::parse(r).unwrap().resolve_against(self).unwrap(),
-            res
+            expected
         )
     }
 
-    fn fail(&self, r: &str, msg: &str) {
+    #[track_caller]
+    fn fail(&self, r: &str, expected: ResolveError) {
         let e = UriRef::parse(r).unwrap().resolve_against(self).unwrap_err();
-        assert_eq!(e.to_string(), msg);
+        assert_eq!(e, expected);
     }
 }
 
@@ -100,15 +101,9 @@ fn resolve() {
 #[test]
 fn resolve_error() {
     let base = Uri::parse("http://example.com/#title1").unwrap();
-    base.fail("foo", "base URI/IRI with fragment");
+    base.fail("foo", ResolveError::BaseWithFragment);
 
     let base = Uri::parse("foo:bar").unwrap();
-    base.fail(
-        "baz",
-        "relative reference must be empty or start with '#' when resolved against authority-less base URI/IRI with rootless path",
-    );
-    base.fail(
-        "?baz",
-        "relative reference must be empty or start with '#' when resolved against authority-less base URI/IRI with rootless path",
-    );
+    base.fail("baz", ResolveError::InvalidReferenceAgainstOpaqueBase);
+    base.fail("?baz", ResolveError::InvalidReferenceAgainstOpaqueBase);
 }

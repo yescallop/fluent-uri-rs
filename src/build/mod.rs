@@ -17,7 +17,7 @@ use alloc::string::String;
 use core::marker::PhantomData;
 
 /// An error occurred when building a URI/IRI (reference).
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BuildError {
     /// Authority is present, but the path is not empty and does not start with `'/'`.
     NonemptyRootlessPath,
@@ -254,7 +254,7 @@ impl<R: RiMaybeRef, S: To<AuthorityStart>> Builder<R, S> {
     ///     .unwrap();
     ///
     /// assert_eq!(uri, "http://user@example.com:8042");
-    /// # Ok::<_, fluent_uri::error::ParseError>(())
+    /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
     pub fn authority(
         mut self,

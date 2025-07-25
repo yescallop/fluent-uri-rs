@@ -5,7 +5,7 @@ use alloc::string::String;
 use core::num::NonZeroUsize;
 
 /// An error occurred when resolving a URI/IRI reference.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ResolveError {
     /// The base has a fragment.
     BaseWithFragment,

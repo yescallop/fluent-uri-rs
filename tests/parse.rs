@@ -1,7 +1,7 @@
 #[cfg(feature = "net")]
 use core::net::{Ipv4Addr, Ipv6Addr};
 
-use fluent_uri::{component::Host, pct_enc::EStr, Uri, UriRef};
+use fluent_uri::{component::Host, pct_enc::EStr, ParseErrorKind, Uri, UriRef};
 
 #[test]
 fn parse_absolute() {
@@ -237,120 +237,105 @@ fn parse_relative() {
     assert_eq!(r.fragment(), Some(EStr::new_or_panic("fragment")));
 }
 
+use ParseErrorKind::*;
+
 #[test]
 fn parse_error_uri() {
+    #[track_caller]
+    fn fail(input: &str, index: usize, kind: ParseErrorKind) {
+        let e = Uri::parse(input).unwrap_err();
+        assert_eq!(e.index(), index);
+        assert_eq!(e.kind(), kind);
+    }
+
     // No scheme
-    let e = Uri::parse("foo").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 3");
+    fail("foo", 3, UnexpectedChar);
 
     // Empty scheme
-    let e = Uri::parse(":hello").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 0");
+    fail(":hello", 0, UnexpectedChar);
 
     // Scheme starts with non-letter
-    let e = Uri::parse("3ttp://a.com").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 0");
+    fail("3ttp://a.com", 0, UnexpectedChar);
 
     // Unexpected char in scheme
-    let e = Uri::parse("exam=ple:foo").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 4");
-
-    let e = Uri::parse("(:").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 0");
+    fail("exam=ple:foo", 4, UnexpectedChar);
+    fail("(:", 0, UnexpectedChar);
 
     // Percent-encoded scheme
-    let e = Uri::parse("a%20:foo").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 1");
+    fail("a%20:foo", 1, UnexpectedChar);
+}
+
+#[track_caller]
+fn fail(input: &str, index: usize, kind: ParseErrorKind) {
+    let e = UriRef::parse(input).unwrap_err();
+    assert_eq!(e.index(), index);
+    assert_eq!(e.kind(), kind);
 }
 
 #[test]
 fn parse_error_uri_ref() {
     // Empty scheme
-    let e = UriRef::parse(":hello").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 0");
+    fail(":hello", 0, UnexpectedChar);
 
     // Scheme starts with non-letter
-    let e = UriRef::parse("3ttp://a.com").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 0");
+    fail("3ttp://a.com", 0, UnexpectedChar);
 
     // After rewriting the parser, the following two cases are interpreted as
     // containing colon in the first path segment of a relative reference.
 
     // Unexpected char in scheme
-    let e = UriRef::parse("exam=ple:foo").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 8");
-
-    let e = UriRef::parse("(:").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 1");
+    fail("exam=ple:foo", 8, UnexpectedChar);
+    fail("(:", 1, UnexpectedChar);
 
     // Percent-encoded scheme
-    let e = UriRef::parse("a%20:foo").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 4");
+    fail("a%20:foo", 4, UnexpectedChar);
 
     // Unexpected char in path
-    let e = UriRef::parse("foo\\bar").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 3");
+    fail("foo\\bar", 3, UnexpectedChar);
 
     // Non-hexadecimal percent-encoded octet
-    let e = UriRef::parse("foo%xxd").unwrap_err();
-    assert_eq!(e.to_string(), "invalid percent-encoded octet at index 3");
+    fail("foo%xxd", 3, InvalidPctEncodedOctet);
 
     // Incomplete percent-encoded octet
-    let e = UriRef::parse("text%a").unwrap_err();
-    assert_eq!(e.to_string(), "invalid percent-encoded octet at index 4");
+    fail("text%a", 4, InvalidPctEncodedOctet);
 
     // A single percent
-    let e = UriRef::parse("%").unwrap_err();
-    assert_eq!(e.to_string(), "invalid percent-encoded octet at index 0");
+    fail("%", 0, InvalidPctEncodedOctet);
 
     // Non-decimal port
-    let e = UriRef::parse("http://example.com:80ab").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 21");
-
-    let e = UriRef::parse("http://user@example.com:80ab").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 26");
+    fail("http://example.com:80ab", 21, UnexpectedChar);
+    fail("http://user@example.com:80ab", 26, UnexpectedChar);
 
     // Multiple colons in authority
-    let e = UriRef::parse("http://user:pass:example.com/").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 16");
+    fail("http://user:pass:example.com/", 16, UnexpectedChar);
 
     // Unclosed bracket
-    let e = UriRef::parse("https://[::1/").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 12");
+    fail("https://[::1/", 12, UnexpectedChar);
 
     // Not port after IP literal
-    let e = UriRef::parse("https://[::1]wrong").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 13");
+    fail("https://[::1]wrong", 13, UnexpectedChar);
 
     // IP literal too short
-    let e = UriRef::parse("http://[:]").unwrap_err();
-    assert_eq!(e.to_string(), "invalid IPv6 address at index 8");
-    let e = UriRef::parse("http://[]").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 8");
+    fail("http://[:]", 8, InvalidIpv6Addr);
+    fail("http://[]", 8, UnexpectedChar);
 
     // Non-hexadecimal version in IPvFuture
-    let e = UriRef::parse("http://[vG.addr]").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 9");
+    fail("http://[vG.addr]", 9, UnexpectedChar);
 
     // Empty version in IPvFuture
-    let e = UriRef::parse("http://[v.addr]").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 9");
+    fail("http://[v.addr]", 9, UnexpectedChar);
 
     // Empty address in IPvFuture
-    let e = UriRef::parse("ftp://[vF.]").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 10");
+    fail("ftp://[vF.]", 10, UnexpectedChar);
 
     // Percent-encoded address in IPvFuture
-    let e = UriRef::parse("ftp://[vF.%20]").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 10");
+    fail("ftp://[vF.%20]", 10, UnexpectedChar);
 
     // With zone identifier
-    let e = UriRef::parse("ftp://[fe80::abcd%eth0]").unwrap_err();
-    assert_eq!(e.to_string(), "unexpected character at index 17");
+    fail("ftp://[fe80::abcd%eth0]", 17, UnexpectedChar);
 
     // Invalid IPv6 address
-    let e = UriRef::parse("example://[44:55::66::77]").unwrap_err();
-    assert_eq!(e.to_string(), "invalid IPv6 address at index 11");
+    fail("example://[44:55::66::77]", 11, InvalidIpv6Addr);
 }
 
 #[test]
@@ -371,12 +356,6 @@ fn strict_ip_addr() {
     assert!(UriRef::parse("//[::ffff:1.1.1.1]").is_ok());
     assert!(UriRef::parse("//[0000:0000:0000:0000:0000:0000:255.255.255.255]").is_ok());
 
-    assert_eq!(
-        UriRef::parse("//[::01.1.1.1]").unwrap_err().to_string(),
-        "invalid IPv6 address at index 3"
-    );
-    assert_eq!(
-        UriRef::parse("//[::00.1.1.1]").unwrap_err().to_string(),
-        "invalid IPv6 address at index 3"
-    );
+    fail("//[::01.1.1.1]", 3, InvalidIpv6Addr);
+    fail("//[::00.1.1.1]", 3, InvalidIpv6Addr);
 }

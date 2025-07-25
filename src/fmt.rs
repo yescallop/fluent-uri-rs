@@ -43,7 +43,7 @@ impl<I> Debug for ParseError<I> {
 impl<I> Display for ParseError<I> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         let msg = match self.kind {
-            ParseErrorKind::InvalidOctet => "invalid percent-encoded octet at index ",
+            ParseErrorKind::InvalidPctEncodedOctet => "invalid percent-encoded octet at index ",
             ParseErrorKind::UnexpectedChar => "unexpected character at index ",
             ParseErrorKind::InvalidIpv6Addr => "invalid IPv6 address at index ",
             ParseErrorKind::SchemeNotPresent => return f.write_str("scheme not present"),
