@@ -1,7 +1,8 @@
 //! Module for reference resolution.
 
-use crate::imp::{Meta, Ref};
+use crate::imp::{Meta, Ri, RiMaybeRef, RmrRef};
 use alloc::string::String;
+use borrow_or_share::Bos;
 use core::num::NonZeroUsize;
 
 /// An error occurred when resolving a URI/IRI reference.
@@ -12,15 +13,99 @@ pub enum ResolveError {
     /// The base has no authority and its path is rootless, but the reference
     /// is relative, is not empty and does not start with `'#'`.
     InvalidReferenceAgainstOpaqueBase,
-    // PathUnderflow,
+    /// An underflow occurred in path resolution.
+    PathUnderflow,
 }
 
 #[cfg(feature = "impl-error")]
 impl crate::Error for ResolveError {}
 
+/// A configurable URI/IRI reference resolver against a fixed base.
+///
+/// # Examples
+///
+/// ```
+/// use fluent_uri::{resolve::Resolver, Uri, UriRef};
+///
+/// let base = Uri::parse("http://example.com/foo/bar")?;
+/// let resolver = Resolver::with_base(base);
+///
+/// assert_eq!(resolver.resolve(&UriRef::parse("baz")?).unwrap(), "http://example.com/foo/baz");
+/// assert_eq!(resolver.resolve(&UriRef::parse("../baz")?).unwrap(), "http://example.com/baz");
+/// assert_eq!(resolver.resolve(&UriRef::parse("?baz")?).unwrap(), "http://example.com/foo/bar?baz");
+/// # Ok::<_, fluent_uri::ParseError>(())
+/// ```
+#[derive(Clone, Copy, Debug)]
+#[must_use]
+pub struct Resolver<R> {
+    base: R,
+    allow_path_underflow: bool,
+}
+
+impl<R: Ri> Resolver<R>
+where
+    R::Val: Bos<str>,
+{
+    /// Creates a new `Resolver` with the given base.
+    pub fn with_base(base: R) -> Self {
+        Self {
+            base,
+            allow_path_underflow: true,
+        }
+    }
+
+    /// Sets whether to allow underflow in path resolution.
+    ///
+    /// This defaults to `true`. A value of `false` is a deviation from the
+    /// reference resolution algorithm defined in
+    /// [Section 5 of RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986/#section-5).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::{resolve::{Resolver, ResolveError}, Uri, UriRef};
+    ///
+    /// let base = Uri::parse("http://example.com/foo/bar")?;
+    /// let resolver = Resolver::with_base(base).allow_path_underflow(false);
+    ///
+    /// assert_eq!(resolver.resolve(&UriRef::parse("../../baz")?).unwrap_err(), ResolveError::PathUnderflow);
+    /// assert_eq!(resolver.resolve(&UriRef::parse("../../../baz")?).unwrap_err(), ResolveError::PathUnderflow);
+    /// assert_eq!(resolver.resolve(&UriRef::parse("/../baz")?).unwrap_err(), ResolveError::PathUnderflow);
+    /// # Ok::<_, fluent_uri::ParseError>(())
+    /// ```
+    pub fn allow_path_underflow(mut self, value: bool) -> Self {
+        self.allow_path_underflow = value;
+        self
+    }
+
+    /// Resolves the given reference against the configured base.
+    ///
+    /// See [`resolve_against`] for the exact behavior of this method.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` on the same conditions as [`resolve_against`] or if an underflow
+    /// occurred in path resolution when [`allow_path_underflow`] is set to `false`.
+    ///
+    /// [`resolve_against`]: crate::UriRef::resolve_against
+    /// [`allow_path_underflow`]: Self::allow_path_underflow
+    pub fn resolve<T: Bos<str>>(
+        &self,
+        reference: &R::Ref<T>,
+    ) -> Result<R::WithVal<String>, ResolveError> {
+        resolve(
+            self.base.make_ref(),
+            reference.make_ref(),
+            self.allow_path_underflow,
+        )
+        .map(RiMaybeRef::from_pair)
+    }
+}
+
 pub(crate) fn resolve(
-    base: Ref<'_, '_>,
-    /* reference */ r: Ref<'_, '_>,
+    base: RmrRef<'_, '_>,
+    /* reference */ r: RmrRef<'_, '_>,
+    allow_path_underflow: bool,
 ) -> Result<(String, Meta), ResolveError> {
     assert!(base.has_scheme());
 
@@ -49,7 +134,7 @@ pub(crate) fn resolve(
         t_authority = r_authority;
         t_path = if r_path.is_absolute() {
             buf.reserve_exact(r_path.len());
-            remove_dot_segments(&mut buf, r_path.as_str())
+            remove_dot_segments(&mut buf, r_path.as_str(), allow_path_underflow)?
         } else {
             r_path.as_str()
         };
@@ -58,7 +143,7 @@ pub(crate) fn resolve(
         if r_authority.is_some() {
             t_authority = r_authority;
             buf.reserve_exact(r_path.len());
-            t_path = remove_dot_segments(&mut buf, r_path.as_str());
+            t_path = remove_dot_segments(&mut buf, r_path.as_str(), allow_path_underflow)?;
             t_query = r_query;
         } else {
             if r_path.is_empty() {
@@ -71,7 +156,7 @@ pub(crate) fn resolve(
             } else {
                 if r_path.is_absolute() {
                     buf.reserve_exact(r_path.len());
-                    t_path = remove_dot_segments(&mut buf, r_path.as_str());
+                    t_path = remove_dot_segments(&mut buf, r_path.as_str(), allow_path_underflow)?;
                 } else {
                     // Instead of merging the paths, remove dot segments incrementally.
                     let base_path = base.path().as_str();
@@ -89,9 +174,9 @@ pub(crate) fn resolve(
                         };
 
                         buf.reserve_exact(base_path_stripped.len() + r_path.len());
-                        remove_dot_segments(&mut buf, base_path_stripped);
+                        remove_dot_segments(&mut buf, base_path_stripped, allow_path_underflow)?;
                     }
-                    t_path = remove_dot_segments(&mut buf, r_path.as_str());
+                    t_path = remove_dot_segments(&mut buf, r_path.as_str(), allow_path_underflow)?;
                 }
                 t_query = r_query;
             }
@@ -159,7 +244,11 @@ pub(crate) fn resolve(
     Ok((buf, meta))
 }
 
-pub(crate) fn remove_dot_segments<'a>(buf: &'a mut String, path: &str) -> &'a str {
+pub(crate) fn remove_dot_segments<'a>(
+    buf: &'a mut String,
+    path: &str,
+    allow_path_underflow: bool,
+) -> Result<&'a str, ResolveError> {
     for seg in path.split_inclusive('/') {
         let seg_stripped = seg.strip_suffix('/').unwrap_or(seg);
         match classify_segment(seg_stripped) {
@@ -168,12 +257,14 @@ pub(crate) fn remove_dot_segments<'a>(buf: &'a mut String, path: &str) -> &'a st
                 if buf.len() != 1 {
                     buf.truncate(buf.rfind('/').unwrap());
                     buf.truncate(buf.rfind('/').unwrap() + 1);
+                } else if !allow_path_underflow {
+                    return Err(ResolveError::PathUnderflow);
                 }
             }
             SegKind::Normal => buf.push_str(seg),
         }
     }
-    buf
+    Ok(buf)
 }
 
 enum SegKind {

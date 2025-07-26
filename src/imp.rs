@@ -41,6 +41,8 @@ pub struct Constraints {
 
 pub trait RiMaybeRef: Sized {
     type Val;
+    type WithVal<T>: RiMaybeRef<Val = T>;
+
     type UserinfoE: Encoder;
     type RegNameE: Encoder;
     type PathE: Encoder;
@@ -54,6 +56,14 @@ pub trait RiMaybeRef: Sized {
     }
 
     fn constraints() -> Constraints;
+
+    fn make_ref<'i, 'o>(&'i self) -> RmrRef<'o, 'i>
+    where
+        Self::Val: BorrowOrShare<'i, 'o, str>;
+}
+
+pub trait Ri: RiMaybeRef {
+    type Ref<T>: RiMaybeRef<Val = T>;
 }
 
 pub trait Parse {
@@ -256,6 +266,8 @@ macro_rules! ri_maybe_ref {
 
         impl<T> RiMaybeRef for $Ty<T> {
             type Val = T;
+            type WithVal<U> = $Ty<U>;
+
             type UserinfoE = $UserinfoE;
             type RegNameE = $RegNameE;
             type PathE = $PathE;
@@ -272,7 +284,20 @@ macro_rules! ri_maybe_ref {
                     scheme_required: $scheme_required,
                 }
             }
+
+            fn make_ref<'i, 'o>(&'i self) -> RmrRef<'o, 'i>
+            where
+                Self::Val: BorrowOrShare<'i, 'o, str>,
+            {
+                RmrRef::new(self.as_str(), &self.meta)
+            }
         }
+
+        $(
+            impl<T: Bos<str>> Ri for $Ty<T> {
+                type Ref<U> = $RefTy<U>;
+            }
+        )?
 
         impl<T> $Ty<T> {
             #[doc = concat!("Parses ", $art, " ", $name, " from a string into ", $art, " `", $ty, "`.")]
@@ -346,10 +371,6 @@ macro_rules! ri_maybe_ref {
                 self.val.borrow_or_share()
             }
 
-            fn as_ref(&'i self) -> Ref<'o, 'i> {
-                Ref::new(self.as_str(), &self.meta)
-            }
-
             cond!(if $scheme_required {
                 /// Returns the [scheme] component.
                 ///
@@ -371,7 +392,7 @@ macro_rules! ri_maybe_ref {
                 /// ```
                 #[must_use]
                 pub fn scheme(&'i self) -> &'o Scheme {
-                    self.as_ref().scheme()
+                    self.make_ref().scheme()
                 }
             } else {
                 /// Returns the optional [scheme] component.
@@ -397,7 +418,7 @@ macro_rules! ri_maybe_ref {
                 /// ```
                 #[must_use]
                 pub fn scheme(&'i self) -> Option<&'o Scheme> {
-                    self.as_ref().scheme_opt()
+                    self.make_ref().scheme_opt()
                 }
             });
 
@@ -419,7 +440,7 @@ macro_rules! ri_maybe_ref {
             /// ```
             #[must_use]
             pub fn authority(&'i self) -> Option<$Authority<'o>> {
-                self.as_ref().authority().map(Authority::cast)
+                self.make_ref().authority().map(Authority::cast)
             }
 
             /// Returns the [path] component.
@@ -448,7 +469,7 @@ macro_rules! ri_maybe_ref {
             /// ```
             #[must_use]
             pub fn path(&'i self) -> &'o EStr<$PathE> {
-                self.as_ref().path().cast()
+                self.make_ref().path().cast()
             }
 
             /// Returns the optional [query] component.
@@ -469,7 +490,7 @@ macro_rules! ri_maybe_ref {
             /// ```
             #[must_use]
             pub fn query(&'i self) -> Option<&'o EStr<$QueryE>> {
-                self.as_ref().query().map(EStr::cast)
+                self.make_ref().query().map(EStr::cast)
             }
 
             /// Returns the optional [fragment] component.
@@ -490,7 +511,7 @@ macro_rules! ri_maybe_ref {
             /// ```
             #[must_use]
             pub fn fragment(&'i self) -> Option<&'o EStr<$FragmentE>> {
-                self.as_ref().fragment().map(EStr::cast)
+                self.make_ref().fragment().map(EStr::cast)
             }
         }
 
@@ -521,7 +542,7 @@ macro_rules! ri_maybe_ref {
                 ///   `"foo:/"` yields `"foo://@@"` which is not a valid URI/IRI.
                 /// - Percent-encoded dot segments (e.g. `"%2E"` and `".%2e"`) are also removed.
                 ///   This closes a loophole in the original algorithm that resolving `".."`
-                ///   against `"foo:/bar/.%2E/"` yields `"foo:/bar/"`, while first normalizing
+                ///   against `"foo:/bar/baz/.%2E/"` yields `"foo:/bar/baz/"`, while first normalizing
                 ///   the base and then resolving `".."` against it yields `"foo:/"`.
                 /// - A slash (`'/'`) is appended to the base when it ends with a double-dot
                 ///   segment. This closes a loophole in the original algorithm that resolving
@@ -541,6 +562,9 @@ macro_rules! ri_maybe_ref {
                 /// This method has the property that
                 /// `self.resolve_against(base).map(|r| r.normalize()).ok()` equals
                 /// `self.normalize().resolve_against(&base.normalize()).ok()`.
+                ///
+                /// If you need to resolve multiple references against a common base or configure the behavior
+                /// of resolution, consider using [`Resolver`](crate::resolve::Resolver) instead.
                 ///
                 /// # Errors
                 ///
@@ -567,7 +591,7 @@ macro_rules! ri_maybe_ref {
                     &self,
                     base: &$NonRefTy<U>,
                 ) -> Result<$NonRefTy<String>, ResolveError> {
-                    resolve::resolve(base.as_ref(), self.as_ref()).map(RiMaybeRef::from_pair)
+                    resolve::resolve(base.make_ref(), self.make_ref(), true).map(RiMaybeRef::from_pair)
                 }
             )?
 
@@ -606,7 +630,7 @@ macro_rules! ri_maybe_ref {
             /// ```
             #[must_use]
             pub fn normalize(&self) -> $Ty<String> {
-                RiMaybeRef::from_pair(normalize::normalize(self.as_ref(), $ascii_only))
+                RiMaybeRef::from_pair(normalize::normalize(self.make_ref(), $ascii_only))
             }
 
             cond!(if $scheme_required {} else {
@@ -623,7 +647,7 @@ macro_rules! ri_maybe_ref {
                 /// ```
                 #[must_use]
                 pub fn has_scheme(&self) -> bool {
-                    self.as_ref().has_scheme()
+                    self.make_ref().has_scheme()
                 }
             });
 
@@ -640,7 +664,7 @@ macro_rules! ri_maybe_ref {
             /// ```
             #[must_use]
             pub fn has_authority(&self) -> bool {
-                self.as_ref().has_authority()
+                self.make_ref().has_authority()
             }
 
             /// Checks whether a query component is present.
@@ -656,7 +680,7 @@ macro_rules! ri_maybe_ref {
             /// ```
             #[must_use]
             pub fn has_query(&self) -> bool {
-                self.as_ref().has_query()
+                self.make_ref().has_query()
             }
 
             /// Checks whether a fragment component is present.
@@ -672,7 +696,7 @@ macro_rules! ri_maybe_ref {
             /// ```
             #[must_use]
             pub fn has_fragment(&self) -> bool {
-                self.as_ref().has_fragment()
+                self.make_ref().has_fragment()
             }
 
             #[doc = concat!("Returns a slice of this ", $name)]
@@ -690,7 +714,7 @@ macro_rules! ri_maybe_ref {
             #[must_use]
             pub fn strip_fragment(&self) -> $Ty<&str> {
                 // Altering only the fragment does not change the metadata.
-                RiMaybeRef::new(self.as_ref().strip_fragment(), self.meta)
+                RiMaybeRef::new(self.make_ref().strip_fragment(), self.meta)
             }
 
             #[doc = concat!("Creates a new ", $name)]
@@ -716,7 +740,7 @@ macro_rules! ri_maybe_ref {
             #[must_use]
             pub fn with_fragment(&self, opt: Option<&EStr<$FragmentE>>) -> $Ty<String> {
                 // Altering only the fragment does not change the metadata.
-                RiMaybeRef::new(self.as_ref().with_fragment(opt.map(EStr::as_str)), self.meta)
+                RiMaybeRef::new(self.make_ref().with_fragment(opt.map(EStr::as_str)), self.meta)
             }
         }
 
@@ -741,7 +765,7 @@ macro_rules! ri_maybe_ref {
             /// ```
             pub fn set_fragment(&mut self, opt: Option<&EStr<$FragmentE>>) {
                 // Altering only the fragment does not change the metadata.
-                Ref::set_fragment(&mut self.val, &self.meta, opt.map(EStr::as_str))
+                RmrRef::set_fragment(&mut self.val, &self.meta, opt.map(EStr::as_str))
             }
         }
 
@@ -923,14 +947,14 @@ macro_rules! ri_maybe_ref {
     };
 }
 
-/// A Rust reference to a URI/IRI (reference).
+/// References to the value and the metadata of an `RiMaybeRef`.
 #[derive(Clone, Copy)]
-pub struct Ref<'v, 'm> {
+pub struct RmrRef<'v, 'm> {
     val: &'v str,
     meta: &'m Meta,
 }
 
-impl<'v, 'm> Ref<'v, 'm> {
+impl<'v, 'm> RmrRef<'v, 'm> {
     pub fn new(val: &'v str, meta: &'m Meta) -> Self {
         Self { val, meta }
     }
@@ -1163,7 +1187,7 @@ macro_rules! impl_try_from {
 
                 #[$doc]
                 fn try_from(value: $x<&'a str>) -> Result<Self, Self::Error> {
-                    let r = value.as_ref();
+                    let r = value.make_ref();
                     $(r.$cond()?;)+
                     Ok((RiMaybeRef::new(value.val, value.meta)))
                 }
@@ -1174,7 +1198,7 @@ macro_rules! impl_try_from {
 
                 #[$doc]
                 fn try_from(value: $x<String>) -> Result<Self, Self::Error> {
-                    let r = value.as_ref();
+                    let r = value.make_ref();
                     $(
                         if let Err(e) = r.$cond() {
                             return Err(e.with_input(value));
@@ -1217,7 +1241,7 @@ impl<T: Bos<str>> Iri<T> {
     /// assert_eq!(iri.to_uri(), "http://r%C3%A9sum%C3%A9.example.org");
     /// ```
     pub fn to_uri(&self) -> Uri<String> {
-        RiMaybeRef::from_pair(encode_non_ascii(self.as_ref()))
+        RiMaybeRef::from_pair(encode_non_ascii(self.make_ref()))
     }
 }
 
@@ -1238,11 +1262,11 @@ impl<T: Bos<str>> IriRef<T> {
     /// assert_eq!(iri_ref.to_uri_ref(), "//r%C3%A9sum%C3%A9.example.org");
     /// ```
     pub fn to_uri_ref(&self) -> UriRef<String> {
-        RiMaybeRef::from_pair(encode_non_ascii(self.as_ref()))
+        RiMaybeRef::from_pair(encode_non_ascii(self.make_ref()))
     }
 }
 
-fn encode_non_ascii(r: Ref<'_, '_>) -> (String, Meta) {
+fn encode_non_ascii(r: RmrRef<'_, '_>) -> (String, Meta) {
     let mut buf = String::new();
     let mut meta = Meta::default();
 

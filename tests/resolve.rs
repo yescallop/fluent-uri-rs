@@ -1,4 +1,7 @@
-use fluent_uri::{resolve::ResolveError, Uri, UriRef};
+use fluent_uri::{
+    resolve::{ResolveError, Resolver},
+    Uri, UriRef,
+};
 
 trait Test {
     fn pass(&self, r: &str, res: &str);
@@ -6,17 +9,22 @@ trait Test {
 }
 
 impl Test for Uri<&str> {
+    #[track_caller]
     fn pass(&self, r: &str, expected: &str) {
-        assert_eq!(
-            UriRef::parse(r).unwrap().resolve_against(self).unwrap(),
-            expected
-        )
+        let r = UriRef::parse(r).unwrap();
+        for b in [true, false] {
+            let resolver = Resolver::with_base(*self).allow_path_underflow(b);
+            assert_eq!(resolver.resolve(&r).unwrap(), expected);
+        }
     }
 
     #[track_caller]
     fn fail(&self, r: &str, expected: ResolveError) {
-        let e = UriRef::parse(r).unwrap().resolve_against(self).unwrap_err();
-        assert_eq!(e, expected);
+        let r = UriRef::parse(r).unwrap();
+        for b in [true, false] {
+            let resolver = Resolver::with_base(*self).allow_path_underflow(b);
+            assert_eq!(resolver.resolve(&r).unwrap_err(), expected);
+        }
     }
 }
 
@@ -49,11 +57,7 @@ fn resolve() {
     base.pass("../../", "http://a/");
     base.pass("../../g", "http://a/g");
 
-    base.pass("../../../g", "http://a/g");
-    base.pass("../../../../g", "http://a/g");
-
     base.pass("/./g", "http://a/g");
-    base.pass("/../g", "http://a/g");
     base.pass("g.", "http://a/b/c/g.");
     base.pass(".g", "http://a/b/c/.g");
     base.pass("g..", "http://a/b/c/g..");
@@ -86,8 +90,8 @@ fn resolve() {
     // The result would be "foo://@@" using the original algorithm.
     base.pass(".//@@", "foo:/.//@@");
 
-    let base = Uri::parse("foo:/bar/.%2E/").unwrap();
-    // The result would be "foo:/bar/" using the original algorithm.
+    let base = Uri::parse("foo:/bar/baz/.%2E/").unwrap();
+    // The result would be "foo:/bar/baz" using the original algorithm.
     base.pass("..", "foo:/");
 
     let base = Uri::parse("foo:/bar/..").unwrap();
@@ -106,4 +110,24 @@ fn resolve_error() {
     let base = Uri::parse("foo:bar").unwrap();
     base.fail("baz", ResolveError::InvalidReferenceAgainstOpaqueBase);
     base.fail("?baz", ResolveError::InvalidReferenceAgainstOpaqueBase);
+}
+
+#[test]
+fn resolve_underflow() {
+    let base = Uri::parse("http://a/b/c/d;p?q").unwrap();
+    for r in ["../../../g", "../../../../g", "/../g"] {
+        let resolver = Resolver::with_base(base).allow_path_underflow(true);
+        assert!(resolver.resolve(&UriRef::parse(r).unwrap()).is_ok());
+
+        let resolver = Resolver::with_base(base).allow_path_underflow(false);
+        assert_eq!(
+            resolver.resolve(&UriRef::parse(r).unwrap()).unwrap_err(),
+            ResolveError::PathUnderflow
+        );
+    }
+
+    // TODO: Determine if it is better to change this to an error.
+    let base = Uri::parse("http://a/..").unwrap();
+    let resolver = Resolver::with_base(base).allow_path_underflow(false);
+    assert!(resolver.resolve(&UriRef::parse("").unwrap()).is_ok());
 }
