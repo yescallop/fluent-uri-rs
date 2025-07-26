@@ -76,6 +76,7 @@ impl Display for ResolveError {
             Self::InvalidReferenceAgainstOpaqueBase => {
                 "when base has no authority and its path is rootless, reference should either have scheme, be empty or start with '#'"
             }
+            Self::PathUnderflow => "underflow occurred in path resolution",
         };
         f.write_str(msg)
     }
