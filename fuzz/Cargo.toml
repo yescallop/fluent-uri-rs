@@ -55,6 +55,12 @@ test = false
 doc = false
 
 [[bin]]
+name = "resolve_path_underflow_disallowed"
+path = "fuzz_targets/resolve_path_underflow_disallowed.rs"
+test = false
+doc = false
+
+[[bin]]
 name = "normalize"
 path = "fuzz_targets/normalize.rs"
 test = false
