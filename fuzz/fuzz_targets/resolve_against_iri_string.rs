@@ -11,35 +11,52 @@ fuzz_target!(|data: (&str, &str)| {
         return;
     };
 
-    let Ok(r1) = r1.resolve_against(&base1) else {
+    let Ok(t1) = r1.resolve_against(&base1) else {
         return;
     };
 
-    if r1.authority().is_none() && r1.path().is_rootless() {
+    if t1.authority().is_none() && t1.path().is_rootless() {
         return;
     }
 
     let base2 = UriAbsoluteStr::new(data.0).unwrap();
     let r2 = UriReferenceStr::new(data.1).unwrap();
 
-    let r2 = r2.resolve_against(base2).to_dedicated_string();
+    let t2 = r2.resolve_against(base2).to_dedicated_string();
 
-    if r1.as_str() == r2.as_str() {
+    if t1.as_str() == t2.as_str() {
         return;
     }
 
     if let Some((_, last_seg)) = base1.path().as_str().rsplit_once('/') {
-        if is_double_dot(last_seg) {
+        if classify_segment(last_seg) == SegKind::DoubleDot {
             return;
         }
     }
 
-    panic!("{} != {}", r1.as_str(), r2.as_str());
+    if let Some(mut segs) = base1.path().segments_if_absolute() {
+        if !r1.has_scheme()
+            && !r1.has_authority()
+            && r1.path().is_empty()
+            && segs.any(|seg| classify_segment(seg.as_str()) != SegKind::Normal)
+        {
+            return;
+        }
+    }
+
+    panic!("{} != {}", t1.as_str(), t2.as_str());
 });
 
-fn is_double_dot(mut seg: &str) -> bool {
+#[derive(Eq, PartialEq)]
+enum SegKind {
+    Dot,
+    DoubleDot,
+    Normal,
+}
+
+fn classify_segment(mut seg: &str) -> SegKind {
     if seg.is_empty() {
-        return false;
+        return SegKind::Normal;
     }
     if let Some(rem) = seg.strip_prefix('.') {
         seg = rem;
@@ -48,5 +65,11 @@ fn is_double_dot(mut seg: &str) -> bool {
     } else if let Some(rem) = seg.strip_prefix("%2e") {
         seg = rem;
     }
-    seg == "." || seg == "%2E" || seg == "%2e"
+    if seg.is_empty() {
+        SegKind::Dot
+    } else if seg == "." || seg == "%2E" || seg == "%2e" {
+        SegKind::DoubleDot
+    } else {
+        SegKind::Normal
+    }
 }

@@ -114,20 +114,29 @@ fn resolve_error() {
 
 #[test]
 fn resolve_underflow() {
-    let base = Uri::parse("http://a/b/c/d;p?q").unwrap();
-    for r in ["../../../g", "../../../../g", "/../g"] {
-        let resolver = Resolver::with_base(base).allow_path_underflow(true);
-        assert!(resolver.resolve(&UriRef::parse(r).unwrap()).is_ok());
+    for (base, rs) in [
+        (
+            "http://a/b/c/d;p?q",
+            ["../../../g", "../../../../g", "/../g"],
+        ),
+        ("foo:/..", ["", "?a", "#a"]),
+    ] {
+        let base = Uri::parse(base).unwrap();
 
-        let resolver = Resolver::with_base(base).allow_path_underflow(false);
-        assert_eq!(
-            resolver.resolve(&UriRef::parse(r).unwrap()).unwrap_err(),
-            ResolveError::PathUnderflow
-        );
+        for r in rs {
+            let resolver = Resolver::with_base(base).allow_path_underflow(true);
+            assert!(resolver.resolve(&UriRef::parse(r).unwrap()).is_ok());
+
+            let resolver = Resolver::with_base(base).allow_path_underflow(false);
+            assert_eq!(
+                resolver.resolve(&UriRef::parse(r).unwrap()).unwrap_err(),
+                ResolveError::PathUnderflow
+            );
+        }
     }
 
-    // TODO: Determine if it is better to change this to an error.
-    let base = Uri::parse("http://a/..").unwrap();
-    let resolver = Resolver::with_base(base).allow_path_underflow(false);
-    assert!(resolver.resolve(&UriRef::parse("").unwrap()).is_ok());
+    let base = Uri::parse("foo:bar/..").unwrap();
+    base.pass("", "foo:bar/..");
+    base.fail("?a", ResolveError::InvalidReferenceAgainstOpaqueBase);
+    base.pass("#a", "foo:bar/..#a");
 }

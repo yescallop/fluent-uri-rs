@@ -74,7 +74,7 @@ impl Display for ResolveError {
         let msg = match self {
             Self::BaseWithFragment => "base should not have fragment",
             Self::InvalidReferenceAgainstOpaqueBase => {
-                "when base has no authority and its path is rootless, reference should either have scheme, be empty or start with '#'"
+                "when base has a rootless path and no authority, reference should either have scheme, be empty or start with '#'"
             }
             Self::PathUnderflow => "underflow occurred in path resolution",
         };

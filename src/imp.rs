@@ -521,7 +521,7 @@ macro_rules! ri_maybe_ref {
                 #[doc = concat!("and returns the target ", $nr_name, ".")]
                 ///
                 #[doc = concat!("The base ", $nr_name)]
-                /// **must** contain no fragment, i.e., match the
+                /// **must** have no fragment, i.e., match the
                 #[doc = concat!("[`", $abnf_abs, "`][abnf] ABNF rule from RFC ", $rfc, ".")]
                 ///
                 #[doc = concat!("To prepare a base ", $nr_name, ",")]
@@ -534,9 +534,9 @@ macro_rules! ri_maybe_ref {
                 /// [Section 5 of RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986#section-5),
                 /// except for the following deviations:
                 ///
-                /// - If `base` contains no authority and its path is [rootless], then
-                ///   `self` **must** either contain a scheme, be empty, or start with `'#'`.
-                /// - When the target contains no authority and its path would start
+                /// - If `base` has a [rootless] path and no authority, then
+                ///   `self` **must** either have a scheme, be empty, or start with `'#'`.
+                /// - When the target has no authority and its path would start
                 ///   with `"//"`, the string `"/."` is prepended to the path. This closes a
                 ///   loophole in the original algorithm that resolving `".//@@"` against
                 ///   `"foo:/"` yields `"foo://@@"` which is not a valid URI/IRI.
@@ -548,6 +548,11 @@ macro_rules! ri_maybe_ref {
                 ///   segment. This closes a loophole in the original algorithm that resolving
                 ///   `"."` against `"foo:/bar/.."` yields `"foo:/bar/"`, while first normalizing
                 ///   the base and then resolving `"."` against it yields `"foo:/"`.
+                /// - When `base` has an [absolute] path and `self` has an empty path and
+                ///   no scheme nor authority, dot segments are removed from the base path before
+                ///   using it as the target path. This closes a loophole in the original algorithm
+                ///   that resolving `""` against `"foo:/."` yields `"foo:/."` in which
+                ///   dot segments are not removed.
                 ///
                 /// No normalization except the removal of dot segments will be performed.
                 /// Use [`normalize`] if necessary.
@@ -557,6 +562,7 @@ macro_rules! ri_maybe_ref {
                 #[doc = concat!("[`with_fragment`]: ", stringify!($NonRefTy), "::with_fragment")]
                 #[doc = concat!("[`set_fragment`]: ", stringify!($NonRefTy), "::set_fragment")]
                 /// [rootless]: EStr::<Path>::is_rootless
+                /// [absolute]: EStr::<Path>::is_absolute
                 /// [`normalize`]: Self::normalize
                 ///
                 /// This method has the property that
@@ -608,15 +614,16 @@ macro_rules! ri_maybe_ref {
             /// - Turn any IPv6 literal address into its canonical form as per
             ///   [RFC 5952](https://datatracker.ietf.org/doc/html/rfc5952).
             /// - If the port is empty, remove its `':'` delimiter.
-            /// - If `self` contains a scheme and an absolute path, apply the
+            /// - If `self` has a scheme and an [absolute] path, apply the
             ///   [`remove_dot_segments`] algorithm to the path, taking account of
             ///   percent-encoded dot segments as described at [`UriRef::resolve_against`].
-            /// - If `self` contains no authority and its path would start with
+            /// - If `self` has no authority and its path would start with
             ///   `"//"`, prepend `"/."` to the path.
             ///
             /// This method is idempotent: `self.normalize()` equals `self.normalize().normalize()`.
             ///
             /// [`UriRef::resolve_against`]: crate::UriRef::resolve_against
+            /// [absolute]: EStr::<Path>::is_absolute
             /// [`remove_dot_segments`]: https://datatracker.ietf.org/doc/html/rfc3986#section-5.2.4
             ///
             /// # Examples
@@ -1212,15 +1219,15 @@ macro_rules! impl_try_from {
 }
 
 impl_try_from! {
-    /// Converts the URI reference to a URI if it contains a scheme.
+    /// Converts the URI reference to a URI if it has a scheme.
     UriRef if ensure_has_scheme => Uri
     /// Converts the IRI to a URI if it is ASCII.
     Iri if ensure_ascii => Uri
-    /// Converts the IRI reference to a URI if it contains a scheme and is ASCII.
+    /// Converts the IRI reference to a URI if it has a scheme and is ASCII.
     IriRef if ensure_has_scheme && ensure_ascii => Uri
     /// Converts the IRI reference to a URI reference if it is ASCII.
     IriRef if ensure_ascii => UriRef
-    /// Converts the IRI reference to an IRI if it contains a scheme.
+    /// Converts the IRI reference to an IRI if it has a scheme.
     IriRef if ensure_has_scheme => Iri
 }
 

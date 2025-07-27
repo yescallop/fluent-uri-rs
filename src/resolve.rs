@@ -147,7 +147,13 @@ pub(crate) fn resolve(
             t_query = r_query;
         } else {
             if r_path.is_empty() {
-                t_path = base.path().as_str();
+                let base_path = base.path();
+                t_path = if base_path.is_absolute() {
+                    buf.reserve_exact(base_path.len());
+                    remove_dot_segments(&mut buf, base_path.as_str(), allow_path_underflow)?
+                } else {
+                    base_path.as_str()
+                };
                 if r_query.is_some() {
                     t_query = r_query;
                 } else {
