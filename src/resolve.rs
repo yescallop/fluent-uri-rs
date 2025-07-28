@@ -14,6 +14,8 @@ pub enum ResolveError {
     /// is relative, is not empty and does not start with `'#'`.
     InvalidReferenceAgainstOpaqueBase,
     /// An underflow occurred in path resolution.
+    ///
+    /// Used only when [`Resolver::allow_path_underflow`] is set to `false`.
     PathUnderflow,
 }
 
