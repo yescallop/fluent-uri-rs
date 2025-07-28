@@ -115,7 +115,13 @@ impl<T: Bos<str>> IriRef<T> {
 }
 
 fn encode_non_ascii(r: RmrRef<'_, '_>) -> (String, Meta) {
-    let mut buf = String::new();
+    let len = r
+        .as_str()
+        .chars()
+        .map(|c| if c.is_ascii() { 1 } else { c.len_utf8() * 3 })
+        .sum();
+
+    let mut buf = String::with_capacity(len);
     let mut meta = Meta::default();
 
     if let Some(scheme) = r.scheme_opt() {
@@ -161,6 +167,8 @@ fn encode_non_ascii(r: RmrRef<'_, '_>) -> (String, Meta) {
         buf.push('#');
         encode_non_ascii_str(&mut buf, fragment.as_str());
     }
+
+    debug_assert_eq!(buf.len(), len);
 
     (buf, meta)
 }
