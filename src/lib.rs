@@ -81,6 +81,7 @@
 
 pub mod build;
 pub mod component;
+mod convert;
 mod fmt;
 mod imp;
 mod normalize;
