@@ -121,7 +121,6 @@ pub(crate) fn resolve(
     }
 
     let (t_scheme, t_authority, t_path, t_query, t_fragment);
-    let mut buf = String::new();
 
     let r_scheme = r.scheme_opt();
     let r_authority = r.authority();
@@ -132,28 +131,16 @@ pub(crate) fn resolve(
     if let Some(r_scheme) = r_scheme {
         t_scheme = r_scheme;
         t_authority = r_authority;
-        t_path = if r_path.is_absolute() {
-            buf.reserve_exact(r_path.len());
-            remove_dot_segments(&mut buf, r_path.as_str(), allow_path_underflow)?
-        } else {
-            r_path.as_str()
-        };
+        t_path = (r_path.as_str(), None);
         t_query = r_query;
     } else {
         if r_authority.is_some() {
             t_authority = r_authority;
-            buf.reserve_exact(r_path.len());
-            t_path = remove_dot_segments(&mut buf, r_path.as_str(), allow_path_underflow)?;
+            t_path = (r_path.as_str(), None);
             t_query = r_query;
         } else {
             if r_path.is_empty() {
-                let base_path = base.path();
-                t_path = if base_path.is_absolute() {
-                    buf.reserve_exact(base_path.len());
-                    remove_dot_segments(&mut buf, base_path.as_str(), allow_path_underflow)?
-                } else {
-                    base_path.as_str()
-                };
+                t_path = (base.path().as_str(), None);
                 if r_query.is_some() {
                     t_query = r_query;
                 } else {
@@ -161,28 +148,26 @@ pub(crate) fn resolve(
                 }
             } else {
                 if r_path.is_absolute() {
-                    buf.reserve_exact(r_path.len());
-                    t_path = remove_dot_segments(&mut buf, r_path.as_str(), allow_path_underflow)?;
+                    t_path = (r_path.as_str(), None);
                 } else {
-                    // Instead of merging the paths, remove dot segments incrementally.
-                    let base_path = base.path().as_str();
-                    if base_path.is_empty() {
-                        buf.reserve_exact(r_path.len() + 1);
-                        buf.push('/');
+                    let base_path = base.path();
+                    let base_path = if base_path.is_empty() {
+                        "/"
                     } else {
-                        // Make sure that swapping the order of resolution and normalization
-                        // does not change the result.
-                        let last_slash_i = base_path.rfind('/').unwrap();
-                        let last_seg = &base_path[last_slash_i + 1..];
-                        let base_path_stripped = match classify_segment(last_seg) {
-                            SegKind::DoubleDot => base_path,
-                            _ => &base_path[..=last_slash_i],
-                        };
+                        base_path.as_str()
+                    };
 
-                        buf.reserve_exact(base_path_stripped.len() + r_path.len());
-                        remove_dot_segments(&mut buf, base_path_stripped, allow_path_underflow)?;
-                    }
-                    t_path = remove_dot_segments(&mut buf, r_path.as_str(), allow_path_underflow)?;
+                    // Make sure that swapping the order of resolution and normalization
+                    // does not change the result.
+                    let last_slash_i = base_path.rfind('/').unwrap();
+                    let last_seg = &base_path[last_slash_i + 1..];
+                    let base_path_stripped = match classify_segment(last_seg) {
+                        SegKind::DoubleDot => base_path,
+                        _ => &base_path[..=last_slash_i],
+                    };
+
+                    // Instead of merging the paths, remove dot segments incrementally.
+                    t_path = (base_path_stripped, Some(r_path.as_str()));
                 }
                 t_query = r_query;
             }
@@ -197,10 +182,7 @@ pub(crate) fn resolve(
     if let Some(authority) = t_authority {
         len += authority.as_str().len() + 2;
     }
-    if t_authority.is_none() && t_path.starts_with("//") {
-        len += 2;
-    }
-    len += t_path.len();
+    len += t_path.0.len() + t_path.1.map_or(0, |s| s.len());
     if let Some(query) = t_query {
         len += query.len() + 1;
     }
@@ -226,12 +208,27 @@ pub(crate) fn resolve(
         meta.auth_meta = Some(auth_meta);
     }
 
-    meta.path_bounds.0 = buf.len();
-    // Close the loophole in the original algorithm.
-    if t_authority.is_none() && t_path.starts_with("//") {
-        buf.push_str("/.");
+    let path_start = buf.len();
+    meta.path_bounds.0 = path_start;
+
+    if t_path.0.starts_with('/') {
+        let path = match t_path.1 {
+            Some(s) => &[t_path.0, s][..],
+            None => &[t_path.0],
+        };
+        let underflow_occurred = remove_dot_segments(&mut buf, path_start, path);
+        if underflow_occurred && !allow_path_underflow {
+            return Err(ResolveError::PathUnderflow);
+        }
+    } else {
+        buf.push_str(t_path.0);
     }
-    buf.push_str(t_path);
+
+    // Close the loophole in the original algorithm.
+    if t_authority.is_none() && buf[path_start..].starts_with("//") {
+        buf.insert_str(path_start, "/.");
+    }
+
     meta.path_bounds.1 = buf.len();
 
     if let Some(query) = t_query {
@@ -245,32 +242,28 @@ pub(crate) fn resolve(
         buf.push_str(fragment.as_str());
     }
 
-    debug_assert_eq!(buf.len(), len);
+    debug_assert!(buf.len() <= len);
 
     Ok((buf, meta))
 }
 
-pub(crate) fn remove_dot_segments<'a>(
-    buf: &'a mut String,
-    path: &str,
-    allow_path_underflow: bool,
-) -> Result<&'a str, ResolveError> {
-    for seg in path.split_inclusive('/') {
+pub(crate) fn remove_dot_segments(buf: &mut String, start: usize, path: &[&str]) -> bool {
+    let mut underflow_occurred = false;
+    for seg in path.iter().flat_map(|s| s.split_inclusive('/')) {
         let seg_stripped = seg.strip_suffix('/').unwrap_or(seg);
         match classify_segment(seg_stripped) {
-            SegKind::Dot => buf.truncate(buf.rfind('/').unwrap() + 1),
+            SegKind::Dot => {}
             SegKind::DoubleDot => {
-                if buf.len() != 1 {
-                    buf.truncate(buf.rfind('/').unwrap());
-                    buf.truncate(buf.rfind('/').unwrap() + 1);
-                } else if !allow_path_underflow {
-                    return Err(ResolveError::PathUnderflow);
+                if buf.len() > start + 1 {
+                    buf.truncate(buf[..buf.len() - 1].rfind('/').unwrap() + 1);
+                } else {
+                    underflow_occurred = true;
                 }
             }
             SegKind::Normal => buf.push_str(seg),
         }
     }
-    Ok(buf)
+    underflow_occurred
 }
 
 enum SegKind {

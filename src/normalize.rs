@@ -21,7 +21,7 @@ pub(crate) fn normalize(r: RmrRef<'_, '_>, ascii_only: bool) -> (String, Meta) {
 
     if r.has_scheme() && path.starts_with('/') {
         normalize_estr(&mut buf, path, false, ascii_only, false);
-        resolve::remove_dot_segments(&mut path_buf, &buf, true).unwrap();
+        resolve::remove_dot_segments(&mut path_buf, 0, &[&buf]);
         buf.clear();
     } else {
         // Don't remove dot segments from relative reference or rootless path.
