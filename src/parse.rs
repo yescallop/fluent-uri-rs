@@ -1,5 +1,5 @@
 use crate::{
-    imp::{AuthMeta, Constraints, HostMeta, Meta, NoInput},
+    imp::{AuthMeta, Constraints, HostMeta, Meta},
     pct_enc::{next_code_point, table::*, Table, OCTET_TABLE_LO},
 };
 use core::{
@@ -23,32 +23,16 @@ pub enum ParseErrorKind {
     ///
     /// The error index points to the first byte of the address.
     InvalidIpv6Addr,
-    /// Scheme is not present.
-    ///
-    /// The error index is undefined.
-    /// Used only when converting a URI/IRI reference to URI/IRI with `TryFrom` or `TryInto`.
-    SchemeNotPresent,
 }
 
 /// An error occurred when parsing a URI/IRI (reference).
-#[derive(Clone, Copy)]
-pub struct ParseError<I = NoInput> {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ParseError {
     pub(crate) index: usize,
     pub(crate) kind: ParseErrorKind,
-    pub(crate) input: I,
 }
 
 impl ParseError {
-    pub(crate) fn with_input<I>(self, input: I) -> ParseError<I> {
-        ParseError {
-            index: self.index,
-            kind: self.kind,
-            input,
-        }
-    }
-}
-
-impl<I> ParseError<I> {
     /// Returns the index at which the error occurred.
     #[must_use]
     pub fn index(&self) -> usize {
@@ -62,26 +46,8 @@ impl<I> ParseError<I> {
     }
 }
 
-impl<I: AsRef<str>> ParseError<I> {
-    /// Recovers the input that was attempted to parse into a URI/IRI (reference).
-    #[must_use]
-    pub fn into_input(self) -> I {
-        self.input
-    }
-
-    /// Returns the error with the input stripped.
-    #[must_use]
-    pub fn strip_input(&self) -> ParseError {
-        ParseError {
-            index: self.index,
-            kind: self.kind,
-            input: NoInput,
-        }
-    }
-}
-
 #[cfg(feature = "impl-error")]
-impl<I> crate::Error for ParseError<I> {}
+impl crate::Error for ParseError {}
 
 type Result<T> = core::result::Result<T, crate::parse::ParseError>;
 
@@ -91,7 +57,6 @@ macro_rules! err {
         return Err(crate::parse::ParseError {
             index: $index,
             kind: crate::parse::ParseErrorKind::$kind,
-            input: crate::imp::NoInput,
         })
     };
 }

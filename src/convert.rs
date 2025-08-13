@@ -1,6 +1,5 @@
 use crate::{
     imp::{HostMeta, Meta, RiMaybeRef, RmrRef},
-    parse::ParseError,
     pct_enc::encode_byte,
     Iri, IriRef, Uri, UriRef,
 };
@@ -27,11 +26,26 @@ impl_from! {
     Iri => IriRef
 }
 
+/// An error occurred when downcasting a URI/IRI (reference).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ConvertError {
+    /// The input is not ASCII.
+    NotAscii {
+        /// The index of the first non-ASCII character.
+        index: usize,
+    },
+    /// The input has no scheme.
+    NoScheme,
+}
+
+#[cfg(feature = "impl-error")]
+impl crate::Error for ConvertError {}
+
 macro_rules! impl_try_from {
     ($(#[$doc:meta] $x:ident if $($cond:ident)&&+ => $y:ident)*) => {
         $(
             impl<'a> TryFrom<$x<&'a str>> for $y<&'a str> {
-                type Error = ParseError;
+                type Error = ConvertError;
 
                 #[$doc]
                 fn try_from(value: $x<&'a str>) -> Result<Self, Self::Error> {
@@ -42,14 +56,14 @@ macro_rules! impl_try_from {
             }
 
             impl TryFrom<$x<String>> for $y<String> {
-                type Error = ParseError<$x<String>>;
+                type Error = (ConvertError, $x<String>);
 
                 #[$doc]
                 fn try_from(value: $x<String>) -> Result<Self, Self::Error> {
                     let r = value.make_ref();
                     $(
                         if let Err(e) = r.$cond() {
-                            return Err(e.with_input(value));
+                            return Err((e, value));
                         }
                     )+
                     Ok((RiMaybeRef::new(value.val, value.meta)))

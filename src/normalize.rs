@@ -1,5 +1,8 @@
+//! Module for normalization.
+
 use crate::{
-    imp::{HostMeta, Meta, RmrRef},
+    component::Scheme,
+    imp::{HostMeta, Meta, RiMaybeRef, RmrRef},
     parse,
     pct_enc::{
         decode_octet, encode_byte, next_code_point,
@@ -9,9 +12,123 @@ use crate::{
     resolve,
 };
 use alloc::{string::String, vec::Vec};
+use borrow_or_share::Bos;
 use core::{fmt::Write, num::NonZeroUsize};
 
-pub(crate) fn normalize(r: RmrRef<'_, '_>, ascii_only: bool) -> (String, Meta) {
+/// An error occurred when normalizing a URI/IRI (reference).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum NormalizeError {
+    /// An underflow occurred in path resolution.
+    ///
+    /// Used only when [`Normalizer::allow_path_underflow`] is set to `false`.
+    PathUnderflow,
+}
+
+#[cfg(feature = "impl-error")]
+impl crate::Error for NormalizeError {}
+
+/// A configurable URI/IRI (reference) normalizer.
+#[derive(Clone, Copy)]
+#[allow(missing_debug_implementations)]
+#[must_use]
+pub struct Normalizer {
+    allow_path_underflow: bool,
+    default_port_f: fn(&Scheme) -> Option<u16>,
+}
+
+impl Normalizer {
+    /// Creates a new `Normalizer` with default configuration.
+    pub fn new() -> Self {
+        Self {
+            allow_path_underflow: true,
+            default_port_f: Scheme::default_port,
+        }
+    }
+
+    /// Sets whether to allow underflow in path normalization.
+    ///
+    /// This defaults to `true`. A value of `false` is a deviation from the
+    /// normalization methods described in
+    /// [Section 6 of RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986/#section-6).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::{normalize::{Normalizer, NormalizeError}, Uri};
+    ///
+    /// let normalizer = Normalizer::new().allow_path_underflow(false);
+    /// let uri = Uri::parse("http://example.com/..")?;
+    ///
+    /// assert_eq!(normalizer.normalize(&uri).unwrap_err(), NormalizeError::PathUnderflow);
+    /// # Ok::<_, fluent_uri::ParseError>(())
+    /// ```
+    pub fn allow_path_underflow(mut self, value: bool) -> Self {
+        self.allow_path_underflow = value;
+        self
+    }
+
+    /// Sets the function with which to get the default port of a scheme.
+    ///
+    /// This defaults to [`Scheme::default_port`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::{component::Scheme, normalize::Normalizer, Uri};
+    ///
+    /// const SCHEME_FOO: &Scheme = Scheme::new_or_panic("foo");
+    ///
+    /// let normalizer = Normalizer::new().default_port_with(|scheme| {
+    ///     if scheme == SCHEME_FOO {
+    ///         Some(4673)
+    ///     } else {
+    ///         scheme.default_port()
+    ///     }
+    /// });
+    /// let uri = Uri::parse("foo://localhost:4673")?;
+    ///
+    /// assert_eq!(normalizer.normalize(&uri).unwrap(), "foo://localhost");
+    /// # Ok::<_, fluent_uri::ParseError>(())
+    /// ```
+    pub fn default_port_with(mut self, f: fn(&Scheme) -> Option<u16>) -> Self {
+        self.default_port_f = f;
+        self
+    }
+
+    /// Normalizes the given URI/IRI (reference).
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` if an underflow occurred in path normalization
+    /// when [`allow_path_underflow`] is set to `false`.
+    ///
+    /// [`allow_path_underflow`]: Self::allow_path_underflow
+    pub fn normalize<R: RiMaybeRef>(&self, r: &R) -> Result<R::WithVal<String>, NormalizeError>
+    where
+        R::Val: Bos<str>,
+    {
+        normalize(
+            r.make_ref(),
+            R::CONSTRAINTS.ascii_only,
+            self.allow_path_underflow,
+            self.default_port_f,
+        )
+        .map(RiMaybeRef::from_pair)
+    }
+}
+
+impl Default for Normalizer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub(crate) fn normalize(
+    r: RmrRef<'_, '_>,
+    ascii_only: bool,
+    allow_path_underflow: bool,
+    default_port_f: fn(&Scheme) -> Option<u16>,
+) -> Result<(String, Meta), NormalizeError> {
     // For "a://[::ffff:5:9]/" the capacity is not enough,
     // but it's fine since this rarely happens.
     let mut buf = String::with_capacity(r.as_str().len());
@@ -21,7 +138,12 @@ pub(crate) fn normalize(r: RmrRef<'_, '_>, ascii_only: bool) -> (String, Meta) {
 
     if r.has_scheme() && path.starts_with('/') {
         normalize_estr(&mut buf, path, false, ascii_only, false);
-        resolve::remove_dot_segments(&mut path_buf, 0, &[&buf]);
+
+        let underflow_occurred = resolve::remove_dot_segments(&mut path_buf, 0, &[&buf]);
+        if underflow_occurred && !allow_path_underflow {
+            return Err(NormalizeError::PathUnderflow);
+        }
+
         buf.clear();
     } else {
         // Don't remove dot segments from relative reference or rootless path.
@@ -80,8 +202,16 @@ pub(crate) fn normalize(r: RmrRef<'_, '_>, ascii_only: bool) -> (String, Meta) {
 
         if let Some(port) = auth.port() {
             if !port.is_empty() {
-                buf.push(':');
-                buf.push_str(port.as_str());
+                let mut eq_default = false;
+                if let Some(scheme) = r.scheme_opt() {
+                    if let Some(default) = default_port_f(scheme) {
+                        eq_default = port.as_str().parse().ok() == Some(default);
+                    }
+                }
+                if !eq_default {
+                    buf.push(':');
+                    buf.push_str(port.as_str());
+                }
             }
         }
     }
@@ -105,7 +235,7 @@ pub(crate) fn normalize(r: RmrRef<'_, '_>, ascii_only: bool) -> (String, Meta) {
         normalize_estr(&mut buf, fragment.as_str(), false, ascii_only, false);
     }
 
-    (buf, meta)
+    Ok((buf, meta))
 }
 
 fn normalize_estr(

@@ -48,7 +48,7 @@ impl<R: Ri> Resolver<R>
 where
     R::Val: Bos<str>,
 {
-    /// Creates a new `Resolver` with the given base.
+    /// Creates a new `Resolver` with the given base and default configuration.
     pub fn with_base(base: R) -> Self {
         Self {
             base,
@@ -214,10 +214,9 @@ pub(crate) fn resolve(
     meta.path_bounds.0 = path_start;
 
     if t_path.0.starts_with('/') {
-        let path = match t_path.1 {
-            Some(s) => &[t_path.0, s][..],
-            None => &[t_path.0],
-        };
+        let path = [t_path.0, t_path.1.unwrap_or("")];
+        let path = &path[..t_path.1.is_some() as usize + 1];
+
         let underflow_occurred = remove_dot_segments(&mut buf, path_start, path);
         if underflow_occurred && !allow_path_underflow {
             return Err(ResolveError::PathUnderflow);

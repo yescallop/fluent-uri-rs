@@ -84,11 +84,12 @@ pub mod component;
 mod convert;
 mod fmt;
 mod imp;
-mod normalize;
+pub mod normalize;
 mod parse;
 pub mod pct_enc;
 pub mod resolve;
 
+pub use convert::ConvertError;
 pub use imp::{Iri, IriRef, Uri, UriRef};
 pub use parse::{ParseError, ParseErrorKind};
 

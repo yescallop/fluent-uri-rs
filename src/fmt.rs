@@ -1,9 +1,11 @@
 use crate::{
     build::BuildError,
     component::{Authority, Host, Scheme},
+    normalize::NormalizeError,
     parse::{ParseError, ParseErrorKind},
     pct_enc::{EStr, EString, Encoder},
     resolve::ResolveError,
+    ConvertError,
 };
 use core::fmt::{Debug, Display, Formatter, Result};
 
@@ -31,22 +33,12 @@ impl<E: Encoder> Display for EString<E> {
     }
 }
 
-impl<I> Debug for ParseError<I> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        f.debug_struct("ParseError")
-            .field("index", &self.index)
-            .field("kind", &self.kind)
-            .finish()
-    }
-}
-
-impl<I> Display for ParseError<I> {
+impl Display for ParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         let msg = match self.kind {
             ParseErrorKind::InvalidPctEncodedOctet => "invalid percent-encoded octet at index ",
             ParseErrorKind::UnexpectedChar => "unexpected character at index ",
             ParseErrorKind::InvalidIpv6Addr => "invalid IPv6 address at index ",
-            ParseErrorKind::SchemeNotPresent => return f.write_str("scheme not present"),
         };
         write!(f, "{}{}", msg, self.index)
     }
@@ -64,6 +56,24 @@ impl Display for BuildError {
             Self::FirstPathSegmentContainsColon => {
                 "when neither scheme nor authority is present, first path segment should not contain ':'"
             }
+        };
+        f.write_str(msg)
+    }
+}
+
+impl Display for ConvertError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        match self {
+            Self::NotAscii { index } => write!(f, "non-ASCII character at index {index}"),
+            Self::NoScheme => f.write_str("scheme not present"),
+        }
+    }
+}
+
+impl Display for NormalizeError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        let msg = match self {
+            Self::PathUnderflow => "underflow occurred in path resolution",
         };
         f.write_str(msg)
     }

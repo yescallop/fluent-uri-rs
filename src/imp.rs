@@ -6,7 +6,8 @@ use crate::{
         Builder,
     },
     component::{Authority, IAuthority, Scheme},
-    normalize,
+    convert::ConvertError,
+    normalize::Normalizer,
     parse::{self, ParseError},
     pct_enc::{encoder::*, EStr, Encoder},
     resolve::{self, ResolveError},
@@ -32,8 +33,6 @@ pub trait Value: Default {}
 impl Value for &str {}
 impl Value for String {}
 
-pub struct NoInput;
-
 pub struct Constraints {
     pub ascii_only: bool,
     pub scheme_required: bool,
@@ -49,13 +48,13 @@ pub trait RiMaybeRef: Sized {
     type QueryE: Encoder;
     type FragmentE: Encoder;
 
+    const CONSTRAINTS: Constraints;
+
     fn new(val: Self::Val, meta: Meta) -> Self;
 
     fn from_pair((val, meta): (Self::Val, Meta)) -> Self {
         Self::new(val, meta)
     }
-
-    fn constraints() -> Constraints;
 
     fn make_ref<'i, 'o>(&'i self) -> RmrRef<'o, 'i>
     where
@@ -78,18 +77,18 @@ impl<'a> Parse for &'a str {
     type Err = ParseError;
 
     fn parse<R: RiMaybeRef<Val = Self::Val>>(self) -> Result<R, Self::Err> {
-        parse::parse(self.as_bytes(), R::constraints()).map(|meta| R::new(self, meta))
+        parse::parse(self.as_bytes(), R::CONSTRAINTS).map(|meta| R::new(self, meta))
     }
 }
 
 impl Parse for String {
     type Val = Self;
-    type Err = ParseError<Self>;
+    type Err = (ParseError, Self);
 
     fn parse<R: RiMaybeRef<Val = Self::Val>>(self) -> Result<R, Self::Err> {
-        match parse::parse(self.as_bytes(), R::constraints()) {
+        match parse::parse(self.as_bytes(), R::CONSTRAINTS) {
             Ok(meta) => Ok(R::new(self, meta)),
-            Err(e) => Err(e.with_input(self)),
+            Err(e) => Err((e, self)),
         }
     }
 }
@@ -246,7 +245,7 @@ macro_rules! ri_maybe_ref {
         #[doc = concat!("let ", $var, ": ", $ty, "<&str> = ", $ty, "::parse(s)?;")]
         ///
         #[doc = concat!("// Parse into a `", $ty, "<String>` from an owned string.")]
-        #[doc = concat!("let ", $var, "_owned: ", $ty, "<String> = ", $ty, "::parse(s.to_owned()).map_err(|e| e.strip_input())?;")]
+        #[doc = concat!("let ", $var, "_owned: ", $ty, "<String> = ", $ty, "::parse(s.to_owned()).map_err(|e| e.0)?;")]
         ///
         #[doc = concat!("// Convert a `", $ty, "<&str>` to `", $ty, "<String>`.")]
         #[doc = concat!("let ", $var, "_owned: ", $ty, "<String> = ", $var, ".to_owned();")]
@@ -274,15 +273,13 @@ macro_rules! ri_maybe_ref {
             type QueryE = $QueryE;
             type FragmentE = $FragmentE;
 
+            const CONSTRAINTS: Constraints = Constraints {
+                ascii_only: $ascii_only,
+                scheme_required: $scheme_required,
+            };
+
             fn new(val: T, meta: Meta) -> Self {
                 Self { val, meta }
-            }
-
-            fn constraints() -> Constraints {
-                Constraints {
-                    ascii_only: $ascii_only,
-                    scheme_required: $scheme_required,
-                }
             }
 
             fn make_ref<'i, 'o>(&'i self) -> RmrRef<'o, 'i>
@@ -305,19 +302,14 @@ macro_rules! ri_maybe_ref {
             /// The return type is
             ///
             #[doc = concat!("- `Result<", $ty, "<&str>, ParseError>` for `I = &str`;")]
-            #[doc = concat!("- `Result<", $ty, "<String>, ParseError<String>>` for `I = String`.")]
+            #[doc = concat!("- `Result<", $ty, "<String>, (ParseError, String)>` for `I = String`.")]
             ///
             /// # Errors
             ///
             /// Returns `Err` if the string does not match the
             #[doc = concat!("[`", $abnf, "`][abnf] ABNF rule from RFC ", $rfc, ".")]
             ///
-            /// From a [`ParseError<String>`], you may recover or strip the input
-            /// by calling [`into_input`] or [`strip_input`] on it.
-            ///
             #[doc = concat!("[abnf]: ", $abnf_link)]
-            /// [`into_input`]: ParseError::into_input
-            /// [`strip_input`]: ParseError::strip_input
             pub fn parse<I>(input: I) -> Result<Self, I::Err>
             where
                 I: Parse<Val = T>,
@@ -603,17 +595,18 @@ macro_rules! ri_maybe_ref {
 
             #[doc = concat!("Normalizes the ", $name, ".")]
             ///
-            /// This method applies the syntax-based normalization described in
+            /// This method applies syntax-based normalization described in
             /// [Section 6.2.2 of RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986#section-6.2.2)
             /// and [Section 5.3.2 of RFC 3987](https://datatracker.ietf.org/doc/html/rfc3987#section-5.3.2),
-            /// which is effectively equivalent to taking the following steps in order:
+            /// along with IPv6 address and default port normalization.
+            /// This is effectively equivalent to taking the following steps in order:
             ///
             /// - Decode any percent-encoded octets that correspond to an allowed character which is not reserved.
             /// - Uppercase the hexadecimal digits within all percent-encoded octets.
             /// - Lowercase all ASCII characters within the scheme and the host except the percent-encoded octets.
             /// - Turn any IPv6 literal address into its canonical form as per
             ///   [RFC 5952](https://datatracker.ietf.org/doc/html/rfc5952).
-            /// - If the port is empty, remove its `':'` delimiter.
+            /// - If the port is empty or equals the [scheme's default], remove its `':'` delimiter.
             /// - If `self` has a scheme and an [absolute] path, apply the
             ///   [`remove_dot_segments`] algorithm to the path, taking account of
             ///   percent-encoded dot segments as described at [`UriRef::resolve_against`].
@@ -622,7 +615,10 @@ macro_rules! ri_maybe_ref {
             ///
             /// This method is idempotent: `self.normalize()` equals `self.normalize().normalize()`.
             ///
+            /// If you need to configure the behavior of normalization, consider using [`Normalizer`] instead.
+            ///
             /// [`UriRef::resolve_against`]: crate::UriRef::resolve_against
+            /// [scheme's default]: Scheme::default_port
             /// [absolute]: EStr::<Path>::is_absolute
             /// [`remove_dot_segments`]: https://datatracker.ietf.org/doc/html/rfc3986#section-5.2.4
             ///
@@ -637,7 +633,7 @@ macro_rules! ri_maybe_ref {
             /// ```
             #[must_use]
             pub fn normalize(&self) -> $Ty<String> {
-                RiMaybeRef::from_pair(normalize::normalize(self.make_ref(), $ascii_only))
+                Normalizer::new().normalize(self).unwrap()
             }
 
             cond!(if $scheme_required {} else {
@@ -859,7 +855,7 @@ macro_rules! ri_maybe_ref {
         }
 
         impl TryFrom<String> for $Ty<String> {
-            type Error = ParseError<String>;
+            type Error = (ParseError, String);
 
             /// Equivalent to [`parse`](Self::parse).
             #[inline]
@@ -937,7 +933,12 @@ macro_rules! ri_maybe_ref {
                 D: Deserializer<'de>,
             {
                 let s = <&str>::deserialize(deserializer)?;
-                $Ty::parse(s).map_err(de::Error::custom)
+                $Ty::parse(s).map_err(|e| {
+                    de::Error::custom(format_args!(
+                        "failed to parse {s:?} as {}: {e}",
+                        $name
+                    ))
+                })
             }
         }
 
@@ -948,7 +949,12 @@ macro_rules! ri_maybe_ref {
                 D: Deserializer<'de>,
             {
                 let s = String::deserialize(deserializer)?;
-                $Ty::parse(s).map_err(de::Error::custom)
+                $Ty::parse(s).map_err(|(s, e)| {
+                    de::Error::custom(format_args!(
+                        "failed to parse {s:?} as {}: {e}",
+                        $name
+                    ))
+                })
             }
         }
     };
@@ -1064,18 +1070,19 @@ impl<'v, 'm> RmrRef<'v, 'm> {
         self.meta.query_or_path_end() != self.val.len()
     }
 
-    pub fn ensure_has_scheme(self) -> Result<(), ParseError> {
-        if !self.has_scheme() {
-            parse::err!(0, SchemeNotPresent);
+    pub fn ensure_has_scheme(self) -> Result<(), ConvertError> {
+        if self.has_scheme() {
+            Ok(())
+        } else {
+            Err(ConvertError::NoScheme)
         }
-        Ok(())
     }
 
-    pub fn ensure_ascii(self) -> Result<(), ParseError> {
-        if let Some(pos) = self.as_str().bytes().position(|x| !x.is_ascii()) {
-            parse::err!(pos, UnexpectedChar);
+    pub fn ensure_ascii(self) -> Result<(), ConvertError> {
+        match self.as_str().bytes().position(|x| !x.is_ascii()) {
+            Some(index) => Err(ConvertError::NotAscii { index }),
+            None => Ok(()),
         }
-        Ok(())
     }
 }
 

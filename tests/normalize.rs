@@ -12,6 +12,21 @@ fn normalize() {
     let r = UriRef::parse("eXAMPLE://a/./b/../b/%63/%7bfoo%7d").unwrap();
     assert_eq!(r.normalize(), "example://a/b/c/%7Bfoo%7D");
 
+    // Examples from Section 6.2.3 of RFC 3986.
+
+    // An empty path is not normalized to "/" for now.
+    let r = UriRef::parse("http://example.com").unwrap();
+    assert_eq!(r.normalize(), "http://example.com");
+
+    let r = UriRef::parse("http://example.com/").unwrap();
+    assert_eq!(r.normalize(), "http://example.com/");
+
+    let r = UriRef::parse("http://example.com:/").unwrap();
+    assert_eq!(r.normalize(), "http://example.com/");
+
+    let r = UriRef::parse("http://example.com:80/").unwrap();
+    assert_eq!(r.normalize(), "http://example.com/");
+
     // Lowercase percent-encoded octet.
     let r = UriRef::parse("%3a").unwrap();
     assert_eq!(r.normalize(), "%3A");
@@ -19,10 +34,6 @@ fn normalize() {
     // Uppercase letters in scheme and registered name.
     let r = UriRef::parse("HTTP://www.EXAMPLE.com/").unwrap();
     assert_eq!(r.normalize(), "http://www.example.com/");
-
-    // Empty port.
-    let r = UriRef::parse("http://example.com:/").unwrap();
-    assert_eq!(r.normalize(), "http://example.com/");
 
     // Underflow in path resolution.
     let r = UriRef::parse("http://a/../../../g").unwrap();

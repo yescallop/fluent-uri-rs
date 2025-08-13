@@ -1,4 +1,4 @@
-use fluent_uri::{Iri, IriRef, ParseErrorKind, Uri, UriRef};
+use fluent_uri::{ConvertError, Iri, IriRef, Uri, UriRef};
 
 #[test]
 fn iri_to_uri() {
@@ -48,26 +48,24 @@ fn uri_to_iri() {
 fn convert_error() {
     let uri_ref = UriRef::parse("rel/ref").unwrap();
     let e = Uri::try_from(uri_ref).unwrap_err();
-    assert_eq!(e.kind(), ParseErrorKind::SchemeNotPresent);
+    assert_eq!(e, ConvertError::NoScheme);
 
     let uri_ref = UriRef::parse("").unwrap();
     let e = Uri::try_from(uri_ref).unwrap_err();
-    assert_eq!(e.kind(), ParseErrorKind::SchemeNotPresent);
+    assert_eq!(e, ConvertError::NoScheme);
 
     let iri = Iri::parse("http://你好.example.com/").unwrap();
     let e = Uri::try_from(iri).unwrap_err();
-    assert_eq!(e.index(), 7);
-    assert_eq!(e.kind(), ParseErrorKind::UnexpectedChar);
+    assert_eq!(e, ConvertError::NotAscii { index: 7 });
 
     let iri_ref = IriRef::parse("réf/rel").unwrap();
 
     let e = Uri::try_from(iri_ref).unwrap_err();
-    assert_eq!(e.kind(), ParseErrorKind::SchemeNotPresent);
+    assert_eq!(e, ConvertError::NoScheme);
 
     let e = UriRef::try_from(iri_ref).unwrap_err();
-    assert_eq!(e.index(), 1);
-    assert_eq!(e.kind(), ParseErrorKind::UnexpectedChar);
+    assert_eq!(e, ConvertError::NotAscii { index: 1 });
 
     let e = Iri::try_from(iri_ref).unwrap_err();
-    assert_eq!(e.kind(), ParseErrorKind::SchemeNotPresent);
+    assert_eq!(e, ConvertError::NoScheme);
 }
