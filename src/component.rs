@@ -121,8 +121,7 @@ macro_rules! default_port {
             ///
             /// [iana]: https://www.iana.org/assignments/uri-schemes/uri-schemes.xhtml
             ///
-            /// The following table lists all schemes concerned, their default ports, 
-            /// and references:
+            /// The following table lists all schemes concerned, their default ports, and references:
             ///
             /// | Scheme | Port | Reference |
             /// | - | - | - |

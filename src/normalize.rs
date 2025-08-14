@@ -18,7 +18,7 @@ use core::{fmt::Write, num::NonZeroUsize};
 /// An error occurred when normalizing a URI/IRI (reference).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NormalizeError {
-    /// An underflow occurred in path resolution.
+    /// An underflow occurred in path normalization.
     ///
     /// Used only when [`Normalizer::allow_path_underflow`] is set to `false`.
     PathUnderflow,
