@@ -56,7 +56,7 @@ macro_rules! impl_try_from {
                 fn try_from(value: $x<&'a str>) -> Result<Self, Self::Error> {
                     let r = value.make_ref();
                     $(r.$cond()?;)+
-                    Ok((RiMaybeRef::new(value.val, value.meta)))
+                    Ok(RiMaybeRef::new(value.val, value.meta))
                 }
             }
 
@@ -72,7 +72,7 @@ macro_rules! impl_try_from {
                             return Err((e, value));
                         }
                     )+
-                    Ok((RiMaybeRef::new(value.val, value.meta)))
+                    Ok(RiMaybeRef::new(value.val, value.meta))
                 }
             }
         )*

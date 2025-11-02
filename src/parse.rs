@@ -62,8 +62,6 @@ macro_rules! err {
     };
 }
 
-pub(crate) use err;
-
 pub(crate) fn parse(bytes: &[u8], constraints: Constraints) -> Result<Meta> {
     let mut parser = Parser {
         constraints,
