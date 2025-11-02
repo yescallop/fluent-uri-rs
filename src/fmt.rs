@@ -1,10 +1,7 @@
 use crate::{
-    build::BuildError,
     component::{Authority, Host, Scheme},
-    normalize::NormalizeError,
     parse::{ParseError, ParseErrorKind},
-    pct_enc::{EStr, EString, Encoder},
-    resolve::ResolveError,
+    pct_enc::{EStr, Encoder},
     ConvertError,
 };
 use core::fmt::{Debug, Display, Formatter, Result};
@@ -21,18 +18,6 @@ impl<E: Encoder> Display for EStr<E> {
     }
 }
 
-impl<E: Encoder> Debug for EString<E> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        Debug::fmt(self.as_str(), f)
-    }
-}
-
-impl<E: Encoder> Display for EString<E> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        Display::fmt(self.as_str(), f)
-    }
-}
-
 impl Display for ParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         let msg = match self.kind {
@@ -44,51 +29,12 @@ impl Display for ParseError {
     }
 }
 
-impl Display for BuildError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        let msg = match self {
-            Self::NonemptyRootlessPath => {
-                "when authority is present, path should either be empty or start with '/'"
-            }
-            Self::PathStartsWithDoubleSlash => {
-                "when authority is not present, path should not start with \"//\""
-            }
-            Self::FirstPathSegmentContainsColon => {
-                "when neither scheme nor authority is present, first path segment should not contain ':'"
-            }
-        };
-        f.write_str(msg)
-    }
-}
-
 impl Display for ConvertError {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         match self {
             Self::NotAscii { index } => write!(f, "non-ASCII character at index {index}"),
             Self::NoScheme => f.write_str("scheme not present"),
         }
-    }
-}
-
-impl Display for NormalizeError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        let msg = match self {
-            Self::PathUnderflow => "underflow occurred in path resolution",
-        };
-        f.write_str(msg)
-    }
-}
-
-impl Display for ResolveError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        let msg = match self {
-            Self::BaseWithFragment => "base should not have fragment",
-            Self::InvalidReferenceAgainstOpaqueBase => {
-                "when base has a rootless path and no authority, reference should either have scheme, be empty or start with '#'"
-            }
-            Self::PathUnderflow => "underflow occurred in path resolution",
-        };
-        f.write_str(msg)
     }
 }
 

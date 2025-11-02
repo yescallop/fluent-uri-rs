@@ -5,7 +5,7 @@
 //!
 //! [RFC 5234]: https://datatracker.ietf.org/doc/html/rfc5234
 
-use alloc::string::String;
+use crate::utf8;
 
 const TABLE_LEN: usize = 256 + 3;
 const INDEX_PCT_ENCODED: usize = 256;
@@ -150,7 +150,8 @@ impl Table {
         self.table[INDEX_PCT_ENCODED]
     }
 
-    pub(crate) fn encode(&self, ch: char, buf: &mut String) {
+    #[cfg(feature = "alloc")]
+    pub(crate) fn encode(&self, ch: char, buf: &mut alloc::string::String) {
         if self.allows(ch) {
             buf.push(ch);
         } else {
@@ -179,7 +180,7 @@ impl Table {
                 }
                 i += 3;
             } else if allow_non_ascii {
-                let (x, len) = super::next_code_point(s, i);
+                let (x, len) = utf8::next_code_point(s, i);
                 if !self.allows_code_point(x) {
                     return false;
                 }

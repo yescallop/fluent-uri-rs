@@ -1,5 +1,6 @@
 use fluent_uri::{ConvertError, Iri, IriRef, Uri, UriRef};
 
+#[cfg(feature = "alloc")]
 #[test]
 fn iri_to_uri() {
     let iri = Iri::parse("http://résumé.example.org").unwrap();
@@ -18,6 +19,7 @@ fn iri_to_uri() {
     );
 }
 
+#[cfg(feature = "alloc")]
 #[test]
 fn uri_to_iri() {
     let uri = Uri::parse("http://www.example.org/r%E9sum%E9.html").unwrap();

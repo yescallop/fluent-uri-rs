@@ -1,6 +1,7 @@
-use super::{Assert, EStr, Encoder, Utf8Chunks};
+use super::{Assert, EStr, Encoder};
+use crate::utf8::Utf8Chunks;
 use alloc::{borrow::ToOwned, string::String};
-use core::{borrow::Borrow, cmp::Ordering, hash, marker::PhantomData, ops::Deref};
+use core::{borrow::Borrow, cmp::Ordering, fmt, hash, marker::PhantomData, ops::Deref};
 
 /// A percent-encoded, growable string.
 ///
@@ -274,5 +275,17 @@ impl<E: Encoder> PartialOrd for EString<E> {
 impl<E: Encoder> Ord for EString<E> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.inner.cmp(&other.inner)
+    }
+}
+
+impl<E: Encoder> fmt::Debug for EString<E> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_str().fmt(f)
+    }
+}
+
+impl<E: Encoder> fmt::Display for EString<E> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_str().fmt(f)
     }
 }

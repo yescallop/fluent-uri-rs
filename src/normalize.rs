@@ -5,15 +5,18 @@ use crate::{
     imp::{HostMeta, Meta, RiMaybeRef, RmrRef},
     parse,
     pct_enc::{
-        decode_octet, encode_byte, next_code_point,
+        decode_octet, encode_byte,
         table::{is_iprivate, is_ucschar, UNRESERVED},
-        Utf8Chunks,
     },
     resolve,
+    utf8::{self, Utf8Chunks},
 };
 use alloc::{string::String, vec::Vec};
 use borrow_or_share::Bos;
-use core::{fmt::Write, num::NonZeroUsize};
+use core::{
+    fmt::{self, Write},
+    num::NonZeroUsize,
+};
 
 /// An error occurred when normalizing a URI/IRI (reference).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -22,6 +25,15 @@ pub enum NormalizeError {
     ///
     /// Used only when [`Normalizer::allow_path_underflow`] is set to `false`.
     PathUnderflow,
+}
+
+impl fmt::Display for NormalizeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let msg = match self {
+            Self::PathUnderflow => "underflow occurred in path resolution",
+        };
+        f.write_str(msg)
+    }
 }
 
 #[cfg(feature = "impl-error")]
@@ -294,7 +306,7 @@ fn normalize_estr(
             } else {
                 consume_dec_buf(buf, &mut dec_buf, is_query);
 
-                let (x, len) = next_code_point(s, i);
+                let (x, len) = utf8::next_code_point(s, i);
                 let mut x = char::from_u32(x).unwrap();
                 if to_ascii_lowercase {
                     x = x.to_ascii_lowercase();

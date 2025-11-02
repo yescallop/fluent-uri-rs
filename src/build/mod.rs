@@ -14,7 +14,7 @@ use crate::{
     pct_enc::EStr,
 };
 use alloc::string::String;
-use core::marker::PhantomData;
+use core::{fmt, marker::PhantomData};
 
 /// An error occurred when building a URI/IRI (reference).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -25,6 +25,23 @@ pub enum BuildError {
     PathStartsWithDoubleSlash,
     /// Neither scheme nor authority is present, but the first path segment contains `':'`.
     FirstPathSegmentContainsColon,
+}
+
+impl fmt::Display for BuildError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let msg = match self {
+            Self::NonemptyRootlessPath => {
+                "when authority is present, path should either be empty or start with '/'"
+            }
+            Self::PathStartsWithDoubleSlash => {
+                "when authority is not present, path should not start with \"//\""
+            }
+            Self::FirstPathSegmentContainsColon => {
+                "when neither scheme nor authority is present, first path segment should not contain ':'"
+            }
+        };
+        f.write_str(msg)
+    }
 }
 
 #[cfg(feature = "impl-error")]

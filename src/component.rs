@@ -277,7 +277,7 @@ impl<'a> AuthorityInner<'a> {
             )),
             HostMeta::RegName => {
                 let name = EStr::<IRegName>::new_validated(self.host());
-                let name = name.decode().into_string().map_err(|_| {
+                let name = name.decode().to_string().map_err(|_| {
                     io::Error::new(
                         io::ErrorKind::InvalidInput,
                         "registered name does not decode to valid UTF-8",
@@ -318,6 +318,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     /// An empty authority component.
     pub const EMPTY: Authority<'static, UserinfoE, RegNameE> = Authority::new("", AuthMeta::EMPTY);
 
+    #[cfg(feature = "alloc")]
     pub(crate) fn meta(&self) -> AuthMeta {
         self.inner.meta
     }

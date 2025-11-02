@@ -1,25 +1,24 @@
 //! Percent-encoding utilities.
 
 pub mod encoder;
+#[cfg(feature = "alloc")]
 mod estring;
-mod imp;
 pub(crate) mod table;
-mod utf8;
 
+#[cfg(feature = "alloc")]
 pub use estring::EString;
 pub use table::Table;
 
-pub(crate) use imp::{decode_octet, encode_byte, OCTET_TABLE_LO};
-pub(crate) use utf8::{next_code_point, Utf8Chunks};
-
 use crate::imp::PathEncoder;
-use alloc::{
-    borrow::{Cow, ToOwned},
-    string::{FromUtf8Error, String},
-    vec::Vec,
-};
 use core::{cmp::Ordering, hash, iter::FusedIterator, marker::PhantomData, str};
 use ref_cast::{ref_cast_custom, RefCastCustom};
+
+#[cfg(feature = "alloc")]
+use alloc::{
+    borrow::{Cow, ToOwned},
+    string::String,
+    vec::Vec,
+};
 
 /// A trait used by [`EStr`] and [`EString`] to specify the table used for encoding.
 ///
@@ -66,7 +65,7 @@ pub trait Encoder: 'static {
 /// let map: HashMap<_, _> = query
 ///     .split('&')
 ///     .map(|s| s.split_once('=').unwrap_or((s, EStr::EMPTY)))
-///     .map(|(k, v)| (k.decode().into_string_lossy(), v.decode().into_string_lossy()))
+///     .map(|(k, v)| (k.decode().to_string_lossy(), v.decode().to_string_lossy()))
 ///     .collect();
 /// assert_eq!(map["name"], "张三");
 /// assert_eq!(map["speech"], "¡Olé!");
@@ -79,10 +78,12 @@ pub struct EStr<E: Encoder> {
     inner: str,
 }
 
+#[cfg(feature = "alloc")]
 struct Assert<L: Encoder, R: Encoder> {
     _marker: PhantomData<(L, R)>,
 }
 
+#[cfg(feature = "alloc")]
 impl<L: Encoder, R: Encoder> Assert<L, R> {
     const L_IS_SUB_ENCODER_OF_R: () = assert!(L::TABLE.is_subset(R::TABLE), "not a sub-encoder");
 }
@@ -167,14 +168,18 @@ impl<E: Encoder> EStr<E> {
         EStr::new_validated(self.as_str())
     }
 
-    /// Decodes the `EStr` slice.
+    /// Checks whether the `EStr` slice is unencoded, i.e., does not contain `'%'`.
+    #[must_use]
+    pub fn is_unencoded(&self) -> bool {
+        self.inner.contains('%')
+    }
+
+    /// Returns an iterator used to decode the `EStr` slice.
     ///
-    /// Always **split** before decoding, as otherwise the data may be
+    /// Always **split before decoding**, as otherwise the data may be
     /// mistaken for component delimiters.
     ///
-    /// This method allocates only when the slice contains any percent-encoded octet.
-    ///
-    /// Note that this method will **not** decode `U+002B` (+) as `0x20` (space).
+    /// Note that the iterator will **not** decode `U+002B` (+) as `0x20` (space).
     ///
     /// # Panics
     ///
@@ -188,16 +193,13 @@ impl<E: Encoder> EStr<E> {
     /// use fluent_uri::pct_enc::{encoder::Path, EStr};
     ///
     /// let dec = EStr::<Path>::new_or_panic("%C2%A1Hola%21").decode();
-    /// assert_eq!(dec.as_bytes(), &[0xc2, 0xa1, 0x48, 0x6f, 0x6c, 0x61, 0x21]);
-    /// assert_eq!(dec.into_string().unwrap(), "¡Hola!");
+    /// assert_eq!(*dec.clone().to_bytes(), [0xc2, 0xa1, 0x48, 0x6f, 0x6c, 0x61, 0x21]);
+    /// assert_eq!(dec.to_string().unwrap(), "¡Hola!");
     /// ```
-    #[must_use]
     pub fn decode(&self) -> Decode<'_> {
         () = Self::ASSERT_ALLOWS_PCT_ENCODED;
-
-        match imp::decode(self.inner.as_bytes()) {
-            Some(vec) => Decode::Owned(vec),
-            None => Decode::Borrowed(self.as_str()),
+        Decode {
+            source: &self.inner,
         }
     }
 
@@ -355,6 +357,7 @@ impl<E: Encoder> Default for &EStr<E> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<E: Encoder> ToOwned for EStr<E> {
     type Owned = EString<E>;
 
@@ -427,60 +430,289 @@ impl<E: PathEncoder> EStr<E> {
     }
 }
 
-/// A wrapper of percent-decoded bytes.
-///
-/// This enum is created by [`EStr::decode`].
-#[derive(Clone, Debug)]
-pub enum Decode<'a> {
-    /// No percent-encoded octets are decoded.
-    Borrowed(&'a str),
-    /// One or more percent-encoded octets are decoded.
-    Owned(Vec<u8>),
+const fn gen_octet_table(hi: bool) -> [u8; 256] {
+    let mut out = [0xff; 256];
+    let shift = if hi { 4 } else { 0 };
+
+    let mut i = 0;
+    while i < 10 {
+        out[(i + b'0') as usize] = i << shift;
+        i += 1;
+    }
+    while i < 16 {
+        out[(i - 10 + b'A') as usize] = i << shift;
+        out[(i - 10 + b'a') as usize] = i << shift;
+        i += 1;
+    }
+    out
 }
 
+const OCTET_TABLE_HI: &[u8; 256] = &gen_octet_table(true);
+pub(crate) const OCTET_TABLE_LO: &[u8; 256] = &gen_octet_table(false);
+
+/// Decodes a percent-encoded octet, assuming that the bytes are hexadecimal.
+pub(crate) fn decode_octet(hi: u8, lo: u8) -> u8 {
+    debug_assert!(hi.is_ascii_hexdigit() && lo.is_ascii_hexdigit());
+    OCTET_TABLE_HI[hi as usize] | OCTET_TABLE_LO[lo as usize]
+}
+
+#[cfg(feature = "alloc")]
+pub(crate) fn encode_byte(x: u8, buf: &mut alloc::string::String) {
+    const HEX_TABLE: [u8; 512] = {
+        const HEX_DIGITS: &[u8; 16] = b"0123456789ABCDEF";
+
+        let mut i = 0;
+        let mut table = [0; 512];
+        while i < 256 {
+            table[i * 2] = HEX_DIGITS[i >> 4];
+            table[i * 2 + 1] = HEX_DIGITS[i & 0b1111];
+            i += 1;
+        }
+        table
+    };
+
+    buf.push('%');
+    buf.push(HEX_TABLE[x as usize * 2] as char);
+    buf.push(HEX_TABLE[x as usize * 2 + 1] as char);
+}
+
+/// An iterator used to decode an [`EStr`] slice.
+///
+/// This struct is created by [`EStr::decode`]. Normally you'll use the methods below
+/// instead of iterating over a `Decode` manually, unless you need precise control
+/// over allocation.
+///
+/// See the [`DecodedChunk`] type for documentation of the items yielded by this iterator.
+#[derive(Clone, Debug)]
+#[must_use = "iterators are lazy and do nothing unless consumed"]
+pub struct Decode<'a> {
+    source: &'a str,
+}
+
+/// An item returned by the [`Decode`] iterator.
+#[derive(Clone, Copy, Debug)]
+pub enum DecodedChunk<'a> {
+    /// An unencoded subslice.
+    Unencoded(&'a str),
+    /// A percent-encoded octet, decoded (for example, `"%20"` decoded as `0x20`).
+    PctDecoded(u8),
+}
+
+impl<'a> Iterator for Decode<'a> {
+    type Item = DecodedChunk<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.source.is_empty() {
+            return None;
+        }
+
+        let i = self
+            .source
+            .bytes()
+            .position(|x| x == b'%')
+            .unwrap_or(self.source.len());
+
+        if i == 0 {
+            let (s, rest) = self.source.split_at(3);
+            let x = decode_octet(s.as_bytes()[1], s.as_bytes()[2]);
+            self.source = rest;
+            Some(DecodedChunk::PctDecoded(x))
+        } else {
+            let (s, rest) = self.source.split_at(i);
+            self.source = rest;
+            Some(DecodedChunk::Unencoded(s))
+        }
+    }
+}
+
+impl FusedIterator for Decode<'_> {}
+
+#[cfg(feature = "alloc")]
+enum DecodeUtf8Chunk<'a, 'b> {
+    Unencoded(&'a str),
+    Decoded { valid: &'b str, invalid: &'b [u8] },
+}
+
+#[cfg(feature = "alloc")]
+fn decode_utf8<'a>(
+    iter: impl Iterator<Item = DecodedChunk<'a>>,
+    mut handle_chunk: impl FnMut(DecodeUtf8Chunk<'a, '_>),
+) {
+    use crate::utf8::Utf8Chunks;
+
+    let mut buf = [0; 32];
+    let mut cnt = 0;
+
+    'decode: for chunk in iter {
+        match chunk {
+            DecodedChunk::Unencoded(s) => {
+                if cnt > 0 {
+                    for chunk in Utf8Chunks::new(&buf[..cnt]) {
+                        handle_chunk(DecodeUtf8Chunk::Decoded {
+                            valid: chunk.valid(),
+                            invalid: chunk.invalid(),
+                        });
+                    }
+                    cnt = 0;
+                }
+                handle_chunk(DecodeUtf8Chunk::Unencoded(s));
+            }
+            DecodedChunk::PctDecoded(x) => {
+                buf[cnt] = x;
+                cnt += 1;
+
+                if cnt >= buf.len() {
+                    for chunk in Utf8Chunks::new(&buf[..cnt]) {
+                        if chunk.incomplete() {
+                            handle_chunk(DecodeUtf8Chunk::Decoded {
+                                valid: chunk.valid(),
+                                invalid: &[],
+                            });
+
+                            let invalid_len = chunk.invalid().len();
+                            buf.copy_within(cnt - invalid_len..cnt, 0);
+
+                            cnt = invalid_len;
+                            continue 'decode;
+                        }
+                        handle_chunk(DecodeUtf8Chunk::Decoded {
+                            valid: chunk.valid(),
+                            invalid: chunk.invalid(),
+                        });
+                    }
+                    cnt = 0;
+                }
+            }
+        }
+    }
+
+    for chunk in Utf8Chunks::new(&buf[..cnt]) {
+        handle_chunk(DecodeUtf8Chunk::Decoded {
+            valid: chunk.valid(),
+            invalid: chunk.invalid(),
+        });
+    }
+}
+
+#[cfg(feature = "alloc")]
 impl<'a> Decode<'a> {
-    /// Returns a reference to the decoded bytes.
-    #[inline]
+    /// Decodes the slice to bytes.
+    ///
+    /// This method allocates only when the slice contains any percent-encoded octet.
     #[must_use]
-    pub fn as_bytes(&self) -> &[u8] {
-        match self {
-            Self::Borrowed(s) => s.as_bytes(),
-            Self::Owned(vec) => vec,
+    pub fn to_bytes(self) -> Cow<'a, [u8]> {
+        let len = self.source.len();
+        let mut iter = self.peekable();
+
+        let mut buf;
+        match iter.peek() {
+            Some(&DecodedChunk::Unencoded(s)) => {
+                iter.next();
+                if iter.peek().is_none() {
+                    return Cow::Borrowed(s.as_bytes());
+                }
+                buf = Vec::with_capacity(len);
+                buf.extend_from_slice(s.as_bytes());
+            }
+            None => return Cow::Borrowed(&[]),
+            _ => buf = Vec::with_capacity(len),
         }
+
+        for chunk in iter {
+            match chunk {
+                DecodedChunk::Unencoded(s) => buf.extend_from_slice(s.as_bytes()),
+                DecodedChunk::PctDecoded(s) => buf.push(s),
+            }
+        }
+        Cow::Owned(buf)
     }
 
-    /// Consumes this `Decode` and yields the underlying decoded bytes.
-    #[inline]
-    #[must_use]
-    pub fn into_bytes(self) -> Cow<'a, [u8]> {
-        match self {
-            Self::Borrowed(s) => Cow::Borrowed(s.as_bytes()),
-            Self::Owned(vec) => Cow::Owned(vec),
-        }
-    }
-
-    /// Converts the decoded bytes to a string.
+    /// Attempts to decode the slice to a string.
+    ///
+    /// This method allocates only when the slice contains any percent-encoded octet.
     ///
     /// # Errors
     ///
-    /// Returns `Err` if the bytes are not valid UTF-8.
-    #[inline]
-    pub fn into_string(self) -> Result<Cow<'a, str>, FromUtf8Error> {
-        match self {
-            Self::Borrowed(s) => Ok(Cow::Borrowed(s)),
-            Self::Owned(vec) => String::from_utf8(vec).map(Cow::Owned),
+    /// Returns `Err` containing the decoded bytes if they are not valid UTF-8.
+    pub fn to_string(self) -> Result<Cow<'a, str>, Vec<u8>> {
+        let len = self.source.len();
+        let mut iter = self.peekable();
+
+        let mut buf;
+        match iter.peek() {
+            Some(&DecodedChunk::Unencoded(s)) => {
+                iter.next();
+                if iter.peek().is_none() {
+                    return Ok(Cow::Borrowed(s));
+                }
+                buf = String::with_capacity(len);
+                buf.push_str(s);
+            }
+            None => return Ok(Cow::Borrowed("")),
+            _ => buf = String::with_capacity(len),
+        }
+
+        let mut buf = Ok::<_, Vec<u8>>(buf);
+
+        decode_utf8(iter, |chunk| match chunk {
+            DecodeUtf8Chunk::Unencoded(s) => match &mut buf {
+                Ok(string) => string.push_str(s),
+                Err(vec) => vec.extend_from_slice(s.as_bytes()),
+            },
+            DecodeUtf8Chunk::Decoded { valid, invalid } => match &mut buf {
+                Ok(string) => {
+                    string.push_str(valid);
+                    if !invalid.is_empty() {
+                        let mut vec = core::mem::take(string).into_bytes();
+                        vec.extend_from_slice(invalid);
+                        buf = Err(vec);
+                    }
+                }
+                Err(vec) => {
+                    vec.extend_from_slice(valid.as_bytes());
+                    vec.extend_from_slice(invalid);
+                }
+            },
+        });
+
+        match buf {
+            Ok(buf) => Ok(Cow::Owned(buf)),
+            Err(buf) => Err(buf),
         }
     }
 
-    /// Converts the decoded bytes to a string, including invalid characters.
+    /// Decodes the slice to a string, including invalid characters.
     ///
-    /// This calls [`String::from_utf8_lossy`] if the bytes are not valid UTF-8.
+    /// This method allocates only when the slice contains any percent-encoded octet.
     #[must_use]
-    pub fn into_string_lossy(self) -> Cow<'a, str> {
-        match self.into_string() {
-            Ok(string) => string,
-            Err(e) => Cow::Owned(String::from_utf8_lossy(e.as_bytes()).into_owned()),
+    pub fn to_string_lossy(self) -> Cow<'a, str> {
+        let len = self.source.len();
+        let mut iter = self.peekable();
+
+        let mut buf;
+        match iter.peek() {
+            Some(&DecodedChunk::Unencoded(s)) => {
+                iter.next();
+                if iter.peek().is_none() {
+                    return Cow::Borrowed(s);
+                }
+                buf = String::with_capacity(len);
+                buf.push_str(s);
+            }
+            None => return Cow::Borrowed(""),
+            _ => buf = String::with_capacity(len),
         }
+
+        decode_utf8(iter, |chunk| match chunk {
+            DecodeUtf8Chunk::Unencoded(s) => buf.push_str(s),
+            DecodeUtf8Chunk::Decoded { valid, invalid } => {
+                buf.push_str(valid);
+                if !invalid.is_empty() {
+                    buf.push(char::REPLACEMENT_CHARACTER);
+                }
+            }
+        });
+        Cow::Owned(buf)
     }
 }
 

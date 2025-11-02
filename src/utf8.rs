@@ -1,7 +1,5 @@
 //! UTF-8 utilities taken from `core::str`, Rust 1.81.
 
-use core::str;
-
 #[inline]
 const fn utf8_first_byte(byte: u8, width: u32) -> u32 {
     (byte & (0x7F >> width)) as u32
@@ -35,6 +33,7 @@ pub const fn next_code_point(bytes: &[u8], i: usize) -> (u32, usize) {
     }
 }
 
+#[cfg(feature = "alloc")]
 const UTF8_CHAR_WIDTH: &[u8; 256] = &[
     // 1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 0
@@ -55,6 +54,7 @@ const UTF8_CHAR_WIDTH: &[u8; 256] = &[
     4, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // F
 ];
 
+#[cfg(feature = "alloc")]
 #[inline]
 const fn utf8_char_width(b: u8) -> usize {
     UTF8_CHAR_WIDTH[b as usize] as usize
@@ -62,11 +62,14 @@ const fn utf8_char_width(b: u8) -> usize {
 
 const CONT_MASK: u8 = 0b0011_1111;
 
+#[cfg(feature = "alloc")]
 pub struct Utf8Chunk<'a> {
     valid: &'a str,
     invalid: &'a [u8],
+    incomplete: bool,
 }
 
+#[cfg(feature = "alloc")]
 impl<'a> Utf8Chunk<'a> {
     pub fn valid(&self) -> &'a str {
         self.valid
@@ -75,18 +78,25 @@ impl<'a> Utf8Chunk<'a> {
     pub fn invalid(&self) -> &'a [u8] {
         self.invalid
     }
+
+    pub fn incomplete(&self) -> bool {
+        self.incomplete
+    }
 }
 
+#[cfg(feature = "alloc")]
 pub struct Utf8Chunks<'a> {
     source: &'a [u8],
 }
 
+#[cfg(feature = "alloc")]
 impl<'a> Utf8Chunks<'a> {
     pub fn new(bytes: &'a [u8]) -> Self {
         Self { source: bytes }
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<'a> Iterator for Utf8Chunks<'a> {
     type Item = Utf8Chunk<'a>;
 
@@ -96,9 +106,15 @@ impl<'a> Iterator for Utf8Chunks<'a> {
         }
 
         const TAG_CONT_U8: u8 = 128;
-        fn safe_get(xs: &[u8], i: usize) -> u8 {
-            *xs.get(i).unwrap_or(&0)
-        }
+
+        let mut incomplete = false;
+        let mut safe_get = |i| match self.source.get(i) {
+            Some(x) => *x,
+            None => {
+                incomplete = true;
+                0
+            }
+        };
 
         let mut i = 0;
         let mut valid_up_to = 0;
@@ -111,13 +127,13 @@ impl<'a> Iterator for Utf8Chunks<'a> {
 
                 match w {
                     2 => {
-                        if safe_get(self.source, i) & 192 != TAG_CONT_U8 {
+                        if safe_get(i) & 192 != TAG_CONT_U8 {
                             break;
                         }
                         i += 1;
                     }
                     3 => {
-                        match (byte, safe_get(self.source, i)) {
+                        match (byte, safe_get(i)) {
                             (0xE0, 0xA0..=0xBF) => (),
                             (0xE1..=0xEC, 0x80..=0xBF) => (),
                             (0xED, 0x80..=0x9F) => (),
@@ -125,24 +141,24 @@ impl<'a> Iterator for Utf8Chunks<'a> {
                             _ => break,
                         }
                         i += 1;
-                        if safe_get(self.source, i) & 192 != TAG_CONT_U8 {
+                        if safe_get(i) & 192 != TAG_CONT_U8 {
                             break;
                         }
                         i += 1;
                     }
                     4 => {
-                        match (byte, safe_get(self.source, i)) {
+                        match (byte, safe_get(i)) {
                             (0xF0, 0x90..=0xBF) => (),
                             (0xF1..=0xF3, 0x80..=0xBF) => (),
                             (0xF4, 0x80..=0x8F) => (),
                             _ => break,
                         }
                         i += 1;
-                        if safe_get(self.source, i) & 192 != TAG_CONT_U8 {
+                        if safe_get(i) & 192 != TAG_CONT_U8 {
                             break;
                         }
                         i += 1;
-                        if safe_get(self.source, i) & 192 != TAG_CONT_U8 {
+                        if safe_get(i) & 192 != TAG_CONT_U8 {
                             break;
                         }
                         i += 1;
@@ -160,8 +176,9 @@ impl<'a> Iterator for Utf8Chunks<'a> {
         let (valid, invalid) = inspected.split_at(valid_up_to);
 
         Some(Utf8Chunk {
-            valid: str::from_utf8(valid).unwrap(),
+            valid: core::str::from_utf8(valid).unwrap(),
             invalid,
+            incomplete,
         })
     }
 }

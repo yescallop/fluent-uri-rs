@@ -13,11 +13,11 @@
     // clippy::redundant_closure_for_method_calls,
     clippy::redundant_else,
     clippy::semicolon_if_nothing_returned,
-    clippy::single_match_else,
+    // clippy::single_match_else,
     clippy::use_self,
 )]
 #![forbid(unsafe_code)]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![no_std]
 
 //! A generic URI/IRI handling library compliant with [RFC 3986] and [RFC 3987].
@@ -79,15 +79,19 @@
 //! [`Serialize`]: serde::Serialize
 //! [`Deserialize`]: serde::Deserialize
 
+#[cfg(feature = "alloc")]
 pub mod build;
 pub mod component;
 mod convert;
 mod fmt;
 mod imp;
+#[cfg(feature = "alloc")]
 pub mod normalize;
 mod parse;
 pub mod pct_enc;
+#[cfg(feature = "alloc")]
 pub mod resolve;
+mod utf8;
 
 pub use convert::ConvertError;
 pub use imp::{Iri, IriRef, Uri, UriRef};
@@ -96,6 +100,7 @@ pub use parse::{ParseError, ParseErrorKind};
 #[cfg(feature = "std")]
 extern crate std;
 
+#[cfg(feature = "alloc")]
 extern crate alloc;
 
 #[cfg(all(feature = "net", not(feature = "std")))]

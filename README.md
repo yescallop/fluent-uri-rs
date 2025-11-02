@@ -118,7 +118,7 @@ which may contain non-ASCII characters.
     let map: HashMap<_, _> = query
         .split('&')
         .map(|s| s.split_once('=').unwrap_or((s, EStr::EMPTY)))
-        .map(|(k, v)| (k.decode().into_string_lossy(), v.decode().into_string_lossy()))
+        .map(|(k, v)| (k.decode().to_string_lossy(), v.decode().to_string_lossy()))
         .collect();
     assert_eq!(map["name"], "张三");
     assert_eq!(map["speech"], "¡Olé!");

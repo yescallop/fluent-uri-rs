@@ -1,6 +1,7 @@
 use crate::{
     imp::{AuthMeta, Constraints, HostMeta, Meta},
-    pct_enc::{next_code_point, table::*, Table, OCTET_TABLE_LO},
+    pct_enc::{table::*, Table, OCTET_TABLE_LO},
+    utf8,
 };
 use core::{
     num::NonZeroUsize,
@@ -179,7 +180,7 @@ impl<'a> Reader<'a> {
                 }
                 i += 3;
             } else if allow_non_ascii {
-                let (x, len) = next_code_point(self.bytes, i);
+                let (x, len) = utf8::next_code_point(self.bytes, i);
                 if !table.allows_code_point(x) {
                     break;
                 }
@@ -407,7 +408,7 @@ pub(crate) fn parse_v4_or_reg_name(bytes: &[u8]) -> HostMeta {
     }
 }
 
-#[cfg(not(feature = "net"))]
+#[cfg(all(feature = "alloc", not(feature = "net")))]
 pub(crate) fn parse_v6(bytes: &[u8]) -> [u16; 8] {
     Reader::new(bytes).read_v6().unwrap()
 }

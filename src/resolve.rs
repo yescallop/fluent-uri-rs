@@ -3,7 +3,7 @@
 use crate::imp::{Meta, Ri, RiMaybeRef, RmrRef};
 use alloc::string::String;
 use borrow_or_share::Bos;
-use core::num::NonZeroUsize;
+use core::{fmt, num::NonZeroUsize};
 
 /// An error occurred when resolving a URI/IRI reference.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -17,6 +17,19 @@ pub enum ResolveError {
     ///
     /// Used only when [`Resolver::allow_path_underflow`] is set to `false`.
     PathUnderflow,
+}
+
+impl fmt::Display for ResolveError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let msg = match self {
+            Self::BaseWithFragment => "base should not have fragment",
+            Self::InvalidReferenceAgainstOpaqueBase => {
+                "when base has a rootless path and no authority, reference should either have scheme, be empty or start with '#'"
+            }
+            Self::PathUnderflow => "underflow occurred in path resolution",
+        };
+        f.write_str(msg)
+    }
 }
 
 #[cfg(feature = "impl-error")]
