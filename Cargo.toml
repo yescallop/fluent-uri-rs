@@ -1,6 +1,6 @@
 [package]
 name = "fluent-uri"
-version = "0.3.2"
+version = "0.4.0"
 authors = ["Scallop Ye <yescallop@gmail.com>"]
 edition = "2021"
 rust-version = "1.68"
