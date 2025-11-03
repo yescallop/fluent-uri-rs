@@ -4,5 +4,5 @@ version = "0.0.0"
 edition = "2021"
 
 [build-dependencies]
-bindgen = "0.69.4"
-cmake = "0.1.50"
+bindgen = "0.72.1"
+cmake = "0.1.54"
