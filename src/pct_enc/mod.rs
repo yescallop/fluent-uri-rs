@@ -168,6 +168,22 @@ impl<E: Encoder> EStr<E> {
         EStr::new_validated(self.as_str())
     }
 
+    /// Checks whether the `EStr` slice is unencoded, i.e., does not contain `'%'`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_uri::pct_enc::{encoder::Path, EStr};
+    ///
+    /// assert!(EStr::<Path>::new_or_panic("Hello!").is_unencoded());
+    /// assert!(!EStr::<Path>::new_or_panic("%C2%A1Hola%21").is_unencoded());
+    /// ```
+    #[cfg(fluent_uri_unstable)]
+    #[must_use]
+    pub fn is_unencoded(&self) -> bool {
+        !(E::TABLE.allows_pct_encoded() && self.inner.contains('%'))
+    }
+
     /// Returns an iterator used to decode the `EStr` slice.
     ///
     /// Always **split before decoding**, as otherwise the data may be
