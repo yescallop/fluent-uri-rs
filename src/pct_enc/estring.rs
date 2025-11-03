@@ -33,17 +33,12 @@ use core::{borrow::Borrow, cmp::Ordering, fmt, hash, marker::PhantomData, ops::D
 ///         buf.push('&');
 ///     }
 ///
-///     // WARNING: Absolutely do not confuse data with delimiters! Use `Data`
-///     // to encode data contained in a URI unless you know what you're doing!
-///     //
-///     // `Data` preserves only unreserved characters and encodes the others,
-///     // which is always safe to use but may be wasteful of memory because
-///     // usually not all reserved characters are used as delimiters and you can
-///     // choose to preserve some of them. See below for an example of creating
-///     // a custom encoder based on an existing one.
-///     buf.encode::<Data>(k);
+///     // WARNING: Absolutely do not confuse data with delimiters!
+///     // Use `Data` (or `IData`) to encode data contained in a URI
+///     // (or an IRI) unless you know what you're doing!
+///     buf.encode_str::<Data>(k);
 ///     buf.push('=');
-///     buf.encode::<Data>(v);
+///     buf.encode_str::<Data>(v);
 /// }
 ///
 /// assert_eq!(buf, "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
@@ -57,7 +52,7 @@ use core::{borrow::Borrow, cmp::Ordering, fmt, hash, marker::PhantomData, ops::D
 /// ```
 ///
 /// Encode a path whose segments may contain the slash (`'/'`) character
-/// by using a custom encoder:
+/// by using a custom sub-encoder:
 ///
 /// ```
 /// use fluent_uri::pct_enc::{encoder::Path, EString, Encoder, Table};
@@ -70,7 +65,7 @@ use core::{borrow::Borrow, cmp::Ordering, fmt, hash, marker::PhantomData, ops::D
 ///
 /// let mut path = EString::<Path>::new();
 /// path.push('/');
-/// path.encode::<PathSegment>("foo/bar");
+/// path.encode_str::<PathSegment>("foo/bar");
 ///
 /// assert_eq!(path, "/foo%2Fbar");
 /// ```
@@ -120,16 +115,21 @@ impl<E: Encoder> EString<E> {
         self.buf.capacity()
     }
 
-    /// Encodes a byte sequence with a sub-encoder and appends the result onto the end of this `EString`.
+    /// Encodes a string with a sub-encoder and appends the result onto the end of this `EString`.
     ///
-    /// A byte will be preserved if and only if it is part of a UTF-8-encoded character
-    /// that `SubE::TABLE` [allows]. It will be percent-encoded otherwise.
-    /// When encoding data, make sure that `SubE::TABLE` does not [allow][allows]
+    /// A character will be preserved if `SubE::TABLE` [allows] it and percent-encoded otherwise.
+    ///
+    /// In most cases, use [`Data`] (for URI) or [`IData`] (for IRI) as the sub-encoder.
+    /// When using other sub-encoders, make sure that `SubE::TABLE` does not [allow][allows]
     /// the component delimiters that delimit the data.
     ///
-    /// Note that this method will **not** encode `0x20` (space) as `U+002B` (+).
+    /// Note that this method will **not** encode `U+0020` (space) as `U+002B` (+).
+    ///
+    /// If you need to encode arbitrary bytes, use [`encode_bytes`][Self::encode_bytes] instead.
     ///
     /// [allows]: super::Table::allows
+    /// [`Data`]: super::encoder::Data
+    /// [`IData`]: super::encoder::IData
     ///
     /// # Panics
     ///
@@ -137,11 +137,43 @@ impl<E: Encoder> EString<E> {
     /// or if `SubE::TABLE` does not [allow percent-encoded octets].
     ///
     /// [allow percent-encoded octets]: super::Table::allows_pct_encoded
-    pub fn encode<SubE: Encoder>(&mut self, s: &(impl AsRef<[u8]> + ?Sized)) {
+    pub fn encode_str<SubE: Encoder>(&mut self, s: &str) {
         () = Assert::<SubE, E>::L_IS_SUB_ENCODER_OF_R;
         () = EStr::<SubE>::ASSERT_ALLOWS_PCT_ENCODED;
 
-        for chunk in Utf8Chunks::new(s.as_ref()) {
+        for ch in s.chars() {
+            SubE::TABLE.encode(ch, &mut self.buf);
+        }
+    }
+
+    /// Encodes a byte sequence with a sub-encoder and appends the result onto the end of this `EString`.
+    ///
+    /// A byte will be preserved if it is part of a UTF-8-encoded character
+    /// that `SubE::TABLE` [allows] and percent-encoded otherwise.
+    ///
+    /// In most cases, use [`Data`] (for URI) or [`IData`] (for IRI) as the sub-encoder.
+    /// When using other sub-encoders, make sure that `SubE::TABLE` does not [allow][allows]
+    /// the component delimiters that delimit the data.
+    ///
+    /// Note that this method will **not** encode `0x20` (space) as `U+002B` (+).
+    ///
+    /// If you need to encode a string, use [`encode_str`][Self::encode_str] instead.
+    ///
+    /// [allows]: super::Table::allows
+    /// [`Data`]: super::encoder::Data
+    /// [`IData`]: super::encoder::IData
+    ///
+    /// # Panics
+    ///
+    /// Panics at compile time if `SubE` is not a [sub-encoder](Encoder#sub-encoders) of `E`,
+    /// or if `SubE::TABLE` does not [allow percent-encoded octets].
+    ///
+    /// [allow percent-encoded octets]: super::Table::allows_pct_encoded
+    pub fn encode_bytes<SubE: Encoder>(&mut self, bytes: &[u8]) {
+        () = Assert::<SubE, E>::L_IS_SUB_ENCODER_OF_R;
+        () = EStr::<SubE>::ASSERT_ALLOWS_PCT_ENCODED;
+
+        for chunk in Utf8Chunks::new(bytes) {
             for ch in chunk.valid().chars() {
                 SubE::TABLE.encode(ch, &mut self.buf);
             }

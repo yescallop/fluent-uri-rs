@@ -135,9 +135,9 @@ which may contain non-ASCII characters.
         if !buf.is_empty() {
             buf.push_byte(b'&');
         }
-        buf.encode::<Data>(k);
+        buf.encode_str::<Data>(k);
         buf.push_byte(b'=');
-        buf.encode::<Data>(v);
+        buf.encode_str::<Data>(v);
     }
 
     assert_eq!(buf, "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
