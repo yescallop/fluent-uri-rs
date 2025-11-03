@@ -168,12 +168,6 @@ impl<E: Encoder> EStr<E> {
         EStr::new_validated(self.as_str())
     }
 
-    /// Checks whether the `EStr` slice is unencoded, i.e., does not contain `'%'`.
-    #[must_use]
-    pub fn is_unencoded(&self) -> bool {
-        self.inner.contains('%')
-    }
-
     /// Returns an iterator used to decode the `EStr` slice.
     ///
     /// Always **split before decoding**, as otherwise the data may be
