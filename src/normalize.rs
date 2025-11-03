@@ -109,6 +109,8 @@ impl Normalizer {
 
     /// Normalizes the given URI/IRI (reference).
     ///
+    /// See [`Uri::normalize`][crate::Uri::normalize] for the exact behavior of this method.
+    ///
     /// # Errors
     ///
     /// Returns `Err` if an underflow occurred in path normalization
