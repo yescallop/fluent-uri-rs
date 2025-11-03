@@ -348,10 +348,11 @@ impl<R, S: To<PortEnd>> Builder<R, S> {
     ///
     /// This method takes either a `u16` or <code>&amp;[EStr]&lt;[Port]&gt;</code> as argument.
     ///
-    /// For consistency, you should not produce an empty port.
+    /// For consistency, you should not produce an empty or [default] port.
     ///
     /// [port-spec]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.3
     /// [Port]: crate::pct_enc::encoder::Port
+    /// [default]: Scheme::default_port
     pub fn port(mut self, port: impl AsPort) -> Builder<R, PortEnd> {
         port.push_to(&mut self.inner.buf);
         self.cast()

@@ -615,7 +615,7 @@ macro_rules! ri_maybe_ref {
             /// - Lowercase all ASCII characters within the scheme and the host except the percent-encoded octets.
             /// - Turn any IPv6 literal address into its canonical form as per
             ///   [RFC 5952](https://datatracker.ietf.org/doc/html/rfc5952).
-            /// - If the port is empty or equals the [scheme's default], remove its `':'` delimiter.
+            /// - If the port is empty or equals the [scheme's default], remove it along with the `':'` delimiter.
             /// - If `self` has a scheme and an [absolute] path, apply the
             ///   [`remove_dot_segments`] algorithm to the path, taking account of
             ///   percent-encoded dot segments as described at [`UriRef::resolve_against`].

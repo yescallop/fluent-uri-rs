@@ -461,7 +461,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
 
     /// Returns the optional [port] subcomponent.
     ///
-    /// A scheme may define a default port to use when the port is
+    /// A scheme may define a [default port] to use when the port is
     /// not present or is empty.
     ///
     /// Note that the port may be empty, with leading zeros, or larger than [`u16::MAX`].
@@ -470,6 +470,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     /// mechanism that allows ports larger than [`u16::MAX`].
     ///
     /// [port]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.3
+    /// [default port]: Scheme::default_port
     ///
     /// # Examples
     ///
