@@ -528,7 +528,7 @@ impl<'a> Iterator for Decode<'a> {
 impl FusedIterator for Decode<'_> {}
 
 #[cfg(feature = "alloc")]
-enum DecodeUtf8Chunk<'a, 'b> {
+enum DecodedUtf8Chunk<'a, 'b> {
     Unencoded(&'a str),
     Decoded { valid: &'b str, invalid: &'b [u8] },
 }
@@ -536,7 +536,7 @@ enum DecodeUtf8Chunk<'a, 'b> {
 #[cfg(feature = "alloc")]
 fn decode_utf8<'a>(
     iter: impl Iterator<Item = DecodedChunk<'a>>,
-    mut handle_chunk: impl FnMut(DecodeUtf8Chunk<'a, '_>),
+    mut handle_chunk: impl FnMut(DecodedUtf8Chunk<'a, '_>),
 ) {
     use crate::utf8::Utf8Chunks;
 
@@ -548,14 +548,14 @@ fn decode_utf8<'a>(
             DecodedChunk::Unencoded(s) => {
                 if cnt > 0 {
                     for chunk in Utf8Chunks::new(&buf[..cnt]) {
-                        handle_chunk(DecodeUtf8Chunk::Decoded {
+                        handle_chunk(DecodedUtf8Chunk::Decoded {
                             valid: chunk.valid(),
                             invalid: chunk.invalid(),
                         });
                     }
                     cnt = 0;
                 }
-                handle_chunk(DecodeUtf8Chunk::Unencoded(s));
+                handle_chunk(DecodedUtf8Chunk::Unencoded(s));
             }
             DecodedChunk::PctDecoded(x) => {
                 buf[cnt] = x;
@@ -564,7 +564,7 @@ fn decode_utf8<'a>(
                 if cnt >= buf.len() {
                     for chunk in Utf8Chunks::new(&buf[..cnt]) {
                         if chunk.incomplete() {
-                            handle_chunk(DecodeUtf8Chunk::Decoded {
+                            handle_chunk(DecodedUtf8Chunk::Decoded {
                                 valid: chunk.valid(),
                                 invalid: &[],
                             });
@@ -575,7 +575,7 @@ fn decode_utf8<'a>(
                             cnt = invalid_len;
                             continue 'decode;
                         }
-                        handle_chunk(DecodeUtf8Chunk::Decoded {
+                        handle_chunk(DecodedUtf8Chunk::Decoded {
                             valid: chunk.valid(),
                             invalid: chunk.invalid(),
                         });
@@ -587,7 +587,7 @@ fn decode_utf8<'a>(
     }
 
     for chunk in Utf8Chunks::new(&buf[..cnt]) {
-        handle_chunk(DecodeUtf8Chunk::Decoded {
+        handle_chunk(DecodedUtf8Chunk::Decoded {
             valid: chunk.valid(),
             invalid: chunk.invalid(),
         });
@@ -655,11 +655,11 @@ impl<'a> Decode<'a> {
         let mut buf = Ok::<_, Vec<u8>>(buf);
 
         decode_utf8(iter, |chunk| match chunk {
-            DecodeUtf8Chunk::Unencoded(s) => match &mut buf {
+            DecodedUtf8Chunk::Unencoded(s) => match &mut buf {
                 Ok(string) => string.push_str(s),
                 Err(vec) => vec.extend_from_slice(s.as_bytes()),
             },
-            DecodeUtf8Chunk::Decoded { valid, invalid } => match &mut buf {
+            DecodedUtf8Chunk::Decoded { valid, invalid } => match &mut buf {
                 Ok(string) => {
                     string.push_str(valid);
                     if !invalid.is_empty() {
@@ -681,7 +681,10 @@ impl<'a> Decode<'a> {
         }
     }
 
-    /// Decodes the slice to a string, including invalid characters.
+    /// Decodes the slice to a string, replacing any invalid UTF-8 sequences with
+    /// [`U+FFFD REPLACEMENT CHARACTER`][U+FFFD].
+    ///
+    /// [U+FFFD]: core::char::REPLACEMENT_CHARACTER
     ///
     /// This method allocates only when the slice contains any percent-encoded octet.
     #[must_use]
@@ -704,8 +707,8 @@ impl<'a> Decode<'a> {
         }
 
         decode_utf8(iter, |chunk| match chunk {
-            DecodeUtf8Chunk::Unencoded(s) => buf.push_str(s),
-            DecodeUtf8Chunk::Decoded { valid, invalid } => {
+            DecodedUtf8Chunk::Unencoded(s) => buf.push_str(s),
+            DecodedUtf8Chunk::Decoded { valid, invalid } => {
                 buf.push_str(valid);
                 if !invalid.is_empty() {
                     buf.push(char::REPLACEMENT_CHARACTER);
