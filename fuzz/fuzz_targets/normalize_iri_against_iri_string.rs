@@ -1,7 +1,29 @@
 #![no_main]
-use fluent_uri::{component::Host, Iri};
+use fluent_uri::{
+    component::Host,
+    pct_enc::{encoder::Query, EStr},
+    Iri,
+};
 use iri_string::{format::ToDedicatedString, types::IriStr};
 use libfuzzer_sys::fuzz_target;
+
+fn is_iprivate(x: u32) -> bool {
+    (x >= 0xe000 && x <= 0xf8ff) || (x >= 0xf0000 && (x & 0xffff) <= 0xfffd)
+}
+
+fn encode_iprivate(s: &str) -> String {
+    let mut buf = String::with_capacity(s.len());
+    for ch in s.chars() {
+        if is_iprivate(ch as u32) {
+            for x in ch.encode_utf8(&mut [0; 4]).bytes() {
+                buf.push_str(EStr::<Query>::encode_byte(x).as_str());
+            }
+        } else {
+            buf.push(ch);
+        }
+    }
+    buf
+}
 
 fuzz_target!(|data: &str| {
     let Ok(r1) = Iri::parse(data) else {
@@ -31,6 +53,13 @@ fuzz_target!(|data: &str| {
             }
             Host::Ipv6(_) => return,
             _ => {}
+        }
+    }
+
+    if let Some(q1) = r1.query() {
+        let q2 = r2.query().unwrap();
+        if encode_iprivate(q1.as_str()) == encode_iprivate(q2.as_str()) {
+            return;
         }
     }
 

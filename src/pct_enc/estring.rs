@@ -125,8 +125,6 @@ impl<E: Encoder> EString<E> {
     ///
     /// Note that this method will **not** encode `U+0020` (space) as `U+002B` (+).
     ///
-    /// If you need to encode arbitrary bytes, use [`encode_bytes`][Self::encode_bytes] instead.
-    ///
     /// [allows]: super::Table::allows
     /// [`Data`]: super::encoder::Data
     /// [`IData`]: super::encoder::IData
@@ -141,8 +139,8 @@ impl<E: Encoder> EString<E> {
         () = Assert::<SubE, E>::L_IS_SUB_ENCODER_OF_R;
         () = EStr::<SubE>::ASSERT_ALLOWS_PCT_ENCODED;
 
-        for ch in s.chars() {
-            SubE::TABLE.encode(ch, &mut self.buf);
+        for chunk in SubE::TABLE.encode(s) {
+            self.buf.push_str(chunk.as_str());
         }
     }
 
@@ -163,22 +161,29 @@ impl<E: Encoder> EString<E> {
     /// [`Data`]: super::encoder::Data
     /// [`IData`]: super::encoder::IData
     ///
+    /// # Deprecation
+    ///
+    /// This method is deprecated because percent-encoding non-UTF-8 bytes is
+    /// a non-standard operation. If you're developing a new protocol, use
+    /// other encodings such as Base64 instead.
+    ///
     /// # Panics
     ///
     /// Panics at compile time if `SubE` is not a [sub-encoder](Encoder#sub-encoders) of `E`,
     /// or if `SubE::TABLE` does not [allow percent-encoded octets].
     ///
     /// [allow percent-encoded octets]: super::Table::allows_pct_encoded
+    #[deprecated = "use `<[u8]>::utf8_chunks`, `EString::encode_str`, `EStr::encode_byte`, and `EString::push_estr` instead"]
     pub fn encode_bytes<SubE: Encoder>(&mut self, bytes: &[u8]) {
         () = Assert::<SubE, E>::L_IS_SUB_ENCODER_OF_R;
         () = EStr::<SubE>::ASSERT_ALLOWS_PCT_ENCODED;
 
         for chunk in Utf8Chunks::new(bytes) {
-            for ch in chunk.valid().chars() {
-                SubE::TABLE.encode(ch, &mut self.buf);
+            for chunk in SubE::TABLE.encode(chunk.valid()) {
+                self.buf.push_str(chunk.as_str());
             }
             for &x in chunk.invalid() {
-                super::encode_byte(x, &mut self.buf);
+                self.buf.push_str(super::encode_byte(x));
             }
         }
     }

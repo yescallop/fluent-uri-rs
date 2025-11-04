@@ -5,13 +5,13 @@ use crate::{
     imp::{HostMeta, Meta, RiMaybeRef, RmrRef},
     parse,
     pct_enc::{
-        decode_octet, encode_byte,
-        table::{is_iprivate, is_ucschar, UNRESERVED},
+        self,
+        encoder::{Data, IData},
+        Decode, DecodedUtf8Chunk, EncodedChunk, Encoder, Table,
     },
     resolve,
-    utf8::{self, Utf8Chunks},
 };
-use alloc::{string::String, vec::Vec};
+use alloc::string::String;
 use borrow_or_share::Bos;
 use core::{
     fmt::{self, Write},
@@ -150,8 +150,14 @@ pub(crate) fn normalize(
     let path = r.path().as_str();
     let mut path_buf = String::with_capacity(path.len());
 
+    let data_table = if ascii_only {
+        Data::TABLE
+    } else {
+        IData::TABLE
+    };
+
     if r.has_scheme() && path.starts_with('/') {
-        normalize_estr(&mut buf, path, false, ascii_only, false);
+        normalize_estr(&mut buf, path, false, data_table);
 
         let underflow_occurred = resolve::remove_dot_segments(&mut path_buf, 0, &[&buf]);
         if underflow_occurred && !allow_path_underflow {
@@ -161,7 +167,7 @@ pub(crate) fn normalize(
         buf.clear();
     } else {
         // Don't remove dot segments from relative reference or rootless path.
-        normalize_estr(&mut path_buf, path, false, ascii_only, false);
+        normalize_estr(&mut path_buf, path, false, data_table);
     }
 
     let mut meta = Meta::default();
@@ -177,7 +183,7 @@ pub(crate) fn normalize(
         buf.push_str("//");
 
         if let Some(userinfo) = auth.userinfo() {
-            normalize_estr(&mut buf, userinfo.as_str(), false, ascii_only, false);
+            normalize_estr(&mut buf, userinfo.as_str(), false, data_table);
             buf.push('@');
         }
 
@@ -203,7 +209,7 @@ pub(crate) fn normalize(
             HostMeta::RegName => {
                 let start = buf.len();
                 let host = auth.host();
-                normalize_estr(&mut buf, host, true, ascii_only, false);
+                normalize_estr(&mut buf, host, true, data_table);
 
                 if buf.len() < start + host.len() {
                     // Only reparse when the length is less than before.
@@ -240,103 +246,49 @@ pub(crate) fn normalize(
 
     if let Some(query) = r.query() {
         buf.push('?');
-        normalize_estr(&mut buf, query.as_str(), false, ascii_only, true);
+
+        const IQUERY_DATA: &Table = &IData::TABLE.or_iprivate();
+        let query_data_table = if ascii_only { Data::TABLE } else { IQUERY_DATA };
+
+        normalize_estr(&mut buf, query.as_str(), false, query_data_table);
         meta.query_end = NonZeroUsize::new(buf.len());
     }
 
     if let Some(fragment) = r.fragment() {
         buf.push('#');
-        normalize_estr(&mut buf, fragment.as_str(), false, ascii_only, false);
+        normalize_estr(&mut buf, fragment.as_str(), false, data_table);
     }
 
     Ok((buf, meta))
 }
 
-fn normalize_estr(
-    buf: &mut String,
-    s: &str,
-    to_ascii_lowercase: bool,
-    ascii_only: bool,
-    is_query: bool,
-) {
-    let s = s.as_bytes();
-    let mut i = 0;
-
-    if ascii_only {
-        while i < s.len() {
-            let mut x = s[i];
-            if x == b'%' {
-                let (hi, lo) = (s[i + 1], s[i + 2]);
-                let mut octet = decode_octet(hi, lo);
-                if UNRESERVED.allows_ascii(octet) {
-                    if to_ascii_lowercase {
-                        octet = octet.to_ascii_lowercase();
+fn normalize_estr(buf: &mut String, s: &str, to_ascii_lowercase: bool, table: &Table) {
+    Decode::new(s).decode_utf8(|chunk| match chunk {
+        DecodedUtf8Chunk::Unencoded(s) => {
+            let i = buf.len();
+            buf.push_str(s);
+            if to_ascii_lowercase {
+                buf[i..].make_ascii_lowercase();
+            }
+        }
+        DecodedUtf8Chunk::Decoded { valid, invalid } => {
+            for chunk in table.encode(valid) {
+                match chunk {
+                    EncodedChunk::Unencoded(s) => {
+                        let i = buf.len();
+                        buf.push_str(s);
+                        if to_ascii_lowercase {
+                            buf[i..].make_ascii_lowercase();
+                        }
                     }
-                    buf.push(octet as char);
-                } else {
-                    buf.push('%');
-                    buf.push(hi.to_ascii_uppercase() as char);
-                    buf.push(lo.to_ascii_uppercase() as char);
-                }
-                i += 3;
-            } else {
-                if to_ascii_lowercase {
-                    x = x.to_ascii_lowercase();
-                }
-                buf.push(x as char);
-                i += 1;
-            }
-        }
-    } else {
-        let mut dec_buf = Vec::new();
-
-        while i < s.len() {
-            if s[i] == b'%' {
-                let (hi, lo) = (s[i + 1], s[i + 2]);
-                let mut octet = decode_octet(hi, lo);
-                if UNRESERVED.allows_ascii(octet) {
-                    consume_dec_buf(buf, &mut dec_buf, is_query);
-
-                    if to_ascii_lowercase {
-                        octet = octet.to_ascii_lowercase();
-                    }
-                    buf.push(octet as char);
-                } else {
-                    dec_buf.push(octet);
-                }
-                i += 3;
-            } else {
-                consume_dec_buf(buf, &mut dec_buf, is_query);
-
-                let (x, len) = utf8::next_code_point(s, i);
-                let mut x = char::from_u32(x).unwrap();
-                if to_ascii_lowercase {
-                    x = x.to_ascii_lowercase();
-                }
-                buf.push(x);
-                i += len;
-            }
-        }
-        consume_dec_buf(buf, &mut dec_buf, is_query);
-    }
-}
-
-fn consume_dec_buf(buf: &mut String, dec_buf: &mut Vec<u8>, is_query: bool) {
-    for chunk in Utf8Chunks::new(dec_buf) {
-        for ch in chunk.valid().chars() {
-            if is_ucschar(ch as u32) || (is_query && is_iprivate(ch as u32)) {
-                buf.push(ch);
-            } else {
-                for x in ch.encode_utf8(&mut [0; 4]).bytes() {
-                    encode_byte(x, buf);
+                    EncodedChunk::PctEncoded(s) => buf.push_str(s),
                 }
             }
+            for &x in invalid {
+                buf.push_str(pct_enc::encode_byte(x));
+            }
         }
-        for &x in chunk.invalid() {
-            encode_byte(x, buf);
-        }
-    }
-    dec_buf.clear();
+    });
 }
 
 // Taken from `impl Display for Ipv6Addr`.

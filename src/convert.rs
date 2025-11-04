@@ -5,7 +5,7 @@ use core::str;
 #[cfg(feature = "alloc")]
 use crate::{
     imp::{HostMeta, Meta, RmrRef},
-    pct_enc::encode_byte,
+    pct_enc,
 };
 #[cfg(feature = "alloc")]
 use alloc::string::String;
@@ -201,12 +201,16 @@ fn encode_non_ascii_str(buf: &mut String, s: &str) {
     if s.is_ascii() {
         buf.push_str(s);
     } else {
-        for ch in s.chars() {
+        let mut iter = s.char_indices();
+        while let Some((start, ch)) = iter.next() {
             if ch.is_ascii() {
                 buf.push(ch);
             } else {
-                for x in ch.encode_utf8(&mut [0; 4]).bytes() {
-                    encode_byte(x, buf);
+                // `CharIndices::offset` sadly requires an MSRV of 1.82,
+                // so we do pointer math to get the offset for now.
+                let end = iter.as_str().as_ptr() as usize - s.as_ptr() as usize;
+                for &x in &s.as_bytes()[start..end] {
+                    buf.push_str(pct_enc::encode_byte(x));
                 }
             }
         }
