@@ -14,7 +14,7 @@ categories = ["encoding", "parser-implementations"]
 [features]
 default = ["std"]
 std = ["alloc", "impl-error"]
-alloc = ["borrow-or-share/alloc", "serde/alloc"]
+alloc = ["borrow-or-share/alloc", "serde?/alloc"]
 impl-error = []
 net = []
 
