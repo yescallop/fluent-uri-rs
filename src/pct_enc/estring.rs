@@ -165,7 +165,23 @@ impl<E: Encoder> EString<E> {
     ///
     /// This method is deprecated because percent-encoding non-UTF-8 bytes is
     /// a non-standard operation. If you're developing a new protocol, use
-    /// other encodings such as Base64 instead.
+    /// other encodings such as Base64 instead. If you absolutely must, here's
+    /// a workaround:
+    ///
+    /// ```
+    /// use fluent_uri::pct_enc::{encoder::Path, EStr, EString};
+    ///
+    /// let mut buf = EString::<Path>::new();
+    ///
+    /// for chunk in b"D\xFCrst".utf8_chunks() {
+    ///     buf.encode_str::<Path>(chunk.valid());
+    ///     for &x in chunk.invalid() {
+    ///         buf.push_estr(EStr::encode_byte(x));
+    ///     }
+    /// }
+    ///
+    /// assert_eq!(buf, "D%FCrst");
+    /// ```
     ///
     /// # Panics
     ///

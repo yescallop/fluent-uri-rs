@@ -129,7 +129,7 @@ impl<E: Encoder> EStr<E> {
         }
     }
 
-    /// Creates an `EStr` slice containing a single percent-encoded octet.
+    /// Creates an `EStr` slice containing a single percent-encoded octet representing the given byte.
     ///
     /// # Panics
     ///
