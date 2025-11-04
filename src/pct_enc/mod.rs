@@ -720,7 +720,6 @@ impl<'a> Decode<'a> {
     }
 }
 
-#[cfg(feature = "alloc")]
 pub(crate) fn encode_byte(x: u8) -> &'static str {
     const TABLE: &[u8; 256 * 3] = &{
         const HEX_DIGITS: &[u8; 16] = b"0123456789ABCDEF";
