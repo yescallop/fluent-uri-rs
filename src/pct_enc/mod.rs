@@ -131,6 +131,12 @@ impl<E: Encoder> EStr<E> {
 
     /// Creates an `EStr` slice containing a single percent-encoded octet.
     ///
+    /// # Panics
+    ///
+    /// Panics at compile time if `E::TABLE` does not [allow percent-encoded octets].
+    ///
+    /// [allow percent-encoded octets]: Table::allows_pct_encoded
+    ///
     /// # Examples
     ///
     /// ```
@@ -140,6 +146,7 @@ impl<E: Encoder> EStr<E> {
     /// ```
     #[must_use]
     pub fn encode_byte(x: u8) -> &'static Self {
+        () = Self::ASSERT_ALLOWS_PCT_ENCODED;
         Self::new_validated(encode_byte(x))
     }
 
@@ -751,7 +758,7 @@ pub(crate) fn encode_byte(x: u8) -> &'static str {
 /// See the [`EncodedChunk`] type for documentation of the items yielded by this iterator.
 #[derive(Clone, Debug)]
 #[must_use = "iterators are lazy and do nothing unless consumed"]
-pub struct Encode<'t, 's> {
+pub(crate) struct Encode<'t, 's> {
     table: &'t Table,
     source: &'s str,
     enc_len: usize,
@@ -771,7 +778,7 @@ impl<'t, 's> Encode<'t, 's> {
 
 /// An item returned by the [`Encode`] iterator.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum EncodedChunk<'a> {
+pub(crate) enum EncodedChunk<'a> {
     /// An unencoded subslice.
     Unencoded(&'a str),
     /// A byte, percent-encoded (for example, `0x20` encoded as `"%20"`).

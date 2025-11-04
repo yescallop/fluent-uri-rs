@@ -12,13 +12,13 @@ const INDEX_PCT_ENCODED: usize = 256;
 const INDEX_UCSCHAR: usize = 256 + 1;
 const INDEX_IPRIVATE: usize = 256 + 2;
 
-pub(crate) const fn is_ucschar(x: u32) -> bool {
+const fn is_ucschar(x: u32) -> bool {
     matches!(x, 0xa0..=0xd7ff | 0xf900..=0xfdcf | 0xfdf0..=0xffef)
         || (x >= 0x10000 && x <= 0xdffff && (x & 0xffff) <= 0xfffd)
         || (x >= 0xe1000 && x <= 0xefffd)
 }
 
-pub(crate) const fn is_iprivate(x: u32) -> bool {
+const fn is_iprivate(x: u32) -> bool {
     (x >= 0xe000 && x <= 0xf8ff) || (x >= 0xf0000 && (x & 0xffff) <= 0xfffd)
 }
 
@@ -159,7 +159,7 @@ impl Table {
     /// Panics if the table does not [allow percent-encoded octets].
     ///
     /// [allow percent-encoded octets]: Table::allows_pct_encoded
-    pub fn encode<'t, 's>(&'t self, s: &'s str) -> Encode<'t, 's> {
+    pub(crate) fn encode<'t, 's>(&'t self, s: &'s str) -> Encode<'t, 's> {
         assert!(
             self.allows_pct_encoded(),
             "table does not allow percent-encoded octets"
