@@ -7,7 +7,7 @@ use crate::{
     pct_enc::{
         self,
         encoder::{Data, IData},
-        Decode, DecodedUtf8Chunk, Encode, EncodedChunk, Encoder, Table,
+        Decode, DecodedChunk, DecodedUtf8Chunk, Encode, EncodedChunk, Encoder, Table,
     },
     resolve,
 };
@@ -263,32 +263,54 @@ pub(crate) fn normalize(
 }
 
 fn normalize_estr(buf: &mut String, s: &str, to_ascii_lowercase: bool, table: &Table) {
-    Decode::new(s).decode_utf8(|chunk| match chunk {
-        DecodedUtf8Chunk::Unencoded(s) => {
-            let i = buf.len();
-            buf.push_str(s);
-            if to_ascii_lowercase {
-                buf[i..].make_ascii_lowercase();
-            }
-        }
-        DecodedUtf8Chunk::Decoded { valid, invalid } => {
-            for chunk in Encode::new(table, valid) {
-                match chunk {
-                    EncodedChunk::Unencoded(s) => {
-                        let i = buf.len();
-                        buf.push_str(s);
-                        if to_ascii_lowercase {
-                            buf[i..].make_ascii_lowercase();
-                        }
-                    }
-                    EncodedChunk::PctEncoded(s) => buf.push_str(s),
+    if table.allows_non_ascii() {
+        Decode::new(s).decode_utf8(|chunk| match chunk {
+            DecodedUtf8Chunk::Unencoded(s) => {
+                let i = buf.len();
+                buf.push_str(s);
+                if to_ascii_lowercase {
+                    buf[i..].make_ascii_lowercase();
                 }
             }
-            for &x in invalid {
-                buf.push_str(pct_enc::encode_byte(x));
+            DecodedUtf8Chunk::Decoded { valid, invalid } => {
+                for chunk in Encode::new(table, valid) {
+                    match chunk {
+                        EncodedChunk::Unencoded(s) => {
+                            let i = buf.len();
+                            buf.push_str(s);
+                            if to_ascii_lowercase {
+                                buf[i..].make_ascii_lowercase();
+                            }
+                        }
+                        EncodedChunk::PctEncoded(s) => buf.push_str(s),
+                    }
+                }
+                for &x in invalid {
+                    buf.push_str(pct_enc::encode_byte(x));
+                }
+            }
+        });
+    } else {
+        for chunk in Decode::new(s) {
+            match chunk {
+                DecodedChunk::Unencoded(s) => {
+                    let i = buf.len();
+                    buf.push_str(s);
+                    if to_ascii_lowercase {
+                        buf[i..].make_ascii_lowercase();
+                    }
+                }
+                DecodedChunk::PctDecoded(mut x) => {
+                    if table.allows_ascii(x) {
+                        x.make_ascii_lowercase();
+                        buf.push(x as char);
+                    } else {
+                        buf.push_str(pct_enc::encode_byte(x));
+                    }
+                }
             }
         }
-    });
+    }
 }
 
 // Taken from `impl Display for Ipv6Addr`.

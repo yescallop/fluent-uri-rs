@@ -1,10 +1,11 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 use fluent_uri::{component::Scheme, pct_enc::EStr, Iri, Uri, UriRef};
 use iri_string::{
     build::Builder,
     format::ToDedicatedString,
     types::{IriStr, UriAbsoluteStr, UriReferenceStr, UriStr},
 };
+use std::hint::black_box;
 use url::Url;
 
 criterion_group!(
@@ -91,7 +92,7 @@ fn bench_build_iri_string(c: &mut Criterion) {
 }
 
 fn bench_normalize(c: &mut Criterion) {
-    let r = UriRef::parse(NORMALIZE_CASE).unwrap();
+    let r = Uri::parse(NORMALIZE_CASE).unwrap();
     c.bench_function("normalize", |b| b.iter(|| r.normalize()));
 }
 
