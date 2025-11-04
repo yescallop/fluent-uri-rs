@@ -5,7 +5,7 @@
 //!
 //! [RFC 5234]: https://datatracker.ietf.org/doc/html/rfc5234
 
-use crate::{pct_enc::Encode, utf8};
+use crate::utf8;
 
 const TABLE_LEN: usize = 256 + 3;
 const INDEX_PCT_ENCODED: usize = 256;
@@ -148,23 +148,6 @@ impl Table {
     #[must_use]
     pub const fn allows_pct_encoded(&self) -> bool {
         self.table[INDEX_PCT_ENCODED]
-    }
-
-    /// Returns an iterator used to encode the given string slice with the table.
-    ///
-    /// Note that the iterator will **not** encode `U+0020` (space) as `U+002B` (+).
-    ///
-    /// # Panics
-    ///
-    /// Panics if the table does not [allow percent-encoded octets].
-    ///
-    /// [allow percent-encoded octets]: Table::allows_pct_encoded
-    pub(crate) fn encode<'t, 's>(&'t self, s: &'s str) -> Encode<'t, 's> {
-        assert!(
-            self.allows_pct_encoded(),
-            "table does not allow percent-encoded octets"
-        );
-        Encode::new(self, s)
     }
 
     /// Validates the given string with the table.

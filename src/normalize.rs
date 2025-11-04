@@ -7,7 +7,7 @@ use crate::{
     pct_enc::{
         self,
         encoder::{Data, IData},
-        Decode, DecodedUtf8Chunk, EncodedChunk, Encoder, Table,
+        Decode, DecodedUtf8Chunk, Encode, EncodedChunk, Encoder, Table,
     },
     resolve,
 };
@@ -272,7 +272,7 @@ fn normalize_estr(buf: &mut String, s: &str, to_ascii_lowercase: bool, table: &T
             }
         }
         DecodedUtf8Chunk::Decoded { valid, invalid } => {
-            for chunk in table.encode(valid) {
+            for chunk in Encode::new(table, valid) {
                 match chunk {
                     EncodedChunk::Unencoded(s) => {
                         let i = buf.len();

@@ -756,6 +756,7 @@ pub(crate) fn encode_byte(x: u8) -> &'static str {
 /// instead, unless you need precise control over allocation.
 ///
 /// See the [`EncodedChunk`] type for documentation of the items yielded by this iterator.
+#[cfg(feature = "alloc")]
 #[derive(Clone, Debug)]
 #[must_use = "iterators are lazy and do nothing unless consumed"]
 pub(crate) struct Encode<'t, 's> {
@@ -765,8 +766,9 @@ pub(crate) struct Encode<'t, 's> {
     enc_i: usize,
 }
 
+#[cfg(feature = "alloc")]
 impl<'t, 's> Encode<'t, 's> {
-    fn new(table: &'t Table, source: &'s str) -> Self {
+    pub(crate) fn new(table: &'t Table, source: &'s str) -> Self {
         Self {
             table,
             source,
@@ -777,6 +779,7 @@ impl<'t, 's> Encode<'t, 's> {
 }
 
 /// An item returned by the [`Encode`] iterator.
+#[cfg(feature = "alloc")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum EncodedChunk<'a> {
     /// An unencoded subslice.
@@ -785,6 +788,7 @@ pub(crate) enum EncodedChunk<'a> {
     PctEncoded(&'static str),
 }
 
+#[cfg(feature = "alloc")]
 impl<'a> EncodedChunk<'a> {
     /// Returns the chunk as a string slice.
     #[must_use]
@@ -795,6 +799,7 @@ impl<'a> EncodedChunk<'a> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<'t, 's> Iterator for Encode<'t, 's> {
     type Item = EncodedChunk<'s>;
 
@@ -837,6 +842,7 @@ impl<'t, 's> Iterator for Encode<'t, 's> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl FusedIterator for Encode<'_, '_> {}
 
 /// An iterator over subslices of an [`EStr`] slice separated by a delimiter.

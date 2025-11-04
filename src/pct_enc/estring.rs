@@ -1,5 +1,5 @@
 use super::{Assert, EStr, Encoder};
-use crate::utf8::Utf8Chunks;
+use crate::{pct_enc::Encode, utf8::Utf8Chunks};
 use alloc::{borrow::ToOwned, string::String};
 use core::{borrow::Borrow, cmp::Ordering, fmt, hash, marker::PhantomData, ops::Deref};
 
@@ -139,7 +139,7 @@ impl<E: Encoder> EString<E> {
         () = Assert::<SubE, E>::L_IS_SUB_ENCODER_OF_R;
         () = EStr::<SubE>::ASSERT_ALLOWS_PCT_ENCODED;
 
-        for chunk in SubE::TABLE.encode(s) {
+        for chunk in Encode::new(SubE::TABLE, s) {
             self.buf.push_str(chunk.as_str());
         }
     }
@@ -179,7 +179,7 @@ impl<E: Encoder> EString<E> {
         () = EStr::<SubE>::ASSERT_ALLOWS_PCT_ENCODED;
 
         for chunk in Utf8Chunks::new(bytes) {
-            for chunk in SubE::TABLE.encode(chunk.valid()) {
+            for chunk in Encode::new(SubE::TABLE, chunk.valid()) {
                 self.buf.push_str(chunk.as_str());
             }
             for &x in chunk.invalid() {
