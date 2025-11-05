@@ -268,12 +268,15 @@ pub(crate) fn remove_dot_segments(buf: &mut String, path: &[&str]) -> bool {
     let mut underflow_occurred = false;
 
     for seg in path.iter().flat_map(|s| s.split_inclusive('/')) {
-        let seg_stripped = seg.strip_suffix('/').unwrap_or(seg);
-        match classify_segment(seg_stripped) {
+        match classify_segment(seg.strip_suffix('/').unwrap_or(seg)) {
             SegKind::Dot => {}
             SegKind::DoubleDot => {
                 if buf.len() > min_len {
-                    buf.truncate(buf[..buf.len() - 1].rfind('/').unwrap() + 1);
+                    let prev_slash_i = buf.as_bytes()[..buf.len() - 1]
+                        .iter()
+                        .rposition(|&b| b == b'/')
+                        .unwrap();
+                    buf.truncate(prev_slash_i + 1);
                 } else {
                     underflow_occurred = true;
                 }
