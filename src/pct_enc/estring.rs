@@ -125,6 +125,9 @@ impl<E: Encoder> EString<E> {
     ///
     /// Note that this method will **not** encode `U+0020` (space) as `U+002B` (+).
     ///
+    /// It is generally not recommended to percent-encode non-UTF-8 bytes in a URI or IRI.
+    /// If you really must, use [`EStr::force_encode_byte`] together with [`EString::push_estr`] instead.
+    ///
     /// [allows]: super::Table::allows
     /// [`Data`]: super::encoder::Data
     /// [`IData`]: super::encoder::IData

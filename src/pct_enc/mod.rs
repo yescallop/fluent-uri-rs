@@ -131,6 +131,8 @@ impl<E: Encoder> EStr<E> {
 
     /// Forcefully percent-encodes the given byte to an `EStr` slice.
     ///
+    /// The output is always a percent-encoded triple regardless of `E` and `x`.
+    ///
     /// # Panics
     ///
     /// Panics at compile time if `E::TABLE` does not [allow percent-encoded octets].
@@ -142,7 +144,7 @@ impl<E: Encoder> EStr<E> {
     /// ```
     /// use fluent_uri::pct_enc::{encoder::Path, EStr};
     ///
-    /// assert_eq!(EStr::<Path>::force_encode_byte(0x20), "%20");
+    /// assert_eq!(EStr::<Path>::force_encode_byte(b'A'), "%41");
     /// ```
     #[must_use]
     pub fn force_encode_byte(x: u8) -> &'static Self {
