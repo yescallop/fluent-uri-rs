@@ -16,7 +16,7 @@ fn encode_iprivate(s: &str) -> String {
     for ch in s.chars() {
         if is_iprivate(ch as u32) {
             for x in ch.encode_utf8(&mut [0; 4]).bytes() {
-                buf.push_str(EStr::<Query>::encode_byte(x).as_str());
+                buf.push_str(EStr::<Query>::force_encode_byte(x).as_str());
             }
         } else {
             buf.push(ch);

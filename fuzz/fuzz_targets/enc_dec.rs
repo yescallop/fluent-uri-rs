@@ -7,11 +7,11 @@ fuzz_target!(|data: &[u8]| {
     let mut lossy = String::new();
 
     for chunk in data.utf8_chunks() {
-        buf.encode_str::<Query>(chunk.valid());
+        buf.encode::<Query>(chunk.valid());
         lossy.push_str(chunk.valid());
 
         for &x in chunk.invalid() {
-            buf.push_estr(EStr::encode_byte(x));
+            buf.push_estr(EStr::force_encode_byte(x));
         }
         if !chunk.invalid().is_empty() {
             lossy.push(char::REPLACEMENT_CHARACTER);

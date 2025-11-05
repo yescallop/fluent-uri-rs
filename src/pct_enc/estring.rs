@@ -1,5 +1,5 @@
 use super::{Assert, EStr, Encoder};
-use crate::{pct_enc::Encode, utf8::Utf8Chunks};
+use crate::pct_enc::Encode;
 use alloc::{borrow::ToOwned, string::String};
 use core::{borrow::Borrow, cmp::Ordering, fmt, hash, marker::PhantomData, ops::Deref};
 
@@ -36,9 +36,9 @@ use core::{borrow::Borrow, cmp::Ordering, fmt, hash, marker::PhantomData, ops::D
 ///     // WARNING: Absolutely do not confuse data with delimiters!
 ///     // Use `Data` (or `IData`) to encode data contained in a URI
 ///     // (or an IRI) unless you know what you're doing!
-///     buf.encode_str::<Data>(k);
+///     buf.encode::<Data>(k);
 ///     buf.push('=');
-///     buf.encode_str::<Data>(v);
+///     buf.encode::<Data>(v);
 /// }
 ///
 /// assert_eq!(buf, "name=%E5%BC%A0%E4%B8%89&speech=%C2%A1Ol%C3%A9%21");
@@ -65,7 +65,7 @@ use core::{borrow::Borrow, cmp::Ordering, fmt, hash, marker::PhantomData, ops::D
 ///
 /// let mut path = EString::<Path>::new();
 /// path.push('/');
-/// path.encode_str::<PathSegment>("foo/bar");
+/// path.encode::<PathSegment>("foo/bar");
 ///
 /// assert_eq!(path, "/foo%2Fbar");
 /// ```
@@ -135,72 +135,12 @@ impl<E: Encoder> EString<E> {
     /// or if `SubE::TABLE` does not [allow percent-encoded octets].
     ///
     /// [allow percent-encoded octets]: super::Table::allows_pct_encoded
-    pub fn encode_str<SubE: Encoder>(&mut self, s: &str) {
+    pub fn encode<SubE: Encoder>(&mut self, s: &str) {
         () = Assert::<SubE, E>::L_IS_SUB_ENCODER_OF_R;
         () = EStr::<SubE>::ASSERT_ALLOWS_PCT_ENCODED;
 
         for chunk in Encode::new(SubE::TABLE, s) {
             self.buf.push_str(chunk.as_str());
-        }
-    }
-
-    /// Encodes a byte sequence with a sub-encoder and appends the result onto the end of this `EString`.
-    ///
-    /// A byte will be preserved if it is part of a UTF-8-encoded character
-    /// that `SubE::TABLE` [allows]; it will be percent-encoded otherwise.
-    ///
-    /// In most cases, use [`Data`] (for URI) or [`IData`] (for IRI) as the sub-encoder.
-    /// When using other sub-encoders, make sure that `SubE::TABLE` does not [allow][allows]
-    /// the component delimiters that delimit the data.
-    ///
-    /// Note that this method will **not** encode `0x20` (space) as `U+002B` (+).
-    ///
-    /// If you need to encode a string, use [`encode_str`][Self::encode_str] instead.
-    ///
-    /// [allows]: super::Table::allows
-    /// [`Data`]: super::encoder::Data
-    /// [`IData`]: super::encoder::IData
-    ///
-    /// # Deprecation
-    ///
-    /// This method is deprecated because percent-encoding non-UTF-8 bytes is
-    /// a non-standard operation. If you're developing a new protocol, use
-    /// other encodings such as Base64 instead. If you absolutely must, here's
-    /// a workaround:
-    ///
-    /// ```
-    /// use fluent_uri::pct_enc::{encoder::Path, EStr, EString};
-    ///
-    /// let mut buf = EString::<Path>::new();
-    ///
-    /// for chunk in b"D\xFCrst".utf8_chunks() {
-    ///     buf.encode_str::<Path>(chunk.valid());
-    ///     for &x in chunk.invalid() {
-    ///         buf.push_estr(EStr::encode_byte(x));
-    ///     }
-    /// }
-    ///
-    /// assert_eq!(buf, "D%FCrst");
-    /// ```
-    ///
-    /// # Panics
-    ///
-    /// Panics at compile time if `SubE` is not a [sub-encoder](Encoder#sub-encoders) of `E`,
-    /// or if `SubE::TABLE` does not [allow percent-encoded octets].
-    ///
-    /// [allow percent-encoded octets]: super::Table::allows_pct_encoded
-    #[deprecated = "use `<[u8]>::utf8_chunks`, `EString::encode_str`, `EStr::encode_byte`, and `EString::push_estr` instead"]
-    pub fn encode_bytes<SubE: Encoder>(&mut self, bytes: &[u8]) {
-        () = Assert::<SubE, E>::L_IS_SUB_ENCODER_OF_R;
-        () = EStr::<SubE>::ASSERT_ALLOWS_PCT_ENCODED;
-
-        for chunk in Utf8Chunks::new(bytes) {
-            for chunk in Encode::new(SubE::TABLE, chunk.valid()) {
-                self.buf.push_str(chunk.as_str());
-            }
-            for &x in chunk.invalid() {
-                self.buf.push_str(super::encode_byte(x));
-            }
         }
     }
 

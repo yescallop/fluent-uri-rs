@@ -129,7 +129,7 @@ impl<E: Encoder> EStr<E> {
         }
     }
 
-    /// Creates an `EStr` slice containing a single percent-encoded octet representing the given byte.
+    /// Forcefully percent-encodes the given byte to an `EStr` slice.
     ///
     /// # Panics
     ///
@@ -142,10 +142,10 @@ impl<E: Encoder> EStr<E> {
     /// ```
     /// use fluent_uri::pct_enc::{encoder::Path, EStr};
     ///
-    /// assert_eq!(EStr::<Path>::encode_byte(b'1'), "%31");
+    /// assert_eq!(EStr::<Path>::force_encode_byte(0x20), "%20");
     /// ```
     #[must_use]
-    pub fn encode_byte(x: u8) -> &'static Self {
+    pub fn force_encode_byte(x: u8) -> &'static Self {
         () = Self::ASSERT_ALLOWS_PCT_ENCODED;
         Self::new_validated(encode_byte(x))
     }
@@ -580,7 +580,7 @@ impl<'a> Decode<'a> {
                     buf[len] = x;
                     len += 1;
 
-                    if len >= buf.len() {
+                    if len == buf.len() {
                         for chunk in Utf8Chunks::new(&buf[..len]) {
                             if chunk.incomplete() {
                                 handle_chunk(DecodedUtf8Chunk::Decoded {
@@ -752,7 +752,7 @@ pub(crate) fn encode_byte(x: u8) -> &'static str {
 
 /// An iterator used to percent-encode a string slice.
 ///
-/// This struct is created by [`Table::encode`]. Normally you'll use [`EString::encode_str`]
+/// This struct is created by [`Table::encode`]. Normally you'll use [`EString::encode`]
 /// instead, unless you need precise control over allocation.
 ///
 /// See the [`EncodedChunk`] type for documentation of the items yielded by this iterator.
@@ -762,8 +762,7 @@ pub(crate) fn encode_byte(x: u8) -> &'static str {
 pub(crate) struct Encode<'s> {
     table: Table,
     source: &'s str,
-    enc_len: usize,
-    enc_i: usize,
+    to_enc: &'s [u8],
 }
 
 #[cfg(feature = "alloc")]
@@ -772,8 +771,7 @@ impl<'s> Encode<'s> {
         Self {
             table,
             source,
-            enc_len: 0,
-            enc_i: 0,
+            to_enc: &[],
         }
     }
 }
@@ -804,38 +802,39 @@ impl<'a> Iterator for Encode<'a> {
     type Item = EncodedChunk<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.enc_i < self.enc_len {
-            let s = encode_byte(self.source.as_bytes()[self.enc_i]);
-            self.enc_i += 1;
-            return Some(EncodedChunk::PctEncoded(s));
+        if let [x, rem @ ..] = self.to_enc {
+            self.to_enc = rem;
+            return Some(EncodedChunk::PctEncoded(encode_byte(*x)));
         }
-
-        self.source = &self.source[self.enc_len..];
-        self.enc_len = 0;
 
         if self.source.is_empty() {
             return None;
         }
 
         let mut iter = self.source.char_indices();
-        let i = iter
+
+        let first_unallowed_i = iter
             .find_map(|(i, ch)| (!self.table.allows(ch)).then_some(i))
             .unwrap_or(self.source.len());
 
-        if i == 0 {
-            self.enc_len = self.source.len() - iter.as_str().len();
-            self.enc_i = 1;
+        let next_allowed_i = iter
+            .find_map(|(i, ch)| self.table.allows(ch).then_some(i))
+            .unwrap_or(self.source.len());
 
-            let s = encode_byte(self.source.as_bytes()[0]);
-            Some(EncodedChunk::PctEncoded(s))
+        if first_unallowed_i == 0 {
+            let (unallowed, rem) = self.source.split_at(next_allowed_i);
+            self.source = rem;
+
+            let (x, rem) = unallowed.as_bytes().split_first().unwrap();
+            self.to_enc = rem;
+
+            Some(EncodedChunk::PctEncoded(encode_byte(*x)))
         } else {
-            let s;
-            (s, self.source) = self.source.split_at(i);
+            let allowed = &self.source[..first_unallowed_i];
+            self.to_enc = &self.source.as_bytes()[first_unallowed_i..next_allowed_i];
+            self.source = &self.source[next_allowed_i..];
 
-            self.enc_len = self.source.len() - iter.as_str().len();
-            self.enc_i = 0;
-
-            Some(EncodedChunk::Unencoded(s))
+            Some(EncodedChunk::Unencoded(allowed))
         }
     }
 }
