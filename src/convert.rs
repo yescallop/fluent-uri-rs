@@ -206,9 +206,7 @@ fn encode_non_ascii_str(buf: &mut String, s: &str) {
             if ch.is_ascii() {
                 buf.push(ch);
             } else {
-                // `CharIndices::offset` sadly requires an MSRV of 1.82,
-                // so we do pointer math to get the offset for now.
-                let end = iter.as_str().as_ptr() as usize - s.as_ptr() as usize;
+                let end = s.len() - iter.as_str().len();
                 for &x in &s.as_bytes()[start..end] {
                     buf.push_str(pct_enc::encode_byte(x));
                 }

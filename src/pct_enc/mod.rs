@@ -822,10 +822,8 @@ impl<'a> Iterator for Encode<'a> {
             .find_map(|(i, ch)| (!self.table.allows(ch)).then_some(i))
             .unwrap_or(self.source.len());
 
-        // `CharIndices::offset` sadly requires an MSRV of 1.82,
-        // so we do pointer math to get the offset for now.
         if i == 0 {
-            self.enc_len = iter.as_str().as_ptr() as usize - self.source.as_ptr() as usize;
+            self.enc_len = self.source.len() - iter.as_str().len();
             self.enc_i = 1;
 
             let s = encode_byte(self.source.as_bytes()[0]);
@@ -834,7 +832,7 @@ impl<'a> Iterator for Encode<'a> {
             let s;
             (s, self.source) = self.source.split_at(i);
 
-            self.enc_len = iter.as_str().as_ptr() as usize - self.source.as_ptr() as usize;
+            self.enc_len = self.source.len() - iter.as_str().len();
             self.enc_i = 0;
 
             Some(EncodedChunk::Unencoded(s))
