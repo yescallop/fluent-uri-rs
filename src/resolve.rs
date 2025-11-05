@@ -174,11 +174,11 @@ pub(crate) fn resolve(
 
                     // Make sure that swapping the order of resolution and normalization
                     // does not change the result.
-                    let last_slash_i = base_path.rfind('/').unwrap();
-                    let last_seg = &base_path[last_slash_i + 1..];
+                    let last_slash_idx = base_path.rfind('/').unwrap();
+                    let last_seg = &base_path[last_slash_idx + 1..];
                     let base_path_stripped = match classify_segment(last_seg) {
                         SegKind::DoubleDot => base_path,
-                        _ => &base_path[..=last_slash_i],
+                        _ => &base_path[..=last_slash_idx],
                     };
 
                     // Instead of merging the paths, remove dot segments incrementally.
@@ -272,11 +272,11 @@ pub(crate) fn remove_dot_segments(buf: &mut String, path: &[&str]) -> bool {
             SegKind::Dot => {}
             SegKind::DoubleDot => {
                 if buf.len() > min_len {
-                    let prev_slash_i = buf.as_bytes()[..buf.len() - 1]
+                    let prev_slash_idx = buf.as_bytes()[..buf.len() - 1]
                         .iter()
                         .rposition(|&b| b == b'/')
                         .unwrap();
-                    buf.truncate(prev_slash_i + 1);
+                    buf.truncate(prev_slash_idx + 1);
                 } else {
                     underflow_occurred = true;
                 }

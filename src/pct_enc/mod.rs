@@ -524,8 +524,8 @@ impl<'a> Decode<'a> {
         if i == 0 {
             None
         } else {
-            let s;
-            (s, self.source) = self.source.split_at(i);
+            let (s, rem) = self.source.split_at(i);
+            self.source = rem;
             Some(s)
         }
     }
@@ -540,8 +540,9 @@ impl<'a> Iterator for Decode<'a> {
         } else if let Some(s) = self.next_if_unencoded() {
             Some(DecodedChunk::Unencoded(s))
         } else {
-            let s;
-            (s, self.source) = self.source.split_at(3);
+            let (s, rem) = self.source.split_at(3);
+            self.source = rem;
+
             let x = decode_octet(s.as_bytes()[1], s.as_bytes()[2]);
             Some(DecodedChunk::PctDecoded(x))
         }
@@ -815,26 +816,26 @@ impl<'a> Iterator for Encode<'a> {
 
         let mut iter = self.source.char_indices();
 
-        let first_unallowed_i = iter
+        let first_disallowed_idx = iter
             .find_map(|(i, ch)| (!self.table.allows(ch)).then_some(i))
             .unwrap_or(self.source.len());
 
-        let next_allowed_i = iter
+        let next_allowed_idx = iter
             .find_map(|(i, ch)| self.table.allows(ch).then_some(i))
             .unwrap_or(self.source.len());
 
-        if first_unallowed_i == 0 {
-            let (unallowed, rem) = self.source.split_at(next_allowed_i);
+        if first_disallowed_idx == 0 {
+            let (disallowed, rem) = self.source.split_at(next_allowed_idx);
             self.source = rem;
 
-            let (x, rem) = unallowed.as_bytes().split_first().unwrap();
+            let (x, rem) = disallowed.as_bytes().split_first().unwrap();
             self.to_enc = rem;
 
             Some(EncodedChunk::PctEncoded(encode_byte(*x)))
         } else {
-            let allowed = &self.source[..first_unallowed_i];
-            self.to_enc = &self.source.as_bytes()[first_unallowed_i..next_allowed_i];
-            self.source = &self.source[next_allowed_i..];
+            let allowed = &self.source[..first_disallowed_idx];
+            self.to_enc = &self.source.as_bytes()[first_disallowed_idx..next_allowed_idx];
+            self.source = &self.source[next_allowed_idx..];
 
             Some(EncodedChunk::Unencoded(allowed))
         }

@@ -210,13 +210,13 @@ impl<'a> Reader<'a> {
 
     fn read_v6(&mut self) -> Option<[u16; 8]> {
         let mut segs = [0; 8];
-        let mut ellipsis_i = 8;
+        let mut ellipsis_idx = 8;
 
         let mut i = 0;
         while i < 8 {
             match self.read_v6_segment() {
                 Some(Seg::Normal(seg, colon)) => {
-                    if colon == (i == 0 || i == ellipsis_i) {
+                    if colon == (i == 0 || i == ellipsis_idx) {
                         // Leading colon, triple colons, or no colon.
                         return None;
                     }
@@ -224,14 +224,14 @@ impl<'a> Reader<'a> {
                     i += 1;
                 }
                 Some(Seg::Ellipsis) => {
-                    if ellipsis_i != 8 {
+                    if ellipsis_idx != 8 {
                         // Multiple ellipses.
                         return None;
                     }
-                    ellipsis_i = i;
+                    ellipsis_idx = i;
                 }
                 Some(Seg::MaybeV4(colon)) => {
-                    if i > 6 || colon == (i == ellipsis_i) {
+                    if i > 6 || colon == (i == ellipsis_idx) {
                         // Not enough space, triple colons, or no colon.
                         return None;
                     }
@@ -246,7 +246,7 @@ impl<'a> Reader<'a> {
             }
         }
 
-        if ellipsis_i == 8 {
+        if ellipsis_idx == 8 {
             // No ellipsis.
             if i != 8 {
                 // Too short.
@@ -257,7 +257,7 @@ impl<'a> Reader<'a> {
             return None;
         } else {
             // Shift the segments after the ellipsis to the right.
-            for j in (ellipsis_i..i).rev() {
+            for j in (ellipsis_idx..i).rev() {
                 segs[8 - (i - j)] = segs[j];
                 segs[j] = 0;
             }
@@ -472,7 +472,7 @@ impl Parser<'_> {
         let host;
 
         let mut colon_cnt = 0;
-        let mut colon_i = 0;
+        let mut colon_idx = 0;
 
         let auth_start = self.pos;
 
@@ -481,7 +481,7 @@ impl Parser<'_> {
         self._read(userinfo_table, |i, x| {
             if x == ':' as u32 {
                 colon_cnt += 1;
-                colon_i = i;
+                colon_idx = i;
             }
         })?;
 
@@ -511,15 +511,15 @@ impl Parser<'_> {
                 0 => self.pos,
                 // Host and port.
                 1 => {
-                    for i in colon_i + 1..self.pos {
+                    for i in colon_idx + 1..self.pos {
                         if !self.bytes[i].is_ascii_digit() {
                             err!(i, UnexpectedChar);
                         }
                     }
-                    colon_i
+                    colon_idx
                 }
                 // Multiple colons.
-                _ => err!(colon_i, UnexpectedChar),
+                _ => err!(colon_idx, UnexpectedChar),
             };
 
             let meta = parse_v4_or_reg_name(&self.bytes[auth_start..host_end]);
