@@ -147,28 +147,11 @@ pub(crate) fn normalize(
     // but it's fine since this rarely happens.
     let mut buf = String::with_capacity(r.as_str().len());
 
-    let path = r.path().as_str();
-    let mut path_buf = String::with_capacity(path.len());
-
     let data_table = if ascii_only {
         Data::TABLE
     } else {
         IData::TABLE
     };
-
-    if r.has_scheme() && path.starts_with('/') {
-        normalize_estr(&mut buf, path, false, data_table);
-
-        let underflow_occurred = resolve::remove_dot_segments(&mut path_buf, 0, &[&buf]);
-        if underflow_occurred && !allow_path_underflow {
-            return Err(NormalizeError::PathUnderflow);
-        }
-
-        buf.clear();
-    } else {
-        // Don't remove dot segments from relative reference or rootless path.
-        normalize_estr(&mut path_buf, path, false, data_table);
-    }
 
     let mut meta = Meta::default();
 
@@ -236,12 +219,29 @@ pub(crate) fn normalize(
         }
     }
 
-    meta.path_bounds.0 = buf.len();
-    // Make sure that the output is a valid URI/IRI reference.
-    if r.has_scheme() && !r.has_authority() && path_buf.starts_with("//") {
-        buf.push_str("/.");
+    let path_start = buf.len();
+    meta.path_bounds.0 = path_start;
+
+    let path = r.path().as_str();
+
+    if r.has_scheme() && path.starts_with('/') {
+        let mut path_buf = String::with_capacity(path.len());
+        normalize_estr(&mut path_buf, path, false, data_table);
+
+        let underflow_occurred = resolve::remove_dot_segments(&mut buf, &[&path_buf]);
+        if underflow_occurred && !allow_path_underflow {
+            return Err(NormalizeError::PathUnderflow);
+        }
+
+        // Make sure that the output is a valid URI/IRI reference.
+        if !r.has_authority() && buf[path_start..].starts_with("//") {
+            buf.insert_str(path_start, "/.");
+        }
+    } else {
+        // Don't remove dot segments from relative reference or rootless path.
+        normalize_estr(&mut buf, path, false, data_table);
     }
-    buf.push_str(&path_buf);
+
     meta.path_bounds.1 = buf.len();
 
     if let Some(query) = r.query() {

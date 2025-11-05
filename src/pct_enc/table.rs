@@ -154,7 +154,7 @@ impl Table {
                 }
                 let (hi, lo) = (s[i + 1], s[i + 2]);
 
-                if !(HEXDIG.allows_ascii(hi) & HEXDIG.allows_ascii(lo)) {
+                if !(hi.is_ascii_hexdigit() && lo.is_ascii_hexdigit()) {
                     return false;
                 }
                 i += 3;

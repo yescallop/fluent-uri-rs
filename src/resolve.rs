@@ -230,7 +230,7 @@ pub(crate) fn resolve(
         let path = [t_path.0, t_path.1.unwrap_or("")];
         let path = &path[..t_path.1.is_some() as usize + 1];
 
-        let underflow_occurred = remove_dot_segments(&mut buf, path_start, path);
+        let underflow_occurred = remove_dot_segments(&mut buf, path);
         if underflow_occurred && !allow_path_underflow {
             return Err(ResolveError::PathUnderflow);
         }
@@ -261,14 +261,18 @@ pub(crate) fn resolve(
     Ok((buf, meta))
 }
 
-pub(crate) fn remove_dot_segments(buf: &mut String, start: usize, path: &[&str]) -> bool {
+pub(crate) fn remove_dot_segments(buf: &mut String, path: &[&str]) -> bool {
+    debug_assert!(path[0].starts_with('/'));
+
+    let len_with_init_slash = buf.len() + 1;
     let mut underflow_occurred = false;
+
     for seg in path.iter().flat_map(|s| s.split_inclusive('/')) {
         let seg_stripped = seg.strip_suffix('/').unwrap_or(seg);
         match classify_segment(seg_stripped) {
             SegKind::Dot => {}
             SegKind::DoubleDot => {
-                if buf.len() > start + 1 {
+                if buf.len() > len_with_init_slash {
                     buf.truncate(buf[..buf.len() - 1].rfind('/').unwrap() + 1);
                 } else {
                     underflow_occurred = true;
