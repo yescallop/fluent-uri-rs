@@ -114,6 +114,7 @@ impl DerefMut for Parser<'_> {
     }
 }
 
+#[derive(Clone, Copy)]
 enum PathKind {
     General,
     AbEmpty,
@@ -158,11 +159,11 @@ impl<'a> Reader<'a> {
     // Returns `true` iff any byte is read.
     fn read(&mut self, table: Table) -> Result<bool> {
         let start = self.pos;
-        self._read(table, |_, _| {})?;
+        self.read_with(table, |_, _| {})?;
         Ok(self.pos > start)
     }
 
-    fn _read(&mut self, table: Table, mut f: impl FnMut(usize, u32)) -> Result<()> {
+    fn read_with(&mut self, table: Table, mut f: impl FnMut(usize, u32)) -> Result<()> {
         let mut i = self.pos;
         let allow_pct_encoded = table.allows_pct_encoded();
         let allow_non_ascii = table.allows_non_ascii();
@@ -299,7 +300,6 @@ impl<'a> Reader<'a> {
                 Some(v) => {
                     x = (x << 4) | v as u16;
                     i += 1;
-                    continue;
                 }
                 _ if b == b'.' => return Some(Seg::MaybeV4(colon)),
                 _ => break,
@@ -478,7 +478,7 @@ impl Parser<'_> {
 
         let userinfo_table = self.select(USERINFO, IUSERINFO);
         // `userinfo_table` contains userinfo, registered name, ':', and port.
-        self._read(userinfo_table, |i, x| {
+        self.read_with(userinfo_table, |i, x| {
             if x == ':' as u32 {
                 colon_cnt += 1;
                 colon_idx = i;

@@ -122,8 +122,8 @@ impl<'a> AsHost<'a> for Ipv6Addr {
 impl<'a> AsHost<'a> for IpAddr {
     fn push_to(self, b: &mut BuilderInner) {
         match self {
-            IpAddr::V4(addr) => addr.push_to(b),
-            IpAddr::V6(addr) => addr.push_to(b),
+            Self::V4(addr) => addr.push_to(b),
+            Self::V6(addr) => addr.push_to(b),
         }
     }
 }

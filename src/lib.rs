@@ -10,10 +10,12 @@
     clippy::map_unwrap_or,
     clippy::missing_errors_doc,
     clippy::must_use_candidate,
+    clippy::needless_continue,
+    clippy::range_plus_one,
     // clippy::redundant_closure_for_method_calls,
     clippy::redundant_else,
     clippy::semicolon_if_nothing_returned,
-    // clippy::single_match_else,
+    clippy::single_match_else,
     clippy::use_self,
 )]
 #![forbid(unsafe_code)]

@@ -102,9 +102,10 @@ impl<'a> Iterator for Utf8Chunks<'a> {
         const TAG_CONT_U8: u8 = 128;
 
         let mut incomplete = false;
-        let mut safe_get = |i| match self.source.get(i) {
-            Some(x) => *x,
-            None => {
+        let mut safe_get = |i| {
+            if let Some(x) = self.source.get(i) {
+                *x
+            } else {
                 incomplete = true;
                 0
             }

@@ -197,7 +197,7 @@ pub(crate) fn resolve(
     if let Some(authority) = t_authority {
         len += authority.as_str().len() + 2;
     }
-    len += t_path.0.len() + t_path.1.map_or(0, |s| s.len());
+    len += t_path.0.len() + t_path.1.map_or(0, str::len);
     if let Some(query) = t_query {
         len += query.len() + 1;
     }
@@ -228,7 +228,7 @@ pub(crate) fn resolve(
 
     if t_path.0.starts_with('/') {
         let path = [t_path.0, t_path.1.unwrap_or("")];
-        let path = &path[..t_path.1.is_some() as usize + 1];
+        let path = &path[..=t_path.1.is_some() as usize];
 
         let underflow_occurred = remove_dot_segments(&mut buf, path);
         if underflow_occurred && !allow_path_underflow {
