@@ -247,7 +247,7 @@ pub(crate) fn normalize(
     if let Some(query) = r.query() {
         buf.push('?');
 
-        const IQUERY_DATA: &Table = &IData::TABLE.or_iprivate();
+        const IQUERY_DATA: Table = IData::TABLE.or_iprivate();
         let query_data_table = if ascii_only { Data::TABLE } else { IQUERY_DATA };
 
         normalize_estr(&mut buf, query.as_str(), false, query_data_table);
@@ -262,7 +262,7 @@ pub(crate) fn normalize(
     Ok((buf, meta))
 }
 
-fn normalize_estr(buf: &mut String, s: &str, to_ascii_lowercase: bool, table: &Table) {
+fn normalize_estr(buf: &mut String, s: &str, to_ascii_lowercase: bool, table: Table) {
     if table.allows_non_ascii() {
         Decode::new(s).decode_utf8(|chunk| match chunk {
             DecodedUtf8Chunk::Unencoded(s) => {

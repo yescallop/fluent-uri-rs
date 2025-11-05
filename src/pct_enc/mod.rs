@@ -29,7 +29,7 @@ use alloc::{
 /// [subset]: Table::is_subset
 pub trait Encoder: 'static {
     /// The table used for encoding.
-    const TABLE: &'static Table;
+    const TABLE: Table;
 }
 
 /// Percent-encoded string slices.
@@ -759,16 +759,16 @@ pub(crate) fn encode_byte(x: u8) -> &'static str {
 #[cfg(feature = "alloc")]
 #[derive(Clone, Debug)]
 #[must_use = "iterators are lazy and do nothing unless consumed"]
-pub(crate) struct Encode<'t, 's> {
-    table: &'t Table,
+pub(crate) struct Encode<'s> {
+    table: Table,
     source: &'s str,
     enc_len: usize,
     enc_i: usize,
 }
 
 #[cfg(feature = "alloc")]
-impl<'t, 's> Encode<'t, 's> {
-    pub(crate) fn new(table: &'t Table, source: &'s str) -> Self {
+impl<'s> Encode<'s> {
+    pub(crate) fn new(table: Table, source: &'s str) -> Self {
         Self {
             table,
             source,
@@ -800,8 +800,8 @@ impl<'a> EncodedChunk<'a> {
 }
 
 #[cfg(feature = "alloc")]
-impl<'t, 's> Iterator for Encode<'t, 's> {
-    type Item = EncodedChunk<'s>;
+impl<'a> Iterator for Encode<'a> {
+    type Item = EncodedChunk<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.enc_i < self.enc_len {
@@ -843,7 +843,7 @@ impl<'t, 's> Iterator for Encode<'t, 's> {
 }
 
 #[cfg(feature = "alloc")]
-impl FusedIterator for Encode<'_, '_> {}
+impl FusedIterator for Encode<'_> {}
 
 /// An iterator over subslices of an [`EStr`] slice separated by a delimiter.
 ///

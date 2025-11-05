@@ -9,7 +9,7 @@ use super::{table::*, Encoder, Table};
 pub struct Userinfo(());
 
 impl Encoder for Userinfo {
-    const TABLE: &'static Table = USERINFO;
+    const TABLE: Table = USERINFO;
 }
 
 /// An encoder for IRI userinfo.
@@ -17,7 +17,7 @@ impl Encoder for Userinfo {
 pub struct IUserinfo(());
 
 impl Encoder for IUserinfo {
-    const TABLE: &'static Table = IUSERINFO;
+    const TABLE: Table = IUSERINFO;
 }
 
 /// An encoder for URI registered name.
@@ -26,7 +26,7 @@ impl Encoder for IUserinfo {
 pub struct RegName(());
 
 impl Encoder for RegName {
-    const TABLE: &'static Table = REG_NAME;
+    const TABLE: Table = REG_NAME;
 }
 
 /// An encoder for IRI registered name.
@@ -34,7 +34,7 @@ impl Encoder for RegName {
 pub struct IRegName(());
 
 impl Encoder for IRegName {
-    const TABLE: &'static Table = IREG_NAME;
+    const TABLE: Table = IREG_NAME;
 }
 
 /// An encoder for URI/IRI port.
@@ -42,7 +42,7 @@ impl Encoder for IRegName {
 pub struct Port(());
 
 impl Encoder for Port {
-    const TABLE: &'static Table = DIGIT;
+    const TABLE: Table = DIGIT;
 }
 
 /// An encoder for URI path.
@@ -54,7 +54,7 @@ impl Encoder for Port {
 pub struct Path(());
 
 impl Encoder for Path {
-    const TABLE: &'static Table = PATH;
+    const TABLE: Table = PATH;
 }
 
 /// An encoder for IRI path.
@@ -66,7 +66,7 @@ impl Encoder for Path {
 pub struct IPath(());
 
 impl Encoder for IPath {
-    const TABLE: &'static Table = IPATH;
+    const TABLE: Table = IPATH;
 }
 
 /// An encoder for URI query.
@@ -74,7 +74,7 @@ impl Encoder for IPath {
 pub struct Query(());
 
 impl Encoder for Query {
-    const TABLE: &'static Table = QUERY;
+    const TABLE: Table = QUERY;
 }
 
 /// An encoder for IRI query.
@@ -82,7 +82,7 @@ impl Encoder for Query {
 pub struct IQuery(());
 
 impl Encoder for IQuery {
-    const TABLE: &'static Table = IQUERY;
+    const TABLE: Table = IQUERY;
 }
 
 /// An encoder for URI fragment.
@@ -90,7 +90,7 @@ impl Encoder for IQuery {
 pub struct Fragment(());
 
 impl Encoder for Fragment {
-    const TABLE: &'static Table = FRAGMENT;
+    const TABLE: Table = FRAGMENT;
 }
 
 /// An encoder for IRI fragment.
@@ -98,7 +98,7 @@ impl Encoder for Fragment {
 pub struct IFragment(());
 
 impl Encoder for IFragment {
-    const TABLE: &'static Table = IFRAGMENT;
+    const TABLE: Table = IFRAGMENT;
 }
 
 /// An encoder for URI data which preserves only [unreserved] characters
@@ -109,7 +109,7 @@ impl Encoder for IFragment {
 pub struct Data(());
 
 impl Encoder for Data {
-    const TABLE: &'static Table = &UNRESERVED.or_pct_encoded();
+    const TABLE: Table = UNRESERVED.or_pct_encoded();
 }
 
 /// An encoder for IRI data which preserves only [unreserved] characters
@@ -120,5 +120,5 @@ impl Encoder for Data {
 pub struct IData(());
 
 impl Encoder for IData {
-    const TABLE: &'static Table = &UNRESERVED.or_pct_encoded().or_ucschar();
+    const TABLE: Table = UNRESERVED.or_pct_encoded().or_ucschar();
 }

@@ -156,13 +156,13 @@ impl<'a> Reader<'a> {
     }
 
     // Returns `true` iff any byte is read.
-    fn read(&mut self, table: &Table) -> Result<bool> {
+    fn read(&mut self, table: Table) -> Result<bool> {
         let start = self.pos;
         self._read(table, |_, _| {})?;
         Ok(self.pos > start)
     }
 
-    fn _read(&mut self, table: &Table, mut f: impl FnMut(usize, u32)) -> Result<()> {
+    fn _read(&mut self, table: Table, mut f: impl FnMut(usize, u32)) -> Result<()> {
         let mut i = self.pos;
         let allow_pct_encoded = table.allows_pct_encoded();
         let allow_non_ascii = table.allows_non_ascii();
@@ -173,7 +173,7 @@ impl<'a> Reader<'a> {
                 let [hi, lo, ..] = self.bytes[i + 1..] else {
                     err!(i, InvalidPctEncodedOctet);
                 };
-                if !(HEXDIG.allows_ascii(hi) & HEXDIG.allows_ascii(lo)) {
+                if !(hi.is_ascii_hexdigit() && lo.is_ascii_hexdigit()) {
                     err!(i, InvalidPctEncodedOctet);
                 }
                 i += 3;

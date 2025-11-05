@@ -60,7 +60,7 @@ use core::{borrow::Borrow, cmp::Ordering, fmt, hash, marker::PhantomData, ops::D
 /// struct PathSegment;
 ///
 /// impl Encoder for PathSegment {
-///     const TABLE: &'static Table = &Path::TABLE.sub(&Table::new(b"/"));
+///     const TABLE: Table = Path::TABLE.sub(Table::new(b"/"));
 /// }
 ///
 /// let mut path = EString::<Path>::new();
@@ -117,7 +117,7 @@ impl<E: Encoder> EString<E> {
 
     /// Encodes a string with a sub-encoder and appends the result onto the end of this `EString`.
     ///
-    /// A character will be preserved if `SubE::TABLE` [allows] it and percent-encoded otherwise.
+    /// A character will be preserved if `SubE::TABLE` [allows] it; it will be percent-encoded otherwise.
     ///
     /// In most cases, use [`Data`] (for URI) or [`IData`] (for IRI) as the sub-encoder.
     /// When using other sub-encoders, make sure that `SubE::TABLE` does not [allow][allows]
@@ -147,7 +147,7 @@ impl<E: Encoder> EString<E> {
     /// Encodes a byte sequence with a sub-encoder and appends the result onto the end of this `EString`.
     ///
     /// A byte will be preserved if it is part of a UTF-8-encoded character
-    /// that `SubE::TABLE` [allows] and percent-encoded otherwise.
+    /// that `SubE::TABLE` [allows]; it will be percent-encoded otherwise.
     ///
     /// In most cases, use [`Data`] (for URI) or [`IData`] (for IRI) as the sub-encoder.
     /// When using other sub-encoders, make sure that `SubE::TABLE` does not [allow][allows]
