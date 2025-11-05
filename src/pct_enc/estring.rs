@@ -267,7 +267,7 @@ impl<E: Encoder> PartialOrd for EString<E> {
 
 impl<E: Encoder> Ord for EString<E> {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.inner.cmp(&other.inner)
+        self.as_str().cmp(other.as_str())
     }
 }
 

@@ -286,22 +286,13 @@ enum SegKind {
     Normal,
 }
 
-fn classify_segment(mut seg: &str) -> SegKind {
-    if seg.is_empty() {
-        return SegKind::Normal;
-    }
-    if let Some(rem) = seg.strip_prefix('.') {
-        seg = rem;
-    } else if let Some(rem) = seg.strip_prefix("%2E") {
-        seg = rem;
-    } else if let Some(rem) = seg.strip_prefix("%2e") {
-        seg = rem;
-    }
-    if seg.is_empty() {
-        SegKind::Dot
-    } else if seg == "." || seg == "%2E" || seg == "%2e" {
-        SegKind::DoubleDot
-    } else {
-        SegKind::Normal
+fn classify_segment(seg: &str) -> SegKind {
+    match seg.as_bytes() {
+        [b'.', rem @ ..] | [b'%', b'2', b'E' | b'e', rem @ ..] => match rem {
+            [] => SegKind::Dot,
+            b"." | [b'%', b'2', b'E' | b'e'] => SegKind::DoubleDot,
+            _ => SegKind::Normal,
+        },
+        _ => SegKind::Normal,
     }
 }

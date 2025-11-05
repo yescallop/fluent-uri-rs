@@ -1,6 +1,6 @@
 use crate::{
     imp::{AuthMeta, Constraints, HostMeta, Meta},
-    pct_enc::{table::*, Table, OCTET_TABLE_LO},
+    pct_enc::{table::*, Table},
     utf8,
 };
 use core::{
@@ -273,8 +273,8 @@ impl<'a> Reader<'a> {
         }
 
         let first = self.peek(0).unwrap();
-        let mut x = match OCTET_TABLE_LO[first as usize] {
-            v if v < 128 => v as u16,
+        let mut x = match (first as char).to_digit(16) {
+            Some(v) => v as u16,
             _ => {
                 return colon.then(|| {
                     if first == b':' {
@@ -295,8 +295,8 @@ impl<'a> Reader<'a> {
                 self.skip(i);
                 return None;
             };
-            match OCTET_TABLE_LO[b as usize] {
-                v if v < 128 => {
+            match (b as char).to_digit(16) {
+                Some(v) => {
                     x = (x << 4) | v as u16;
                     i += 1;
                     continue;

@@ -54,12 +54,6 @@ const UTF8_CHAR_WIDTH: &[u8; 256] = &[
     4, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // F
 ];
 
-#[cfg(feature = "alloc")]
-#[inline]
-const fn utf8_char_width(b: u8) -> usize {
-    UTF8_CHAR_WIDTH[b as usize] as usize
-}
-
 const CONT_MASK: u8 = 0b0011_1111;
 
 #[cfg(feature = "alloc")]
@@ -123,7 +117,7 @@ impl<'a> Iterator for Utf8Chunks<'a> {
             i += 1;
 
             if byte >= 128 {
-                let w = utf8_char_width(byte);
+                let w = UTF8_CHAR_WIDTH[byte as usize];
 
                 match w {
                     2 => {
