@@ -264,7 +264,7 @@ pub(crate) fn resolve(
 pub(crate) fn remove_dot_segments(buf: &mut String, path: &[&str]) -> bool {
     debug_assert!(path[0].starts_with('/'));
 
-    let len_with_init_slash = buf.len() + 1;
+    let min_len = buf.len() + 1;
     let mut underflow_occurred = false;
 
     for seg in path.iter().flat_map(|s| s.split_inclusive('/')) {
@@ -272,7 +272,7 @@ pub(crate) fn remove_dot_segments(buf: &mut String, path: &[&str]) -> bool {
         match classify_segment(seg_stripped) {
             SegKind::Dot => {}
             SegKind::DoubleDot => {
-                if buf.len() > len_with_init_slash {
+                if buf.len() > min_len {
                     buf.truncate(buf[..buf.len() - 1].rfind('/').unwrap() + 1);
                 } else {
                     underflow_occurred = true;
