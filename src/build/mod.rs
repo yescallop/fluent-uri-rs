@@ -363,7 +363,7 @@ impl<R, S: To<PortEnd>> Builder<R, S> {
     /// [port]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.3
     #[cfg(fluent_uri_unstable)]
     pub fn port_with_default(self, port: u16, default: u16) -> Builder<R, PortEnd> {
-        if port != default {
+        if port == default {
             self.cast()
         } else {
             self.port(port)
