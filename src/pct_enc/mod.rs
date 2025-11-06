@@ -253,7 +253,7 @@ impl<E: Encoder> EStr<E> {
     /// ```
     pub fn split(&self, delim: char) -> Split<'_, E> {
         assert!(
-            delim.is_ascii() && table::RESERVED.allows(delim),
+            table::RESERVED.allows(delim),
             "splitting with non-reserved character"
         );
         Split {
@@ -288,7 +288,7 @@ impl<E: Encoder> EStr<E> {
     #[must_use]
     pub fn split_once(&self, delim: char) -> Option<(&Self, &Self)> {
         assert!(
-            delim.is_ascii() && table::RESERVED.allows(delim),
+            table::RESERVED.allows(delim),
             "splitting with non-reserved character"
         );
         self.inner
@@ -322,7 +322,7 @@ impl<E: Encoder> EStr<E> {
     #[must_use]
     pub fn rsplit_once(&self, delim: char) -> Option<(&Self, &Self)> {
         assert!(
-            delim.is_ascii() && table::RESERVED.allows(delim),
+            table::RESERVED.allows(delim),
             "splitting with non-reserved character"
         );
         self.inner
