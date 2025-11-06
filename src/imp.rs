@@ -528,7 +528,7 @@ macro_rules! ri_maybe_ref {
                 /// you can use [`strip_fragment`], [`with_fragment`] or [`set_fragment`] to remove the fragment
                 #[doc = concat!("from any ", $nr_name, ".")]
                 /// Note that a base without fragment does **not** guarantee a successful resolution
-                /// (see the **must** below).
+                /// (see the must below).
                 ///
                 /// This method applies the reference resolution algorithm defined in
                 /// [Section 5 of RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986#section-5),
