@@ -1175,7 +1175,7 @@ ri_maybe_ref! {
     variable_name = "iri_ref",
     name = "IRI reference",
     indefinite_article = "an",
-    description = "An IRI reference, i.e., either a IRI or a relative reference.",
+    description = "An IRI reference, i.e., either an IRI or a relative reference.",
     ascii_only = false,
     scheme_required = false,
     rfc = 3987,
