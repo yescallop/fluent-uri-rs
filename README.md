@@ -133,10 +133,10 @@ which may contain non-ASCII characters.
     let mut buf = EString::<Query>::new();
     for (k, v) in pairs {
         if !buf.is_empty() {
-            buf.push_byte(b'&');
+            buf.push('&');
         }
         buf.encode::<Data>(k);
-        buf.push_byte(b'=');
+        buf.push('=');
         buf.encode::<Data>(v);
     }
 
