@@ -113,97 +113,6 @@ impl Scheme {
     }
 }
 
-macro_rules! default_port {
-    ($($name:literal, $bname:literal => $port:literal, rfc($rfc:literal))*) => {
-        impl Scheme {
-            /// Returns the optional default port of the scheme if it is
-            /// registered [at IANA][iana] with a permanent status.
-            ///
-            /// [iana]: https://www.iana.org/assignments/uri-schemes/uri-schemes.xhtml
-            ///
-            /// The following table lists all schemes concerned, their default ports, and references:
-            ///
-            /// | Scheme | Port | Reference |
-            /// | - | - | - |
-            $(#[doc = concat!("| ", $name, " | ", $port, " | [RFC ", $rfc, "](https://datatracker.ietf.org/doc/html/rfc", $rfc, ") |")])*
-            #[must_use]
-            pub fn default_port(&self) -> Option<u16> {
-                const MAX_LEN: usize = {
-                    let mut res = 0;
-                    $(
-                        if $name.len() > res {
-                            res = $name.len();
-                        }
-                    )*
-                    res
-                };
-
-                let len = self.inner.len();
-                if len > MAX_LEN {
-                    return None;
-                }
-
-                let mut buf = [0; MAX_LEN];
-                for (i, b) in self.inner.bytes().enumerate() {
-                    buf[i] = b | ASCII_CASE_MASK;
-                }
-
-                match &buf[..len] {
-                    $($bname => Some($port),)*
-                    _ => None,
-                }
-            }
-        }
-    };
-}
-
-default_port! {
-    "aaa", b"aaa" => 3868, rfc(6733)
-    "aaas", b"aaas" => 5658, rfc(6733)
-    "acap", b"acap" => 674, rfc(2244)
-    "cap", b"cap" => 1026, rfc(4324)
-    "coap", b"coap" => 5683, rfc(7252)
-    "coap+tcp", b"coap+tcp" => 5683, rfc(8323)
-    "coap+ws", b"coap+ws" => 80, rfc(8323)
-    "coaps", b"coaps" => 5684, rfc(7252)
-    "coaps+tcp", b"coaps+tcp" => 5684, rfc(8323)
-    "coaps+ws", b"coaps+ws" => 443, rfc(8323)
-    "dict", b"dict" => 2628, rfc(2229)
-    "dns", b"dns" => 53, rfc(4501)
-    "ftp", b"ftp" => 21, rfc(1738)
-    "go", b"go" => 1096, rfc(3368)
-    "gopher", b"gopher" => 70, rfc(4266)
-    "http", b"http" => 80, rfc(9110)
-    "https", b"https" => 443, rfc(9110)
-    "icap", b"icap" => 1344, rfc(3507)
-    "imap", b"imap" => 143, rfc(5092)
-    "ipp", b"ipp" => 631, rfc(3510)
-    "ipps", b"ipps" => 631, rfc(7472)
-    "ldap", b"ldap" => 389, rfc(4516)
-    "mtqp", b"mtqp" => 1038, rfc(3887)
-    "mupdate", b"mupdate" => 3905, rfc(3656)
-    "nfs", b"nfs" => 2049, rfc(2224)
-    "nntp", b"nntp" => 119, rfc(5538)
-    "pop", b"pop" => 110, rfc(2384)
-    "rtsp", b"rtsp" => 554, rfc(7826)
-    "rtsps", b"rtsps" => 322, rfc(7826)
-    "rtspu", b"rtspu" => 554, rfc(2326)
-    "snmp", b"snmp" => 161, rfc(4088)
-    "stun", b"stun" => 3478, rfc(7064)
-    "stuns", b"stuns" => 5349, rfc(7064)
-    "telnet", b"telnet" => 23, rfc(4248)
-    "tip", b"tip" => 3372, rfc(2371)
-    "tn3270", b"tn3270" => 23, rfc(6270)
-    "turn", b"turn" => 3478, rfc(7065)
-    "turns", b"turns" => 5349, rfc(7065)
-    "vemmi", b"vemmi" => 575, rfc(2122)
-    "vnc", b"vnc" => 5900, rfc(7869)
-    "ws", b"ws" => 80, rfc(6455)
-    "wss", b"wss" => 443, rfc(6455)
-    "z39.50r", b"z39.50r" => 210, rfc(2056)
-    "z39.50s", b"z39.50s" => 210, rfc(2056)
-}
-
 impl PartialEq for Scheme {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
@@ -461,7 +370,7 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
 
     /// Returns the optional [port] subcomponent.
     ///
-    /// A scheme may define a [default port] to use when the port is
+    /// A scheme may define a default port to use when the port is
     /// not present or is empty.
     ///
     /// Note that the port may be empty, with leading zeros, or larger than [`u16::MAX`].
@@ -470,7 +379,6 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     /// mechanism that allows ports larger than [`u16::MAX`].
     ///
     /// [port]: https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.3
-    /// [default port]: Scheme::default_port
     ///
     /// # Examples
     ///

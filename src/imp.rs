@@ -569,7 +569,7 @@ macro_rules! ri_maybe_ref {
                 /// `self.resolve_against(base).map(|r| r.normalize()).ok()` equals
                 /// `self.normalize().resolve_against(&base.normalize()).ok()`.
                 ///
-                /// If you need to resolve multiple references against a common base or configure the behavior
+                /// If you need to resolve multiple references against a common base or customize the behavior
                 /// of resolution, consider using [`Resolver`](crate::resolve::Resolver) instead.
                 ///
                 /// # Errors
@@ -607,7 +607,7 @@ macro_rules! ri_maybe_ref {
             /// This method applies syntax-based normalization described in
             /// [Section 6.2.2 of RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986#section-6.2.2)
             /// and [Section 5.3.2 of RFC 3987](https://datatracker.ietf.org/doc/html/rfc3987#section-5.3.2),
-            /// along with IPv6 address and default port normalization.
+            /// along with IPv6 address normalization.
             /// This is effectively equivalent to taking the following steps in order:
             ///
             /// - Decode any percent-encoded octets that correspond to an allowed character which is not reserved.
@@ -615,7 +615,7 @@ macro_rules! ri_maybe_ref {
             /// - Lowercase all ASCII characters within the scheme and the host except the percent-encoded octets.
             /// - Turn any IPv6 literal address into its canonical form as per
             ///   [RFC 5952](https://datatracker.ietf.org/doc/html/rfc5952).
-            /// - If the port is empty or equals the [scheme's default], remove it along with the `':'` delimiter.
+            /// - If the port is empty, remove the preceding `':'` delimiter.
             /// - If `self` has a scheme and an [absolute] path, apply the
             ///   [`remove_dot_segments`] algorithm to the path, taking account of
             ///   percent-encoded dot segments as described at [`UriRef::resolve_against`].
@@ -624,10 +624,9 @@ macro_rules! ri_maybe_ref {
             ///
             /// This method is idempotent: `self.normalize()` equals `self.normalize().normalize()`.
             ///
-            /// If you need to configure the behavior of normalization, consider using [`Normalizer`] instead.
+            /// If you need to customize the behavior of normalization, consider using [`Normalizer`] instead.
             ///
             /// [`UriRef::resolve_against`]: crate::UriRef::resolve_against
-            /// [scheme's default]: Scheme::default_port
             /// [absolute]: EStr::<Path>::is_absolute
             /// [`remove_dot_segments`]: https://datatracker.ietf.org/doc/html/rfc3986#section-5.2.4
             ///

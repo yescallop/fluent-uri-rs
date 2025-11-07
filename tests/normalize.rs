@@ -27,7 +27,7 @@ fn normalize() {
     assert_eq!(r.normalize(), "http://example.com/");
 
     let r = UriRef::parse("http://example.com:80/").unwrap();
-    assert_eq!(r.normalize(), "http://example.com/");
+    assert_eq!(r.normalize(), "http://example.com:80/");
 
     // Lowercase percent-encoded octet.
     let r = UriRef::parse("%3a").unwrap();

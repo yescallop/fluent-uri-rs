@@ -1,7 +1,6 @@
 //! Module for normalization.
 
 use crate::{
-    component::Scheme,
     imp::{HostMeta, Meta, RiMaybeRef, RmrRef},
     parse,
     pct_enc::{
@@ -45,15 +44,15 @@ impl crate::Error for NormalizeError {}
 #[must_use]
 pub struct Normalizer {
     allow_path_underflow: bool,
-    default_port_f: fn(&Scheme) -> Option<u16>,
+    default_port_f: fn(&str) -> Option<u16>,
 }
 
 impl Normalizer {
     /// Creates a new `Normalizer` with default configuration.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             allow_path_underflow: true,
-            default_port_f: Scheme::default_port,
+            default_port_f: |_| None,
         }
     }
 
@@ -68,41 +67,45 @@ impl Normalizer {
     /// ```
     /// use fluent_uri::{normalize::{Normalizer, NormalizeError}, Uri};
     ///
-    /// let normalizer = Normalizer::new().allow_path_underflow(false);
-    /// let uri = Uri::parse("http://example.com/..")?;
+    /// const NORMALIZER: Normalizer = Normalizer::new().allow_path_underflow(false);
     ///
-    /// assert_eq!(normalizer.normalize(&uri).unwrap_err(), NormalizeError::PathUnderflow);
+    /// let uri = Uri::parse("http://example.com/..")?;
+    /// assert_eq!(NORMALIZER.normalize(&uri).unwrap_err(), NormalizeError::PathUnderflow);
     /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
-    pub fn allow_path_underflow(mut self, value: bool) -> Self {
+    pub const fn allow_path_underflow(mut self, value: bool) -> Self {
         self.allow_path_underflow = value;
         self
     }
 
-    /// Sets the function with which to get the default port of a scheme.
+    /// Sets the function with which to get the default port for a scheme.
     ///
-    /// This defaults to [`Scheme::default_port`].
+    /// This defaults to `|_| None`.
+    ///
+    /// The scheme will be lowercased before being passed to the function.
     ///
     /// # Examples
     ///
     /// ```
-    /// use fluent_uri::{component::Scheme, normalize::Normalizer, Uri};
+    /// use fluent_uri::{normalize::Normalizer, Uri};
     ///
-    /// const SCHEME_FOO: &Scheme = Scheme::new_or_panic("foo");
-    ///
-    /// let normalizer = Normalizer::new().default_port_with(|scheme| {
-    ///     if scheme == SCHEME_FOO {
-    ///         Some(4673)
-    ///     } else {
-    ///         scheme.default_port()
+    /// const NORMALIZER: Normalizer = Normalizer::new().default_port_with(|scheme| {
+    ///     // Simply match on `scheme` as it's already in lowercase.
+    ///     match scheme {
+    ///         "http" | "ws" => Some(80),
+    ///         "https" | "wss" => Some(443),
+    ///         _ => None,
     ///     }
     /// });
-    /// let uri = Uri::parse("foo://localhost:4673")?;
     ///
-    /// assert_eq!(normalizer.normalize(&uri).unwrap(), "foo://localhost");
+    /// let uri = Uri::parse("http://example.com:80/")?;
+    /// assert_eq!(NORMALIZER.normalize(&uri).unwrap(), "http://example.com/");
+    ///
+    /// let uri = Uri::parse("foo://example.com:4673/")?;
+    /// assert_eq!(NORMALIZER.normalize(&uri).unwrap(), "foo://example.com:4673/");
     /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
-    pub fn default_port_with(mut self, f: fn(&Scheme) -> Option<u16>) -> Self {
+    pub const fn default_port_with(mut self, f: fn(&str) -> Option<u16>) -> Self {
         self.default_port_f = f;
         self
     }
@@ -141,7 +144,7 @@ pub(crate) fn normalize(
     r: RmrRef<'_, '_>,
     ascii_only: bool,
     allow_path_underflow: bool,
-    default_port_f: fn(&Scheme) -> Option<u16>,
+    default_port_f: fn(&str) -> Option<u16>,
 ) -> Result<(String, Meta), NormalizeError> {
     // For "a://[::ffff:5:9]/" the capacity is not enough,
     // but it's fine since this rarely happens.
@@ -206,8 +209,8 @@ pub(crate) fn normalize(
         if let Some(port) = auth.port() {
             if !port.is_empty() {
                 let mut eq_default = false;
-                if let Some(scheme) = r.scheme_opt() {
-                    if let Some(default) = default_port_f(scheme) {
+                if let Some(scheme_end) = meta.scheme_end {
+                    if let Some(default) = default_port_f(&buf[..scheme_end.get()]) {
                         eq_default = port.as_str().parse().ok() == Some(default);
                     }
                 }
