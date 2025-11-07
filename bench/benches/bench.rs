@@ -26,8 +26,8 @@ criterion_main!(benches);
 
 const PARSE_CASE: &str = "https://user@example.com/search?q=%E6%B5%8B%E8%AF%95#fragment";
 const NORMALIZE_CASE: &str = "eXAMPLE://a/./b/../b/%63/%7bfoo%7d";
-const RESOLVE_CASE_BASE: &str = "http://example.com/foo/bar";
-const RESOLVE_CASE_REF: &str = "../baz";
+const RESOLVE_CASE_BASE: &str = "http://example.com/foo/bar/baz/quz";
+const RESOLVE_CASE_REF: &str = "../../../qux/./quux/../corge";
 
 fn bench_parse(c: &mut Criterion) {
     c.bench_function("parse", |b| b.iter(|| Iri::parse(black_box(PARSE_CASE))));

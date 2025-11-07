@@ -3,7 +3,7 @@
 use crate::imp::{Meta, Ri, RiMaybeRef, RmrRef};
 use alloc::string::String;
 use borrow_or_share::Bos;
-use core::{fmt, num::NonZeroUsize};
+use core::{fmt, iter, num::NonZeroUsize};
 
 /// An error occurred when resolving a URI/IRI reference.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -174,8 +174,8 @@ pub(crate) fn resolve(
 
                     // Make sure that swapping the order of resolution and normalization
                     // does not change the result.
-                    let last_slash_idx = base_path.rfind('/').unwrap();
-                    let last_seg = &base_path[last_slash_idx + 1..];
+                    let last_slash_idx = base_path.bytes().rposition(|b| b == b'/').unwrap();
+                    let last_seg = &base_path.as_bytes()[last_slash_idx + 1..];
                     let base_path_stripped = match classify_segment(last_seg) {
                         SegKind::DoubleDot => base_path,
                         _ => &base_path[..=last_slash_idx],
@@ -227,10 +227,7 @@ pub(crate) fn resolve(
     meta.path_bounds.0 = path_start;
 
     if t_path.0.starts_with('/') {
-        let path = [t_path.0, t_path.1.unwrap_or("")];
-        let path = &path[..=t_path.1.is_some() as usize];
-
-        let underflow_occurred = remove_dot_segments(&mut buf, path);
+        let underflow_occurred = remove_dot_segments(&mut buf, t_path.0, t_path.1);
         if underflow_occurred && !allow_path_underflow {
             return Err(ResolveError::PathUnderflow);
         }
@@ -261,30 +258,50 @@ pub(crate) fn resolve(
     Ok((buf, meta))
 }
 
-pub(crate) fn remove_dot_segments(buf: &mut String, path: &[&str]) -> bool {
-    debug_assert!(path[0].starts_with('/'));
+pub(crate) fn remove_dot_segments(buf: &mut String, abs: &str, rel: Option<&str>) -> bool {
+    debug_assert!(abs.starts_with('/'));
 
     let min_len = buf.len() + 1;
-    let mut underflow_occurred = false;
+    let mut underflow = false;
 
-    for seg in path.iter().flat_map(|s| s.split_inclusive('/')) {
-        match classify_segment(seg.strip_suffix('/').unwrap_or(seg)) {
-            SegKind::Dot => {}
-            SegKind::DoubleDot => {
-                if buf.len() > min_len {
-                    let prev_slash_idx = buf.as_bytes()[..buf.len() - 1]
-                        .iter()
-                        .rposition(|&b| b == b'/')
-                        .unwrap();
-                    buf.truncate(prev_slash_idx + 1);
-                } else {
-                    underflow_occurred = true;
-                }
+    for part in iter::once(abs).chain(rel) {
+        let bytes = part.as_bytes();
+        let len = bytes.len();
+
+        let mut start = 0;
+        while start < len {
+            // Find next '/' or end.
+            let mut end = start;
+            while end < len && bytes[end] != b'/' {
+                end += 1;
             }
-            SegKind::Normal => buf.push_str(seg),
+            let seg = &bytes[start..end];
+
+            match classify_segment(seg) {
+                SegKind::Dot => {}
+                SegKind::DoubleDot => {
+                    if buf.len() <= min_len {
+                        underflow = true;
+                    } else {
+                        // Truncate to previous segment start.
+                        let prev_slash_idx = buf.as_bytes()[..buf.len() - 1]
+                            .iter()
+                            .rposition(|&b| b == b'/')
+                            .unwrap();
+                        buf.truncate(prev_slash_idx + 1);
+                    }
+                }
+                // Append the segment and the following '/' if any.
+                SegKind::Normal => buf.push_str(&part[start..len.min(end + 1)]),
+            }
+
+            if end == len {
+                break;
+            }
+            start = end + 1; // Skip '/'.
         }
     }
-    underflow_occurred
+    underflow
 }
 
 enum SegKind {
@@ -293,13 +310,19 @@ enum SegKind {
     Normal,
 }
 
-fn classify_segment(seg: &str) -> SegKind {
-    match seg.as_bytes() {
-        [b'.', rem @ ..] | [b'%', b'2', b'E' | b'e', rem @ ..] => match rem {
-            [] => SegKind::Dot,
-            b"." | [b'%', b'2', b'E' | b'e'] => SegKind::DoubleDot,
-            _ => SegKind::Normal,
-        },
+fn classify_segment(s: &[u8]) -> SegKind {
+    fn is_pct2e(s: &[u8]) -> bool {
+        &s[..2] == b"%2" && (s[2] | 0x20) == b'e'
+    }
+
+    match s.len() {
+        1 if s == b"." => SegKind::Dot,
+        2 if s == b".." => SegKind::DoubleDot,
+        3 if is_pct2e(s) => SegKind::Dot,
+        4 if (s[0] == b'.' && is_pct2e(&s[1..])) || (s[3] == b'.' && is_pct2e(&s[..3])) => {
+            SegKind::DoubleDot
+        }
+        6 if is_pct2e(&s[..3]) && is_pct2e(&s[3..]) => SegKind::DoubleDot,
         _ => SegKind::Normal,
     }
 }
