@@ -1,0 +1,13 @@
+Environment: Intel Core i5-11300H, Rust 1.91.0 stable
+
+parse                   time:   [88.159 ns 88.572 ns 89.042 ns]
+parse_iref              time:   [141.80 ns 142.43 ns 143.17 ns]
+parse_iri_string        time:   [128.93 ns 129.82 ns 130.76 ns]
+parse_oxiri             time:   [118.65 ns 119.35 ns 120.21 ns]
+parse_url               time:   [311.78 ns 313.83 ns 316.09 ns]
+build                   time:   [197.67 ns 198.54 ns 199.76 ns]
+build_iri_string        time:   [371.53 ns 373.18 ns 375.07 ns]
+normalize               time:   [95.095 ns 96.186 ns 97.330 ns]
+normalize_iri_string    time:   [502.08 ns 504.09 ns 506.43 ns]
+resolve                 time:   [94.375 ns 94.987 ns 95.600 ns]
+resolve_iri_string      time:   [430.86 ns 432.78 ns 434.91 ns]
