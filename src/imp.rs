@@ -610,7 +610,7 @@ macro_rules! ri_maybe_ref {
             /// along with IPv6 address normalization.
             /// This is effectively equivalent to taking the following steps in order:
             ///
-            /// - Decode any percent-encoded octets that correspond to an allowed character which is not reserved.
+            /// - Decode any percent-encoded octet sequence that corresponds to an unreserved character.
             /// - Uppercase the hexadecimal digits within all percent-encoded octets.
             /// - Lowercase all ASCII characters within the scheme and the host except the percent-encoded octets.
             /// - Turn any IPv6 literal address into its canonical form as per

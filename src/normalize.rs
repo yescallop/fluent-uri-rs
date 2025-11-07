@@ -6,7 +6,7 @@ use crate::{
     pct_enc::{
         self,
         encoder::{Data, IData},
-        Decode, DecodedChunk, DecodedUtf8Chunk, Encode, EncodedChunk, Encoder, Table,
+        Decode, DecodedChunk, DecodedUtf8Chunk, Encode, EncodedChunk, Encoder,
     },
     resolve,
 };
@@ -149,13 +149,6 @@ pub(crate) fn normalize(
     // For "a://[::ffff:5:9]/" the capacity is not enough,
     // but it's fine since this rarely happens.
     let mut buf = String::with_capacity(r.as_str().len());
-
-    let data_table = if ascii_only {
-        Data::TABLE
-    } else {
-        IData::TABLE
-    };
-
     let mut meta = Meta::default();
 
     if let Some(scheme) = r.scheme_opt() {
@@ -169,7 +162,7 @@ pub(crate) fn normalize(
         buf.push_str("//");
 
         if let Some(userinfo) = auth.userinfo() {
-            normalize_estr(&mut buf, userinfo.as_str(), false, data_table);
+            normalize_estr(&mut buf, userinfo.as_str(), false, ascii_only);
             buf.push('@');
         }
 
@@ -195,7 +188,7 @@ pub(crate) fn normalize(
             HostMeta::RegName => {
                 let start = buf.len();
                 let host = auth.host();
-                normalize_estr(&mut buf, host, true, data_table);
+                normalize_estr(&mut buf, host, true, ascii_only);
 
                 if buf.len() < start + host.len() {
                     // Only reparse when the length is less than before.
@@ -229,7 +222,7 @@ pub(crate) fn normalize(
 
     if r.has_scheme() && path.starts_with('/') {
         let mut path_buf = String::with_capacity(path.len());
-        normalize_estr(&mut path_buf, path, false, data_table);
+        normalize_estr(&mut path_buf, path, false, ascii_only);
 
         let underflow_occurred = resolve::remove_dot_segments(&mut buf, &[&path_buf]);
         if underflow_occurred && !allow_path_underflow {
@@ -242,31 +235,58 @@ pub(crate) fn normalize(
         }
     } else {
         // Don't remove dot segments from relative reference or rootless path.
-        normalize_estr(&mut buf, path, false, data_table);
+        normalize_estr(&mut buf, path, false, ascii_only);
     }
 
     meta.path_bounds.1 = buf.len();
 
     if let Some(query) = r.query() {
+        // We might as well decode percent-encoded private characters in query,
+        // but Section 5.3.2.3 of RFC 3987 says:
+        //
+        // These IRIs should be normalized by decoding any
+        // percent-encoded octet sequence that corresponds to an unreserved
+        // character, as described in section 2.3 of [RFC3986].
+        //
+        // Also, the whole spec is quite ambiguous on whether private characters
+        // are unreserved or not. So we just leave them percent-encoded for now.
         buf.push('?');
-
-        const IQUERY_DATA: Table = IData::TABLE.or_iprivate();
-        let query_data_table = if ascii_only { Data::TABLE } else { IQUERY_DATA };
-
-        normalize_estr(&mut buf, query.as_str(), false, query_data_table);
+        normalize_estr(&mut buf, query.as_str(), false, ascii_only);
         meta.query_end = NonZeroUsize::new(buf.len());
     }
 
     if let Some(fragment) = r.fragment() {
         buf.push('#');
-        normalize_estr(&mut buf, fragment.as_str(), false, data_table);
+        normalize_estr(&mut buf, fragment.as_str(), false, ascii_only);
     }
 
     Ok((buf, meta))
 }
 
-fn normalize_estr(buf: &mut String, s: &str, to_ascii_lowercase: bool, table: Table) {
-    if table.allows_non_ascii() {
+fn normalize_estr(buf: &mut String, s: &str, to_ascii_lowercase: bool, ascii_only: bool) {
+    if ascii_only {
+        for chunk in Decode::new(s) {
+            match chunk {
+                DecodedChunk::Unencoded(s) => {
+                    let i = buf.len();
+                    buf.push_str(s);
+                    if to_ascii_lowercase {
+                        buf[i..].make_ascii_lowercase();
+                    }
+                }
+                DecodedChunk::PctDecoded(mut x) => {
+                    if Data::TABLE.allows_ascii(x) {
+                        if to_ascii_lowercase {
+                            x.make_ascii_lowercase();
+                        }
+                        buf.push(x as char);
+                    } else {
+                        buf.push_str(pct_enc::encode_byte(x));
+                    }
+                }
+            }
+        }
+    } else {
         Decode::new(s).decode_utf8(|chunk| match chunk {
             DecodedUtf8Chunk::Unencoded(s) => {
                 let i = buf.len();
@@ -276,7 +296,7 @@ fn normalize_estr(buf: &mut String, s: &str, to_ascii_lowercase: bool, table: Ta
                 }
             }
             DecodedUtf8Chunk::Decoded { valid, invalid } => {
-                for chunk in Encode::new(table, valid) {
+                for chunk in Encode::new(IData::TABLE, valid) {
                     match chunk {
                         EncodedChunk::Unencoded(s) => {
                             let i = buf.len();
@@ -293,28 +313,6 @@ fn normalize_estr(buf: &mut String, s: &str, to_ascii_lowercase: bool, table: Ta
                 }
             }
         });
-    } else {
-        for chunk in Decode::new(s) {
-            match chunk {
-                DecodedChunk::Unencoded(s) => {
-                    let i = buf.len();
-                    buf.push_str(s);
-                    if to_ascii_lowercase {
-                        buf[i..].make_ascii_lowercase();
-                    }
-                }
-                DecodedChunk::PctDecoded(mut x) => {
-                    if table.allows_ascii(x) {
-                        if to_ascii_lowercase {
-                            x.make_ascii_lowercase();
-                        }
-                        buf.push(x as char);
-                    } else {
-                        buf.push_str(pct_enc::encode_byte(x));
-                    }
-                }
-            }
-        }
     }
 }
 
