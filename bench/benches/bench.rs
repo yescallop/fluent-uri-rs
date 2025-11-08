@@ -1,29 +1,21 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use fluent_uri::{component::Scheme, pct_enc::EStr, Iri, Uri, UriRef};
 use iri_string::{
     build::Builder,
     format::ToDedicatedString,
     types::{IriStr, UriAbsoluteStr, UriReferenceStr, UriStr},
 };
+use std::fs;
 use std::hint::black_box;
-use url::Url;
 
 criterion_group!(
     benches,
     bench_parse_uri,
-    bench_parse_uri_iref,
-    bench_parse_uri_iri_string,
     bench_parse_iri,
-    bench_parse_iri_iref,
-    bench_parse_iri_iri_string,
-    bench_parse_iri_oxiri,
-    bench_parse_iri_url,
     bench_build,
-    bench_build_iri_string,
     bench_normalize,
-    bench_normalize_iri_string,
     bench_resolve,
-    bench_resolve_iri_string,
+    bench_top100,
 );
 criterion_main!(benches);
 
@@ -34,55 +26,39 @@ const RESOLVE_CASE_BASE: &str = "http://example.com/foo/bar/baz/quz";
 const RESOLVE_CASE_REF: &str = "../../../qux/./quux/../corge";
 
 fn bench_parse_uri(c: &mut Criterion) {
-    c.bench_function("parse_uri", |b| {
+    let mut group = c.benchmark_group("parse-uri");
+    group.bench_function("fluent-uri", |b| {
         b.iter(|| Uri::parse(black_box(PARSE_URI_CASE)))
     });
-}
-
-fn bench_parse_uri_iref(c: &mut Criterion) {
-    c.bench_function("parse_uri_iref", |b| {
+    group.bench_function("iref", |b| {
         b.iter(|| iref::Uri::new(black_box(PARSE_URI_CASE)))
     });
-}
-
-fn bench_parse_uri_iri_string(c: &mut Criterion) {
-    c.bench_function("parse_uri_iri_string", |b| {
+    group.bench_function("iri-string", |b| {
         b.iter(|| UriStr::new(black_box(PARSE_URI_CASE)))
     });
+    group.finish();
 }
 
 fn bench_parse_iri(c: &mut Criterion) {
-    c.bench_function("parse_iri", |b| {
+    let mut group = c.benchmark_group("parse-iri");
+    group.bench_function("fluent-uri", |b| {
         b.iter(|| Iri::parse(black_box(PARSE_IRI_CASE)))
     });
-}
-
-fn bench_parse_iri_iref(c: &mut Criterion) {
-    c.bench_function("parse_iri_iref", |b| {
+    group.bench_function("iref", |b| {
         b.iter(|| iref::Iri::new(black_box(PARSE_IRI_CASE)))
     });
-}
-
-fn bench_parse_iri_iri_string(c: &mut Criterion) {
-    c.bench_function("parse_iri_iri_string", |b| {
+    group.bench_function("iri-string", |b| {
         b.iter(|| IriStr::new(black_box(PARSE_IRI_CASE)))
     });
-}
-
-fn bench_parse_iri_oxiri(c: &mut Criterion) {
-    c.bench_function("parse_iri_oxiri", |b| {
+    group.bench_function("oxiri", |b| {
         b.iter(|| oxiri::Iri::parse(black_box(PARSE_IRI_CASE)))
     });
-}
-
-fn bench_parse_iri_url(c: &mut Criterion) {
-    c.bench_function("parse_iri_url", |b| {
-        b.iter(|| Url::parse(black_box(PARSE_IRI_CASE)))
-    });
+    group.finish();
 }
 
 fn bench_build(c: &mut Criterion) {
-    c.bench_function("build", |b| {
+    let mut group = c.benchmark_group("build");
+    group.bench_function("fluent-uri", |b| {
         b.iter(|| {
             Uri::builder()
                 .scheme(Scheme::new_or_panic("foo"))
@@ -97,10 +73,7 @@ fn bench_build(c: &mut Criterion) {
                 .build()
         })
     });
-}
-
-fn bench_build_iri_string(c: &mut Criterion) {
-    c.bench_function("build_iri_string", |b| {
+    group.bench_function("iri-string", |b| {
         b.iter(|| {
             let mut builder = Builder::new();
             builder.scheme("foo");
@@ -113,30 +86,137 @@ fn bench_build_iri_string(c: &mut Criterion) {
             builder.build::<UriStr>().unwrap().to_dedicated_string()
         })
     });
+    group.finish();
 }
 
 fn bench_normalize(c: &mut Criterion) {
-    let r = Uri::parse(NORMALIZE_CASE).unwrap();
-    c.bench_function("normalize", |b| b.iter(|| r.normalize()));
-}
+    let r_fluent = Uri::parse(NORMALIZE_CASE).unwrap();
+    let r_iri = UriStr::new(NORMALIZE_CASE).unwrap();
 
-fn bench_normalize_iri_string(c: &mut Criterion) {
-    let r = UriStr::new(NORMALIZE_CASE).unwrap();
-    c.bench_function("normalize_iri_string", |b| {
-        b.iter(|| r.normalize().to_dedicated_string())
+    let mut group = c.benchmark_group("normalize");
+    group.bench_function("fluent-uri", |b| b.iter(|| r_fluent.normalize()));
+    group.bench_function("iri-string", |b| {
+        b.iter(|| r_iri.normalize().to_dedicated_string())
     });
+    group.finish();
 }
 
 fn bench_resolve(c: &mut Criterion) {
-    let base = Uri::parse(RESOLVE_CASE_BASE).unwrap();
-    let r = UriRef::parse(RESOLVE_CASE_REF).unwrap();
-    c.bench_function("resolve", |b| b.iter(|| r.resolve_against(&base)));
+    let base_fluent = Uri::parse(RESOLVE_CASE_BASE).unwrap();
+    let r_fluent = UriRef::parse(RESOLVE_CASE_REF).unwrap();
+
+    let base_iri = UriAbsoluteStr::new(RESOLVE_CASE_BASE).unwrap();
+    let r_iri = UriReferenceStr::new(RESOLVE_CASE_REF).unwrap();
+
+    let mut group = c.benchmark_group("resolve");
+    group.bench_function("fluent-uri", |b| {
+        b.iter(|| r_fluent.resolve_against(&base_fluent))
+    });
+    group.bench_function("iri-string", |b| {
+        b.iter(|| r_iri.resolve_against(base_iri).to_dedicated_string())
+    });
+    group.finish();
 }
 
-fn bench_resolve_iri_string(c: &mut Criterion) {
-    let base = UriAbsoluteStr::new(RESOLVE_CASE_BASE).unwrap();
-    let r = UriReferenceStr::new(RESOLVE_CASE_REF).unwrap();
-    c.bench_function("resolve_iri_string", |b| {
-        b.iter(|| r.resolve_against(base).to_dedicated_string())
+const TOP100_PATH: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/url-various-datasets/top100/top100.txt"
+);
+
+fn bench_top100(c: &mut Criterion) {
+    let top100 = fs::read_to_string(TOP100_PATH).unwrap();
+    let lines = top100.lines().collect::<Vec<&str>>();
+
+    let mut group = c.benchmark_group("parse-top100");
+    group.throughput(Throughput::Elements(lines.len() as u64));
+    group.bench_function("fluent-uri", |b| {
+        b.iter(|| {
+            for &line in &lines {
+                let _ = black_box(Uri::parse(line));
+            }
+        })
     });
+    group.bench_function("iri-string", |b| {
+        b.iter(|| {
+            for &line in &lines {
+                let _ = black_box(UriStr::new(line));
+            }
+        })
+    });
+    group.bench_function("iref", |b| {
+        b.iter(|| {
+            for &line in &lines {
+                let _ = black_box(iref::Uri::new(line));
+            }
+        })
+    });
+    group.finish();
+
+    let mut group = c.benchmark_group("parse-iri-top100");
+    group.throughput(Throughput::Elements(lines.len() as u64));
+    group.bench_function("fluent-uri", |b| {
+        b.iter(|| {
+            for &line in &lines {
+                let _ = black_box(Iri::parse(line));
+            }
+        })
+    });
+    group.bench_function("iri-string", |b| {
+        b.iter(|| {
+            for &line in &lines {
+                let _ = black_box(IriStr::new(line));
+            }
+        })
+    });
+    group.bench_function("iref", |b| {
+        b.iter(|| {
+            for &line in &lines {
+                let _ = black_box(iref::Iri::new(line));
+            }
+        })
+    });
+    group.bench_function("oxiri", |b| {
+        b.iter(|| {
+            for &line in &lines {
+                let _ = black_box(oxiri::Iri::parse(line));
+            }
+        })
+    });
+    group.finish();
+
+    let mut group = c.benchmark_group("parse-normalize-top100");
+    group.throughput(Throughput::Elements(lines.len() as u64));
+    group.bench_function("fluent-uri", |b| {
+        b.iter(|| {
+            for &line in &lines {
+                if let Ok(uri) = Uri::parse(line) {
+                    black_box(uri.normalize());
+                }
+            }
+        })
+    });
+    group.bench_function("iri-string", |b| {
+        b.iter(|| {
+            for &line in &lines {
+                if let Ok(uri) = UriStr::new(line) {
+                    black_box(uri.normalize().to_dedicated_string());
+                }
+            }
+        })
+    });
+    group.bench_function("url", |b| {
+        b.iter(|| {
+            for &line in &lines {
+                let _ = black_box(url::Url::parse(line));
+            }
+        })
+    });
+    group.bench_function("ada-url", |b| {
+        b.iter(|| {
+            for &line in &lines {
+                let _ = black_box(ada_url::Url::parse(line, None));
+            }
+        })
+    });
+    group.finish();
 }

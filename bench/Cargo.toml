@@ -12,6 +12,7 @@ name = "bench"
 harness = false
 
 [dev-dependencies]
+ada-url = "3.3"
 criterion = "0.7"
 iref = "3.1.3"
 iri-string = "0.7.0"
