@@ -219,4 +219,26 @@ fn bench_top100(c: &mut Criterion) {
         })
     });
     group.finish();
+
+    let mut group = c.benchmark_group("parse-iri-normalize-top100");
+    group.throughput(Throughput::Elements(lines.len() as u64));
+    group.bench_function("fluent-uri", |b| {
+        b.iter(|| {
+            for &line in &lines {
+                if let Ok(iri) = Iri::parse(line) {
+                    black_box(iri.normalize());
+                }
+            }
+        })
+    });
+    group.bench_function("iri-string", |b| {
+        b.iter(|| {
+            for &line in &lines {
+                if let Ok(iri) = IriStr::new(line) {
+                    black_box(iri.normalize().to_dedicated_string());
+                }
+            }
+        })
+    });
+    group.finish();
 }

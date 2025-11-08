@@ -37,3 +37,8 @@ parse-normalize-top100/url
                         time:   [41.405 ms 41.605 ms 41.824 ms]
 parse-normalize-top100/ada-url
                         time:   [17.195 ms 17.329 ms 17.473 ms]
+
+parse-iri-normalize-top100/fluent-uri
+                        time:   [27.661 ms 27.769 ms 27.888 ms]
+parse-iri-normalize-top100/iri-string
+                        time:   [108.81 ms 109.26 ms 109.74 ms]
