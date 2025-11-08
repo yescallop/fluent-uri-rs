@@ -5,7 +5,7 @@
 //!
 //! [RFC 5234]: https://datatracker.ietf.org/doc/html/rfc5234
 
-use crate::utf8;
+use crate::{pct_enc, utf8};
 
 const MASK_PCT_ENCODED: u64 = 1;
 const MASK_UCSCHAR: u64 = 2;
@@ -143,34 +143,52 @@ impl Table {
     /// Validates the given string with the table.
     pub(crate) const fn validate(self, s: &[u8]) -> bool {
         let mut i = 0;
-        let allow_pct_encoded = self.allows_pct_encoded();
-        let allow_non_ascii = self.allows_non_ascii();
 
-        while i < s.len() {
-            let x = s[i];
-            if allow_pct_encoded && x == b'%' {
-                if i + 2 >= s.len() {
-                    return false;
-                }
-                let (hi, lo) = (s[i + 1], s[i + 2]);
+        macro_rules! do_loop {
+            ($allow_pct_encoded:expr, $allow_non_ascii:expr) => {
+                while i < s.len() {
+                    let x = s[i];
+                    if $allow_pct_encoded && x == b'%' {
+                        if i + 2 >= s.len() {
+                            return false;
+                        }
+                        let (hi, lo) = (s[i + 1], s[i + 2]);
 
-                if !(hi.is_ascii_hexdigit() && lo.is_ascii_hexdigit()) {
-                    return false;
+                        if !pct_enc::is_valid_octet(hi, lo) {
+                            return false;
+                        }
+                        i += 3;
+                    } else if $allow_non_ascii {
+                        let (x, len) = utf8::next_code_point(s, i);
+                        if !self.allows_code_point(x) {
+                            return false;
+                        }
+                        i += len;
+                    } else {
+                        if !self.allows_ascii(x) {
+                            return false;
+                        }
+                        i += 1;
+                    }
                 }
-                i += 3;
-            } else if allow_non_ascii {
-                let (x, len) = utf8::next_code_point(s, i);
-                if !self.allows_code_point(x) {
-                    return false;
-                }
-                i += len;
-            } else {
-                if !self.allows_ascii(x) {
-                    return false;
-                }
-                i += 1;
-            }
+            };
         }
+
+        // This expansion alone doesn't help much, but combined with
+        // `#[inline(always)]` on `utf8::next_code_point`,
+        // it improves performance significantly for non-ASCII case.
+        if self.allows_pct_encoded() {
+            if self.allows_non_ascii() {
+                do_loop!(true, true);
+            } else {
+                do_loop!(true, false);
+            }
+        } else if self.allows_non_ascii() {
+            do_loop!(false, true);
+        } else {
+            do_loop!(false, false);
+        }
+
         true
     }
 }

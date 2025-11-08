@@ -10,11 +10,14 @@ use url::Url;
 
 criterion_group!(
     benches,
-    bench_parse,
-    bench_parse_iref,
-    bench_parse_iri_string,
-    bench_parse_oxiri,
-    bench_parse_url,
+    bench_parse_uri,
+    bench_parse_uri_iref,
+    bench_parse_uri_iri_string,
+    bench_parse_iri,
+    bench_parse_iri_iref,
+    bench_parse_iri_iri_string,
+    bench_parse_iri_oxiri,
+    bench_parse_iri_url,
     bench_build,
     bench_build_iri_string,
     bench_normalize,
@@ -24,36 +27,57 @@ criterion_group!(
 );
 criterion_main!(benches);
 
-const PARSE_CASE: &str = "https://user@example.com/search?q=%E6%B5%8B%E8%AF%95#fragment";
+const PARSE_URI_CASE: &str = "https://user@example.com/search?q=%E6%B5%8B%E8%AF%95#fragment";
+const PARSE_IRI_CASE: &str = "https://用户@测试.com/search?q=我们测试解析IRI#fragment";
 const NORMALIZE_CASE: &str = "eXAMPLE://a/./b/../b/%63/%7bfoo%7d";
 const RESOLVE_CASE_BASE: &str = "http://example.com/foo/bar/baz/quz";
 const RESOLVE_CASE_REF: &str = "../../../qux/./quux/../corge";
 
-fn bench_parse(c: &mut Criterion) {
-    c.bench_function("parse", |b| b.iter(|| Iri::parse(black_box(PARSE_CASE))));
-}
-
-fn bench_parse_iref(c: &mut Criterion) {
-    c.bench_function("parse_iref", |b| {
-        b.iter(|| iref::Iri::new(black_box(PARSE_CASE)))
+fn bench_parse_uri(c: &mut Criterion) {
+    c.bench_function("parse_uri", |b| {
+        b.iter(|| Uri::parse(black_box(PARSE_URI_CASE)))
     });
 }
 
-fn bench_parse_iri_string(c: &mut Criterion) {
-    c.bench_function("parse_iri_string", |b| {
-        b.iter(|| IriStr::new(black_box(PARSE_CASE)))
+fn bench_parse_uri_iref(c: &mut Criterion) {
+    c.bench_function("parse_uri_iref", |b| {
+        b.iter(|| iref::Uri::new(black_box(PARSE_URI_CASE)))
     });
 }
 
-fn bench_parse_oxiri(c: &mut Criterion) {
-    c.bench_function("parse_oxiri", |b| {
-        b.iter(|| oxiri::Iri::parse(black_box(PARSE_CASE)))
+fn bench_parse_uri_iri_string(c: &mut Criterion) {
+    c.bench_function("parse_uri_iri_string", |b| {
+        b.iter(|| UriStr::new(black_box(PARSE_URI_CASE)))
     });
 }
 
-fn bench_parse_url(c: &mut Criterion) {
-    c.bench_function("parse_url", |b| {
-        b.iter(|| Url::parse(black_box(PARSE_CASE)))
+fn bench_parse_iri(c: &mut Criterion) {
+    c.bench_function("parse_iri", |b| {
+        b.iter(|| Iri::parse(black_box(PARSE_IRI_CASE)))
+    });
+}
+
+fn bench_parse_iri_iref(c: &mut Criterion) {
+    c.bench_function("parse_iri_iref", |b| {
+        b.iter(|| iref::Iri::new(black_box(PARSE_IRI_CASE)))
+    });
+}
+
+fn bench_parse_iri_iri_string(c: &mut Criterion) {
+    c.bench_function("parse_iri_iri_string", |b| {
+        b.iter(|| IriStr::new(black_box(PARSE_IRI_CASE)))
+    });
+}
+
+fn bench_parse_iri_oxiri(c: &mut Criterion) {
+    c.bench_function("parse_iri_oxiri", |b| {
+        b.iter(|| oxiri::Iri::parse(black_box(PARSE_IRI_CASE)))
+    });
+}
+
+fn bench_parse_iri_url(c: &mut Criterion) {
+    c.bench_function("parse_iri_url", |b| {
+        b.iter(|| Url::parse(black_box(PARSE_IRI_CASE)))
     });
 }
 

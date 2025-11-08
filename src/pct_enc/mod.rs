@@ -487,6 +487,14 @@ fn decode_octet(hi: u8, lo: u8) -> u8 {
     OCTET_TABLE_HI[hi as usize] | OCTET_TABLE_LO[lo as usize]
 }
 
+pub(crate) fn decode_hexdigit(x: u8) -> Option<u8> {
+    Some(OCTET_TABLE_LO[x as usize]).filter(|&v| v < 128)
+}
+
+pub(crate) const fn is_valid_octet(hi: u8, lo: u8) -> bool {
+    OCTET_TABLE_LO[hi as usize] | OCTET_TABLE_LO[lo as usize] < 128
+}
+
 /// An iterator used to decode an [`EStr`] slice.
 ///
 /// This struct is created by [`EStr::decode`]. Normally you'll use the methods below

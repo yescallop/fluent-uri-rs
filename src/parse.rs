@@ -1,6 +1,6 @@
 use crate::{
     imp::{AuthMeta, Constraints, HostMeta, Meta},
-    pct_enc::{table::*, Table},
+    pct_enc::{self, table::*, Table},
     utf8,
 };
 use core::{
@@ -165,33 +165,50 @@ impl<'a> Reader<'a> {
 
     fn read_with(&mut self, table: Table, mut f: impl FnMut(usize, u32)) -> Result<()> {
         let mut i = self.pos;
-        let allow_pct_encoded = table.allows_pct_encoded();
-        let allow_non_ascii = table.allows_non_ascii();
 
-        while i < self.len() {
-            let x = self.bytes[i];
-            if allow_pct_encoded && x == b'%' {
-                let [hi, lo, ..] = self.bytes[i + 1..] else {
-                    err!(i, InvalidPctEncodedOctet);
-                };
-                if !(hi.is_ascii_hexdigit() && lo.is_ascii_hexdigit()) {
-                    err!(i, InvalidPctEncodedOctet);
+        macro_rules! do_loop {
+            ($allow_pct_encoded:expr, $allow_non_ascii:expr) => {
+                while i < self.len() {
+                    let x = self.bytes[i];
+                    if $allow_pct_encoded && x == b'%' {
+                        let [hi, lo, ..] = self.bytes[i + 1..] else {
+                            err!(i, InvalidPctEncodedOctet);
+                        };
+                        if !pct_enc::is_valid_octet(hi, lo) {
+                            err!(i, InvalidPctEncodedOctet);
+                        }
+                        i += 3;
+                    } else if $allow_non_ascii {
+                        let (x, len) = utf8::next_code_point(self.bytes, i);
+                        if !table.allows_code_point(x) {
+                            break;
+                        }
+                        f(i, x);
+                        i += len;
+                    } else {
+                        if !table.allows_ascii(x) {
+                            break;
+                        }
+                        f(i, x as u32);
+                        i += 1;
+                    }
                 }
-                i += 3;
-            } else if allow_non_ascii {
-                let (x, len) = utf8::next_code_point(self.bytes, i);
-                if !table.allows_code_point(x) {
-                    break;
-                }
-                f(i, x);
-                i += len;
+            };
+        }
+
+        // This expansion alone doesn't help much, but combined with
+        // `#[inline(always)]` on `utf8::next_code_point`,
+        // it improves performance significantly for non-ASCII case.
+        if table.allows_pct_encoded() {
+            if table.allows_non_ascii() {
+                do_loop!(true, true);
             } else {
-                if !table.allows_ascii(x) {
-                    break;
-                }
-                f(i, x as u32);
-                i += 1;
+                do_loop!(true, false);
             }
+        } else if table.allows_non_ascii() {
+            do_loop!(false, true);
+        } else {
+            do_loop!(false, false);
         }
 
         // INVARIANT: `i` is non-decreasing.
@@ -274,7 +291,7 @@ impl<'a> Reader<'a> {
         }
 
         let first = self.peek(0).unwrap();
-        let mut x = match (first as char).to_digit(16) {
+        let mut x = match pct_enc::decode_hexdigit(first) {
             Some(v) => v as u16,
             _ => {
                 return colon.then(|| {
@@ -296,7 +313,7 @@ impl<'a> Reader<'a> {
                 self.skip(i);
                 return None;
             };
-            match (b as char).to_digit(16) {
+            match pct_enc::decode_hexdigit(b) {
                 Some(v) => {
                     x = (x << 4) | v as u16;
                     i += 1;

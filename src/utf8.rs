@@ -10,7 +10,8 @@ const fn utf8_acc_cont_byte(ch: u32, byte: u8) -> u32 {
     (ch << 6) | (byte & CONT_MASK) as u32
 }
 
-#[inline]
+// Make sure it's inlined into `Parser::read_with`.
+#[inline(always)]
 pub const fn next_code_point(bytes: &[u8], i: usize) -> (u32, usize) {
     let x = bytes[i];
     if x < 128 {
