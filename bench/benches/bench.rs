@@ -13,7 +13,8 @@ criterion_group!(
     bench_parse_uri,
     bench_parse_iri,
     bench_build,
-    bench_normalize,
+    bench_normalize_uri,
+    bench_normalize_iri,
     bench_resolve,
     bench_top100,
 );
@@ -21,7 +22,8 @@ criterion_main!(benches);
 
 const PARSE_URI_CASE: &str = "https://user@example.com/search?q=%E6%B5%8B%E8%AF%95#fragment";
 const PARSE_IRI_CASE: &str = "https://用户@测试.com/search?q=我们测试解析IRI#fragment";
-const NORMALIZE_CASE: &str = "eXAMPLE://a/./b/../b/%63/%7bfoo%7d";
+const NORMALIZE_URI_CASE: &str = "eXAMPLE://a/./b/../b/%63/%7bfoo%7d";
+const NORMALIZE_IRI_CASE: &str = "https://%E7%94%A8%E6%88%B7@%E6%B5%8B%E8%AF%95.com/search?q=%E6%88%91%E4%BB%AC%E6%B5%8B%E8%AF%95%E8%A7%A3%E6%9E%90IRI#fragment";
 const RESOLVE_CASE_BASE: &str = "http://example.com/foo/bar/baz/quz";
 const RESOLVE_CASE_REF: &str = "../../../qux/./quux/../corge";
 
@@ -89,11 +91,23 @@ fn bench_build(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_normalize(c: &mut Criterion) {
-    let r_fluent = Uri::parse(NORMALIZE_CASE).unwrap();
-    let r_iri = UriStr::new(NORMALIZE_CASE).unwrap();
+fn bench_normalize_uri(c: &mut Criterion) {
+    let r_fluent = Uri::parse(NORMALIZE_URI_CASE).unwrap();
+    let r_iri = UriStr::new(NORMALIZE_URI_CASE).unwrap();
 
-    let mut group = c.benchmark_group("normalize");
+    let mut group = c.benchmark_group("normalize-uri");
+    group.bench_function("fluent-uri", |b| b.iter(|| r_fluent.normalize()));
+    group.bench_function("iri-string", |b| {
+        b.iter(|| r_iri.normalize().to_dedicated_string())
+    });
+    group.finish();
+}
+
+fn bench_normalize_iri(c: &mut Criterion) {
+    let r_fluent = Iri::parse(NORMALIZE_IRI_CASE).unwrap();
+    let r_iri = IriStr::new(NORMALIZE_IRI_CASE).unwrap();
+
+    let mut group = c.benchmark_group("normalize-iri");
     group.bench_function("fluent-uri", |b| b.iter(|| r_fluent.normalize()));
     group.bench_function("iri-string", |b| {
         b.iter(|| r_iri.normalize().to_dedicated_string())

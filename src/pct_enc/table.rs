@@ -112,18 +112,18 @@ impl Table {
         self.0 & (MASK_UCSCHAR | MASK_IPRIVATE) != 0
     }
 
+    #[inline]
     pub(crate) const fn allows_code_point(self, x: u32) -> bool {
         if x < 128 {
-            let table = if x < 64 {
-                self.0 & MASK_UNENCODED_ASCII
-            } else {
-                self.1
-            };
-            table & 1u64.wrapping_shl(x) != 0
-        } else {
-            (self.0 & MASK_UCSCHAR != 0 && is_ucschar(x))
-                || (self.0 & MASK_IPRIVATE != 0 && is_iprivate(x))
+            return self.allows_ascii(x as u8);
         }
+        if self.0 & MASK_UCSCHAR != 0 && is_ucschar(x) {
+            return true;
+        }
+        if self.0 & MASK_IPRIVATE != 0 && is_iprivate(x) {
+            return true;
+        }
+        false
     }
 
     /// Checks whether the given unencoded character is allowed by the table.
