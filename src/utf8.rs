@@ -71,6 +71,7 @@ impl<'a> Utf8Chunks<'a> {
 impl<'a> Iterator for Utf8Chunks<'a> {
     type Item = Utf8Chunk<'a>;
 
+    #[inline(always)]
     fn next(&mut self) -> Option<Utf8Chunk<'a>> {
         if self.source.is_empty() {
             return None;

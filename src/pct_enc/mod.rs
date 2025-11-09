@@ -815,6 +815,7 @@ impl<'a> EncodedChunk<'a> {
 impl<'a> Iterator for Encode<'a> {
     type Item = EncodedChunk<'a>;
 
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         if let [x, rem @ ..] = self.to_enc {
             self.to_enc = rem;

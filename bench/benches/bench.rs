@@ -15,6 +15,7 @@ criterion_group!(
     bench_build,
     bench_normalize_uri,
     bench_normalize_iri,
+    bench_normalize_iri_long,
     bench_resolve,
     bench_top100,
 );
@@ -108,6 +109,20 @@ fn bench_normalize_iri(c: &mut Criterion) {
     let r_iri = IriStr::new(NORMALIZE_IRI_CASE).unwrap();
 
     let mut group = c.benchmark_group("normalize-iri");
+    group.bench_function("fluent-uri", |b| b.iter(|| r_fluent.normalize()));
+    group.bench_function("iri-string", |b| {
+        b.iter(|| r_iri.normalize().to_dedicated_string())
+    });
+    group.finish();
+}
+
+fn bench_normalize_iri_long(c: &mut Criterion) {
+    let case = format!("http://{}.com/", "%E6%B5%8B%E8%AF%95".repeat(50));
+
+    let r_fluent = Iri::parse(&*case).unwrap();
+    let r_iri = IriStr::new(&case).unwrap();
+
+    let mut group = c.benchmark_group("normalize-iri-long");
     group.bench_function("fluent-uri", |b| b.iter(|| r_fluent.normalize()));
     group.bench_function("iri-string", |b| {
         b.iter(|| r_iri.normalize().to_dedicated_string())

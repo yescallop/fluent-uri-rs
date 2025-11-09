@@ -265,29 +265,40 @@ pub(crate) fn normalize(
 
 fn normalize_estr(buf: &mut String, s: &str, to_ascii_lowercase: bool, ascii_only: bool) {
     if ascii_only {
-        for chunk in Decode::new(s) {
-            match chunk {
-                DecodedChunk::Unencoded(s) => {
-                    let i = buf.len();
-                    buf.push_str(s);
-                    if to_ascii_lowercase {
-                        buf[i..].make_ascii_lowercase();
-                    }
+        normalize_estr_ascii(buf, s, to_ascii_lowercase);
+    } else {
+        normalize_estr_utf8(buf, s, to_ascii_lowercase);
+    }
+}
+
+fn normalize_estr_ascii(buf: &mut String, s: &str, to_ascii_lowercase: bool) {
+    for chunk in Decode::new(s) {
+        match chunk {
+            DecodedChunk::Unencoded(s) => {
+                let i = buf.len();
+                buf.push_str(s);
+                if to_ascii_lowercase {
+                    buf[i..].make_ascii_lowercase();
                 }
-                DecodedChunk::PctDecoded(mut x) => {
-                    if Data::TABLE.allows_ascii(x) {
-                        if to_ascii_lowercase {
-                            x.make_ascii_lowercase();
-                        }
-                        buf.push(x as char);
-                    } else {
-                        buf.push_str(pct_enc::encode_byte(x));
+            }
+            DecodedChunk::PctDecoded(mut x) => {
+                if Data::TABLE.allows_ascii(x) {
+                    if to_ascii_lowercase {
+                        x.make_ascii_lowercase();
                     }
+                    buf.push(x as char);
+                } else {
+                    buf.push_str(pct_enc::encode_byte(x));
                 }
             }
         }
-    } else {
-        Decode::new(s).decode_utf8(|chunk| match chunk {
+    }
+}
+
+fn normalize_estr_utf8(buf: &mut String, s: &str, to_ascii_lowercase: bool) {
+    Decode::new(s).decode_utf8(
+        #[inline(always)]
+        |chunk| match chunk {
             DecodedUtf8Chunk::Unencoded(s) => {
                 let i = buf.len();
                 buf.push_str(s);
@@ -312,8 +323,8 @@ fn normalize_estr(buf: &mut String, s: &str, to_ascii_lowercase: bool, ascii_onl
                     buf.push_str(pct_enc::encode_byte(x));
                 }
             }
-        });
-    }
+        },
+    );
 }
 
 // Taken from `impl Display for Ipv6Addr`.

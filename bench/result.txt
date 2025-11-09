@@ -1,44 +1,56 @@
-Environment: Intel Core i5-11300H, Rust 1.91.0 stable
+Environment: Intel Core i5-11300H, Arch Linux on WSL 2, Rust 1.91.0 stable
 
-parse-uri/fluent-uri    time:   [54.553 ns 54.789 ns 55.067 ns]
-parse-uri/iref          time:   [109.68 ns 110.15 ns 110.64 ns]
-parse-uri/iri-string    time:   [137.27 ns 138.20 ns 139.19 ns]
+parse-uri/fluent-uri    time:   [51.379 ns 51.570 ns 51.798 ns]
+parse-uri/iref          time:   [90.805 ns 91.461 ns 92.172 ns]
+parse-uri/iri-string    time:   [127.68 ns 128.75 ns 129.78 ns]
 
-parse-iri/fluent-uri    time:   [65.470 ns 65.827 ns 66.212 ns]
-parse-iri/iref          time:   [126.40 ns 127.42 ns 128.59 ns]
-parse-iri/iri-string    time:   [149.28 ns 150.21 ns 151.20 ns]
-parse-iri/oxiri         time:   [107.25 ns 107.73 ns 108.27 ns]
+parse-iri/fluent-uri    time:   [64.499 ns 64.775 ns 65.087 ns]
+parse-iri/iref          time:   [127.26 ns 128.41 ns 129.61 ns]
+parse-iri/iri-string    time:   [148.39 ns 149.18 ns 150.02 ns]
+parse-iri/oxiri         time:   [107.78 ns 108.44 ns 109.16 ns]
 
-build/fluent-uri        time:   [199.80 ns 201.46 ns 203.59 ns]
-build/iri-string        time:   [378.34 ns 381.28 ns 384.42 ns]
+build/fluent-uri        time:   [193.70 ns 194.56 ns 195.68 ns]
+build/iri-string        time:   [368.11 ns 370.48 ns 373.09 ns]
 
-normalize/fluent-uri    time:   [95.420 ns 96.271 ns 97.160 ns]
-normalize/iri-string    time:   [503.78 ns 508.32 ns 513.72 ns]
+normalize-uri/fluent-uri
+                        time:   [99.232 ns 100.29 ns 101.37 ns]
+normalize-uri/iri-string
+                        time:   [485.70 ns 488.08 ns 490.94 ns]
 
-resolve/fluent-uri      time:   [96.796 ns 97.886 ns 99.006 ns]
-resolve/iri-string      time:   [435.25 ns 437.30 ns 439.51 ns]
+normalize-iri/fluent-uri
+                        time:   [206.84 ns 208.45 ns 210.32 ns]
+normalize-iri/iri-string
+                        time:   [913.56 ns 919.03 ns 925.73 ns]
 
-parse-top100/fluent-uri time:   [9.5921 ms 9.6373 ms 9.6868 ms]
-parse-top100/iri-string time:   [19.908 ms 20.010 ms 20.118 ms]
-parse-top100/iref       time:   [22.702 ms 22.790 ms 22.885 ms]
+normalize-iri-long/fluent-uri
+                        time:   [1.0712 µs 1.0785 µs 1.0862 µs]
+normalize-iri-long/iri-string
+                        time:   [5.1720 µs 5.1966 µs 5.2264 µs]
+
+resolve/fluent-uri      time:   [95.238 ns 96.224 ns 97.245 ns]
+resolve/iri-string      time:   [416.76 ns 419.30 ns 422.83 ns]
+
+parse-top100/fluent-uri time:   [9.0867 ms 9.1317 ms 9.1856 ms]
+parse-top100/iri-string time:   [19.064 ms 19.147 ms 19.240 ms]
+parse-top100/iref       time:   [21.865 ms 21.942 ms 22.029 ms]
 
 parse-iri-top100/fluent-uri
-                        time:   [9.6033 ms 9.6497 ms 9.7035 ms]
+                        time:   [9.4675 ms 9.5038 ms 9.5449 ms]
 parse-iri-top100/iri-string
-                        time:   [19.762 ms 20.074 ms 20.457 ms]
-parse-iri-top100/iref   time:   [31.735 ms 31.863 ms 32.005 ms]
-parse-iri-top100/oxiri  time:   [27.149 ms 27.287 ms 27.438 ms]
+                        time:   [18.831 ms 18.934 ms 19.050 ms]
+parse-iri-top100/iref   time:   [31.257 ms 31.382 ms 31.525 ms]
+parse-iri-top100/oxiri  time:   [26.599 ms 26.708 ms 26.831 ms]
 
 parse-normalize-top100/fluent-uri
-                        time:   [24.766 ms 24.897 ms 25.039 ms]
+                        time:   [22.607 ms 22.695 ms 22.796 ms]
 parse-normalize-top100/iri-string
-                        time:   [109.18 ms 109.75 ms 110.38 ms]
+                        time:   [107.72 ms 108.64 ms 109.78 ms]
 parse-normalize-top100/url
-                        time:   [41.405 ms 41.605 ms 41.824 ms]
+                        time:   [39.512 ms 39.678 ms 39.891 ms]
 parse-normalize-top100/ada-url
-                        time:   [17.195 ms 17.329 ms 17.473 ms]
+                        time:   [16.227 ms 16.295 ms 16.370 ms]
 
 parse-iri-normalize-top100/fluent-uri
-                        time:   [27.661 ms 27.769 ms 27.888 ms]
+                        time:   [24.440 ms 24.527 ms 24.625 ms]
 parse-iri-normalize-top100/iri-string
-                        time:   [108.81 ms 109.26 ms 109.74 ms]
+                        time:   [104.72 ms 105.84 ms 107.08 ms]
