@@ -63,11 +63,9 @@
 //!
 //! # Crate features
 //!
-//! - `std` (default): Implies `alloc` and `impl-error`. Required for [`Authority::socket_addrs`].
+//! - `std` (default): Implies `impl-error`. Required for [`Authority::socket_addrs`].
 //!
-//! - `alloc`: Required for memory-allocating types and functions.
-//!
-//! - `impl-error`: Required for [`Error`] implementations. Disabling `std`
+//! - `impl-error` (default): Required for [`Error`] implementations. Disabling `std`
 //!   while enabling `impl-error` requires a minimum Rust version of 1.81.
 //!
 //! - `net`: Required for IP address fields in [`Host`], for [`Builder::host`] to
