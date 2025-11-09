@@ -104,9 +104,10 @@ impl crate::Error for BuildError {}
 ///   within a call to [`authority_with`].
 /// - Setting [`host`] is mandatory within a call to [`authority_with`].
 ///
-/// You may otherwise skip setting optional components
-/// (scheme, authority, userinfo, port, query, and fragment)
-/// with [`advance`] or set them optionally with [`optional`].
+/// You can omit optional components (scheme, authority, userinfo, port,
+/// query, and fragment) by simply not calling their methods.
+/// Use [`optional`] with an `Option` to either call a method on `Some`
+/// or skip ahead on `None`. Use [`advance`] to skip ahead explicitly.
 ///
 /// The builder typestates are currently private. Please open an issue
 /// if it is a problem not being able to name the type of a builder.
