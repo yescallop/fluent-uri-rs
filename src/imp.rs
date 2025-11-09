@@ -1,27 +1,26 @@
 #![allow(missing_debug_implementations)]
 
 use crate::{
-    component::{Authority, IAuthority, Scheme},
-    convert::ConvertError,
-    parse::{self, ParseError},
-    pct_enc::{encoder::*, EStr, Encoder},
-};
-use borrow_or_share::{BorrowOrShare, Bos};
-use core::{borrow::Borrow, cmp::Ordering, fmt, hash, num::NonZeroUsize, str};
-
-#[cfg(feature = "alloc")]
-use crate::{
     build::{
         state::{NonRefStart, Start},
         Builder,
     },
+    component::{Authority, IAuthority, Scheme},
+    convert::ConvertError,
     normalize::Normalizer,
+    parse::{self, ParseError},
+    pct_enc::{encoder::*, EStr, Encoder},
     resolve::{self, ResolveError},
 };
-#[cfg(feature = "alloc")]
 use alloc::{borrow::ToOwned, string::String};
-#[cfg(feature = "alloc")]
-use core::str::FromStr;
+use borrow_or_share::{BorrowOrShare, Bos};
+use core::{
+    borrow::Borrow,
+    cmp::Ordering,
+    fmt, hash,
+    num::NonZeroUsize,
+    str::{self, FromStr},
+};
 
 #[cfg(feature = "net")]
 use crate::net::{Ipv4Addr, Ipv6Addr};
@@ -33,7 +32,6 @@ pub trait Value: Default {}
 
 impl Value for &str {}
 
-#[cfg(feature = "alloc")]
 impl Value for String {}
 
 pub struct Constraints {
@@ -64,7 +62,6 @@ pub trait RiMaybeRef: Sized {
         Self::Val: BorrowOrShare<'i, 'o, str>;
 }
 
-#[cfg(feature = "alloc")]
 pub trait Ri: RiMaybeRef {
     type Ref<T>: RiMaybeRef<Val = T>;
 }
@@ -85,7 +82,6 @@ impl<'a> Parse for &'a str {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl Parse for String {
     type Val = Self;
     type Err = (ParseError, Self);
@@ -296,7 +292,6 @@ macro_rules! ri_maybe_ref {
         }
 
         $(
-            #[cfg(feature = "alloc")]
             impl<T: Bos<str>> Ri for $Ty<T> {
                 type Ref<U> = $RefTy<U>;
             }
@@ -324,7 +319,6 @@ macro_rules! ri_maybe_ref {
             }
         }
 
-        #[cfg(feature = "alloc")]
         impl $Ty<String> {
             #[doc = concat!("Creates a new builder for ", $name, ".")]
             #[inline]
@@ -351,7 +345,6 @@ macro_rules! ri_maybe_ref {
             }
         }
 
-        #[cfg(feature = "alloc")]
         impl $Ty<&str> {
             #[doc = concat!("Creates a new `", $ty, "<String>` by cloning the contents of this `", $ty, "<&str>`.")]
             #[inline]
@@ -593,7 +586,6 @@ macro_rules! ri_maybe_ref {
                 #[doc = concat!("assert_eq!(", $var, ".resolve_against(&base).unwrap(), \"http://example.com/foo/bar?baz\");")]
                 /// # Ok::<_, fluent_uri::ParseError>(())
                 /// ```
-                #[cfg(feature = "alloc")]
                 pub fn resolve_against<U: Bos<str>>(
                     &self,
                     base: &$NonRefTy<U>,
@@ -639,7 +631,6 @@ macro_rules! ri_maybe_ref {
             #[doc = concat!("assert_eq!(", $var, ".normalize(), \"example://a/b/c/%7Bfoo%7D\");")]
             /// # Ok::<_, fluent_uri::ParseError>(())
             /// ```
-            #[cfg(feature = "alloc")]
             #[must_use]
             pub fn normalize(&self) -> $Ty<String> {
                 Normalizer::new().normalize(self).unwrap()
@@ -749,7 +740,6 @@ macro_rules! ri_maybe_ref {
             #[doc = concat!("assert_eq!(", $var, ".with_fragment(None), \"http://example.com/\");")]
             /// # Ok::<_, fluent_uri::ParseError>(())
             /// ```
-            #[cfg(feature = "alloc")]
             #[must_use]
             pub fn with_fragment(&self, opt: Option<&EStr<$FragmentE>>) -> $Ty<String> {
                 // Altering only the fragment does not change the metadata.
@@ -757,7 +747,6 @@ macro_rules! ri_maybe_ref {
             }
         }
 
-        #[cfg(feature = "alloc")]
         impl $Ty<String> {
             /// Replaces the fragment component of `self` with the given one.
             ///
@@ -865,7 +854,6 @@ macro_rules! ri_maybe_ref {
             }
         }
 
-        #[cfg(feature = "alloc")]
         impl TryFrom<String> for $Ty<String> {
             type Error = (ParseError, String);
 
@@ -884,7 +872,6 @@ macro_rules! ri_maybe_ref {
             }
         }
 
-        #[cfg(feature = "alloc")]
         impl<'a> From<$Ty<String>> for String {
             #[doc = concat!("Equivalent to [`into_string`](", $ty, "::into_string).")]
             #[inline]
@@ -893,7 +880,6 @@ macro_rules! ri_maybe_ref {
             }
         }
 
-        #[cfg(feature = "alloc")]
         impl From<$Ty<&str>> for $Ty<String> {
             /// Equivalent to [`to_owned`](Self::to_owned).
             #[inline]
@@ -902,7 +888,6 @@ macro_rules! ri_maybe_ref {
             }
         }
 
-        #[cfg(feature = "alloc")]
         impl FromStr for $Ty<String> {
             type Err = ParseError;
 
@@ -1043,7 +1028,6 @@ impl<'v, 'm> RmrRef<'v, 'm> {
             .map(|i| self.eslice(i, self.val.len()))
     }
 
-    #[cfg(feature = "alloc")]
     pub fn set_fragment(buf: &mut String, meta: &Meta, opt: Option<&str>) {
         buf.truncate(meta.query_or_path_end());
         if let Some(s) = opt {
@@ -1057,7 +1041,6 @@ impl<'v, 'm> RmrRef<'v, 'm> {
         &self.val[..self.meta.query_or_path_end()]
     }
 
-    #[cfg(feature = "alloc")]
     pub fn with_fragment(self, opt: Option<&str>) -> String {
         let stripped = self.strip_fragment();
         if let Some(s) = opt {

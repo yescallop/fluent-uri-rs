@@ -13,18 +13,18 @@ categories = ["encoding", "parser-implementations"]
 
 [features]
 default = ["std"]
-std = ["alloc", "impl-error"]
-alloc = ["borrow-or-share/alloc", "serde?/alloc"]
+std = ["impl-error"]
 impl-error = []
 net = []
 
 [dependencies]
-borrow-or-share = { version = "0.2.4", default-features = false }
+borrow-or-share = "0.2"
 ref-cast = "1.0"
 
 [dependencies.serde]
 version = "1.0"
 default-features = false
+features = ["alloc"]
 optional = true
 
 [package.metadata.docs.rs]

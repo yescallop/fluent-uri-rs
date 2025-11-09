@@ -227,7 +227,6 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     /// An empty authority component.
     pub const EMPTY: Authority<'static, UserinfoE, RegNameE> = Authority::new("", AuthMeta::EMPTY);
 
-    #[cfg(feature = "alloc")]
     pub(crate) fn meta(&self) -> AuthMeta {
         self.inner.meta
     }

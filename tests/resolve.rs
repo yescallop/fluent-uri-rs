@@ -1,5 +1,3 @@
-#![cfg(feature = "alloc")]
-
 use fluent_uri::{
     resolve::{ResolveError, Resolver},
     Uri, UriRef,

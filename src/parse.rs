@@ -423,7 +423,7 @@ pub(crate) fn parse_v4_or_reg_name(bytes: &[u8]) -> HostMeta {
     }
 }
 
-#[cfg(all(feature = "alloc", not(feature = "net")))]
+#[cfg(not(feature = "net"))]
 pub(crate) fn parse_v6(bytes: &[u8]) -> [u16; 8] {
     Reader::new(bytes).read_v6().unwrap()
 }

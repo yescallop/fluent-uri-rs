@@ -1,24 +1,20 @@
 //! Percent-encoding utilities.
 
 pub mod encoder;
-#[cfg(feature = "alloc")]
 mod estring;
 pub(crate) mod table;
 
-#[cfg(feature = "alloc")]
 pub use estring::EString;
 pub use table::Table;
 
 use crate::imp::PathEncoder;
-use core::{cmp::Ordering, hash, iter::FusedIterator, marker::PhantomData, str};
-use ref_cast::{ref_cast_custom, RefCastCustom};
-
-#[cfg(feature = "alloc")]
 use alloc::{
     borrow::{Cow, ToOwned},
     string::String,
     vec::Vec,
 };
+use core::{cmp::Ordering, hash, iter::FusedIterator, marker::PhantomData, str};
+use ref_cast::{ref_cast_custom, RefCastCustom};
 
 /// A trait used by [`EStr`] and [`EString`] to specify the table used for encoding.
 ///
@@ -78,12 +74,10 @@ pub struct EStr<E: Encoder> {
     inner: str,
 }
 
-#[cfg(feature = "alloc")]
 struct Assert<L: Encoder, R: Encoder> {
     _marker: PhantomData<(L, R)>,
 }
 
-#[cfg(feature = "alloc")]
 impl<L: Encoder, R: Encoder> Assert<L, R> {
     const L_IS_SUB_ENCODER_OF_R: () = assert!(L::TABLE.is_subset(R::TABLE), "not a sub-encoder");
 }
@@ -388,7 +382,6 @@ impl<E: Encoder> Default for &EStr<E> {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl<E: Encoder> ToOwned for EStr<E> {
     type Owned = EString<E>;
 
@@ -559,13 +552,11 @@ impl<'a> Iterator for Decode<'a> {
 
 impl FusedIterator for Decode<'_> {}
 
-#[cfg(feature = "alloc")]
 pub(crate) enum DecodedUtf8Chunk<'a, 'b> {
     Unencoded(&'a str),
     Decoded { valid: &'b str, invalid: &'b [u8] },
 }
 
-#[cfg(feature = "alloc")]
 impl<'a> Decode<'a> {
     pub(crate) fn decode_utf8(self, mut handle_chunk: impl FnMut(DecodedUtf8Chunk<'a, '_>)) {
         use crate::utf8::Utf8Chunks;
@@ -767,7 +758,6 @@ pub(crate) fn encode_byte(x: u8) -> &'static str {
 /// instead, unless you need precise control over allocation.
 ///
 /// See the [`EncodedChunk`] type for documentation of the items yielded by this iterator.
-#[cfg(feature = "alloc")]
 #[derive(Clone, Debug)]
 #[must_use = "iterators are lazy and do nothing unless consumed"]
 pub(crate) struct Encode<'s> {
@@ -776,7 +766,6 @@ pub(crate) struct Encode<'s> {
     to_enc: &'s [u8],
 }
 
-#[cfg(feature = "alloc")]
 impl<'s> Encode<'s> {
     pub(crate) fn new(table: Table, source: &'s str) -> Self {
         Self {
@@ -788,7 +777,6 @@ impl<'s> Encode<'s> {
 }
 
 /// An item returned by the [`Encode`] iterator.
-#[cfg(feature = "alloc")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum EncodedChunk<'a> {
     /// An unencoded subslice.
@@ -797,7 +785,6 @@ pub(crate) enum EncodedChunk<'a> {
     PctEncoded(&'static str),
 }
 
-#[cfg(feature = "alloc")]
 impl<'a> EncodedChunk<'a> {
     /// Returns the chunk as a string slice.
     #[must_use]
@@ -808,7 +795,6 @@ impl<'a> EncodedChunk<'a> {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl<'a> Iterator for Encode<'a> {
     type Item = EncodedChunk<'a>;
 
@@ -850,7 +836,6 @@ impl<'a> Iterator for Encode<'a> {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl FusedIterator for Encode<'_> {}
 
 /// An iterator over subslices of an [`EStr`] slice separated by a delimiter.

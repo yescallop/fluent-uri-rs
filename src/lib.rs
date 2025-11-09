@@ -83,17 +83,14 @@
 //! [`Serialize`]: serde::Serialize
 //! [`Deserialize`]: serde::Deserialize
 
-#[cfg(feature = "alloc")]
 pub mod build;
 pub mod component;
 mod convert;
 mod fmt;
 mod imp;
-#[cfg(feature = "alloc")]
 pub mod normalize;
 mod parse;
 pub mod pct_enc;
-#[cfg(feature = "alloc")]
 pub mod resolve;
 mod utf8;
 
@@ -104,7 +101,6 @@ pub use parse::{ParseError, ParseErrorKind};
 #[cfg(feature = "std")]
 extern crate std;
 
-#[cfg(feature = "alloc")]
 extern crate alloc;
 
 #[cfg(all(feature = "net", not(feature = "std")))]

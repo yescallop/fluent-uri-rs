@@ -1,5 +1,3 @@
-#![cfg(feature = "alloc")]
-
 #[cfg(feature = "net")]
 use core::net::{Ipv4Addr, Ipv6Addr};
 

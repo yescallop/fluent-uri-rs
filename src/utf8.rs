@@ -34,7 +34,6 @@ pub const fn next_code_point(bytes: &[u8], i: usize) -> (u32, usize) {
     }
 }
 
-#[cfg(feature = "alloc")]
 const UTF8_CHAR_WIDTH: &[u8; 256] = &[
     // 1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 0
@@ -57,14 +56,12 @@ const UTF8_CHAR_WIDTH: &[u8; 256] = &[
 
 const CONT_MASK: u8 = 0b0011_1111;
 
-#[cfg(feature = "alloc")]
 pub struct Utf8Chunk<'a> {
     valid: &'a str,
     invalid: &'a [u8],
     incomplete: bool,
 }
 
-#[cfg(feature = "alloc")]
 impl<'a> Utf8Chunk<'a> {
     pub fn valid(&self) -> &'a str {
         self.valid
@@ -79,19 +76,16 @@ impl<'a> Utf8Chunk<'a> {
     }
 }
 
-#[cfg(feature = "alloc")]
 pub struct Utf8Chunks<'a> {
     source: &'a [u8],
 }
 
-#[cfg(feature = "alloc")]
 impl<'a> Utf8Chunks<'a> {
     pub fn new(bytes: &'a [u8]) -> Self {
         Self { source: bytes }
     }
 }
 
-#[cfg(feature = "alloc")]
 impl<'a> Iterator for Utf8Chunks<'a> {
     type Item = Utf8Chunk<'a>;
 

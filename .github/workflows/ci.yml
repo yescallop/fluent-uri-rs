@@ -20,8 +20,6 @@ jobs:
         run: cargo test --all-features
       - name: Test with no features
         run: cargo test --tests --no-default-features
-      - name: Test with feature alloc
-        run: cargo test --tests --no-default-features -F alloc
       - name: Test with feature impl-error
         run: cargo test --tests --no-default-features -F impl-error
       - name: Test with feature net

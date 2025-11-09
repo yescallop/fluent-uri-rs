@@ -1,16 +1,10 @@
-use crate::{imp::RiMaybeRef, Iri, IriRef, Uri, UriRef};
-use borrow_or_share::Bos;
-use core::str;
-
-#[cfg(feature = "alloc")]
 use crate::{
-    imp::{HostMeta, Meta, RmrRef},
-    pct_enc,
+    imp::{HostMeta, Meta, RiMaybeRef, RmrRef},
+    pct_enc, Iri, IriRef, Uri, UriRef,
 };
-#[cfg(feature = "alloc")]
 use alloc::string::String;
-#[cfg(feature = "alloc")]
-use core::num::NonZeroUsize;
+use borrow_or_share::Bos;
+use core::{num::NonZeroUsize, str};
 
 macro_rules! impl_from {
     ($($x:ident => $($y:ident),+)*) => {
@@ -60,7 +54,6 @@ macro_rules! impl_try_from {
                 }
             }
 
-            #[cfg(feature = "alloc")]
             impl TryFrom<$x<String>> for $y<String> {
                 type Error = (ConvertError, $x<String>);
 
@@ -92,7 +85,6 @@ impl_try_from! {
     IriRef if ensure_has_scheme => Iri
 }
 
-#[cfg(feature = "alloc")]
 impl<T: Bos<str>> Iri<T> {
     /// Converts the IRI to a URI by percent-encoding non-ASCII characters.
     ///
@@ -114,7 +106,6 @@ impl<T: Bos<str>> Iri<T> {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl<T: Bos<str>> IriRef<T> {
     /// Converts the IRI reference to a URI reference by percent-encoding non-ASCII characters.
     ///
@@ -136,7 +127,6 @@ impl<T: Bos<str>> IriRef<T> {
     }
 }
 
-#[cfg(feature = "alloc")]
 fn encode_non_ascii(r: RmrRef<'_, '_>) -> (String, Meta) {
     let len = r
         .as_str()
@@ -196,7 +186,6 @@ fn encode_non_ascii(r: RmrRef<'_, '_>) -> (String, Meta) {
     (buf, meta)
 }
 
-#[cfg(feature = "alloc")]
 fn encode_non_ascii_str(buf: &mut String, s: &str) {
     if s.is_ascii() {
         buf.push_str(s);
