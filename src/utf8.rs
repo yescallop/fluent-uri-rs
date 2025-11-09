@@ -1,5 +1,7 @@
 //! UTF-8 utilities taken from `core::str`, Rust 1.81.
 
+use core::str;
+
 #[inline]
 const fn utf8_first_byte(byte: u8, width: u32) -> u32 {
     (byte & (0x7F >> width)) as u32
@@ -34,32 +36,16 @@ pub const fn next_code_point(bytes: &[u8], i: usize) -> (u32, usize) {
     }
 }
 
-const UTF8_CHAR_WIDTH: &[u8; 256] = &[
-    // 1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 0
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 1
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 2
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 3
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 4
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 5
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 6
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 7
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 8
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 9
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // A
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // B
-    0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, // C
-    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, // D
-    3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, // E
-    4, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // F
-];
-
 const CONT_MASK: u8 = 0b0011_1111;
+
+pub(crate) const fn is_char_boundary(b: u8) -> bool {
+    // This is bit magic equivalent to: b < 128 || b >= 192
+    (b as i8) >= -0x40
+}
 
 pub struct Utf8Chunk<'a> {
     valid: &'a str,
     invalid: &'a [u8],
-    incomplete: bool,
 }
 
 impl<'a> Utf8Chunk<'a> {
@@ -69,10 +55,6 @@ impl<'a> Utf8Chunk<'a> {
 
     pub fn invalid(&self) -> &'a [u8] {
         self.invalid
-    }
-
-    pub fn incomplete(&self) -> bool {
-        self.incomplete
     }
 }
 
@@ -94,81 +76,31 @@ impl<'a> Iterator for Utf8Chunks<'a> {
             return None;
         }
 
-        const TAG_CONT_U8: u8 = 128;
+        match str::from_utf8(self.source) {
+            Ok(valid) => {
+                self.source = &[];
 
-        let mut incomplete = false;
-        let mut safe_get = |i| {
-            if let Some(x) = self.source.get(i) {
-                *x
-            } else {
-                incomplete = true;
-                0
+                Some(Utf8Chunk {
+                    valid,
+                    invalid: &[],
+                })
             }
-        };
+            Err(e) => {
+                let (valid, after_valid) = self.source.split_at(e.valid_up_to());
 
-        let mut i = 0;
-        let mut valid_up_to = 0;
-        while i < self.source.len() {
-            let byte = self.source[i];
-            i += 1;
+                let (invalid, rem) = if let Some(len) = e.error_len() {
+                    let (invalid, rem) = after_valid.split_at(len);
+                    (invalid, rem)
+                } else {
+                    (after_valid, &[][..])
+                };
+                self.source = rem;
 
-            if byte >= 128 {
-                let w = UTF8_CHAR_WIDTH[byte as usize];
-
-                match w {
-                    2 => {
-                        if safe_get(i) & 192 != TAG_CONT_U8 {
-                            break;
-                        }
-                        i += 1;
-                    }
-                    3 => {
-                        match (byte, safe_get(i)) {
-                            (0xE0, 0xA0..=0xBF) => (),
-                            (0xE1..=0xEC, 0x80..=0xBF) => (),
-                            (0xED, 0x80..=0x9F) => (),
-                            (0xEE..=0xEF, 0x80..=0xBF) => (),
-                            _ => break,
-                        }
-                        i += 1;
-                        if safe_get(i) & 192 != TAG_CONT_U8 {
-                            break;
-                        }
-                        i += 1;
-                    }
-                    4 => {
-                        match (byte, safe_get(i)) {
-                            (0xF0, 0x90..=0xBF) => (),
-                            (0xF1..=0xF3, 0x80..=0xBF) => (),
-                            (0xF4, 0x80..=0x8F) => (),
-                            _ => break,
-                        }
-                        i += 1;
-                        if safe_get(i) & 192 != TAG_CONT_U8 {
-                            break;
-                        }
-                        i += 1;
-                        if safe_get(i) & 192 != TAG_CONT_U8 {
-                            break;
-                        }
-                        i += 1;
-                    }
-                    _ => break,
-                }
+                Some(Utf8Chunk {
+                    valid: str::from_utf8(valid).unwrap(),
+                    invalid,
+                })
             }
-
-            valid_up_to = i;
         }
-
-        let (inspected, remaining) = self.source.split_at(i);
-        self.source = remaining;
-
-        let (valid, invalid) = inspected.split_at(valid_up_to);
-
-        Some(Utf8Chunk {
-            valid: core::str::from_utf8(valid).unwrap(),
-            invalid,
-            incomplete,
-        })
     }
 }

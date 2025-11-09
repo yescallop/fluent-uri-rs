@@ -7,13 +7,16 @@ pub(crate) mod table;
 pub use estring::EString;
 pub use table::Table;
 
-use crate::imp::PathEncoder;
+use crate::{
+    imp::PathEncoder,
+    utf8::{self, Utf8Chunks},
+};
 use alloc::{
     borrow::{Cow, ToOwned},
     string::String,
     vec::Vec,
 };
-use core::{cmp::Ordering, hash, iter::FusedIterator, marker::PhantomData, str};
+use core::{cmp::Ordering, hash, iter::FusedIterator, marker::PhantomData, mem, str};
 use ref_cast::{ref_cast_custom, RefCastCustom};
 
 /// A trait used by [`EStr`] and [`EString`] to specify the table used for encoding.
@@ -559,12 +562,12 @@ pub(crate) enum DecodedUtf8Chunk<'a, 'b> {
 
 impl<'a> Decode<'a> {
     pub(crate) fn decode_utf8(self, mut handle_chunk: impl FnMut(DecodedUtf8Chunk<'a, '_>)) {
-        use crate::utf8::Utf8Chunks;
+        const BUF_SIZE: usize = 32;
 
-        let mut buf = [0; 32];
+        let mut buf = [0; BUF_SIZE];
         let mut len = 0;
 
-        'decode: for chunk in self {
+        for chunk in self {
             match chunk {
                 DecodedChunk::Unencoded(s) => {
                     if len > 0 {
@@ -582,26 +585,40 @@ impl<'a> Decode<'a> {
                     buf[len] = x;
                     len += 1;
 
-                    if len == buf.len() {
-                        for chunk in Utf8Chunks::new(&buf[..len]) {
-                            if chunk.incomplete() {
-                                handle_chunk(DecodedUtf8Chunk::Decoded {
-                                    valid: chunk.valid(),
-                                    invalid: &[],
-                                });
+                    if len >= BUF_SIZE {
+                        // Normally, all bytes decoded are valid UTF-8, but may contain chars
+                        // that lie across the buffer boundary. Since we forbid `unsafe` and
+                        // sadly has no access to `str::Utf8Chunks` due to MSRV, we want to
+                        // use `str::from_utf8` to successfully parse as much bytes as possible
+                        // when the buffer is full. To do this, we search back for a char
+                        // boundary in the last 3 bytes. If one is found, we feed the prefix
+                        // before that boundary to our own `Utf8Chunks` impl (which uses
+                        // `str::from_utf8` internally) and shift the remaining bytes to
+                        // the front for the next round. Otherwise, we feed the entire buffer,
+                        // which is safe because if the last 3 bytes contain no char boundary,
+                        // either they are valid continuation bytes, or they are invalid and
+                        // cannot become valid when more bytes are added.
 
-                                let invalid_len = chunk.invalid().len();
-                                buf.copy_within(len - invalid_len..len, 0);
+                        let mut split_at = BUF_SIZE - 1;
+                        while split_at >= BUF_SIZE - 3 && !utf8::is_char_boundary(buf[split_at]) {
+                            split_at -= 1;
+                        }
 
-                                len = invalid_len;
-                                continue 'decode;
-                            }
+                        if split_at < BUF_SIZE - 3 {
+                            split_at = BUF_SIZE;
+                        }
+
+                        let (prefix, rem) = buf.split_at_mut(split_at);
+
+                        for chunk in Utf8Chunks::new(prefix) {
                             handle_chunk(DecodedUtf8Chunk::Decoded {
                                 valid: chunk.valid(),
                                 invalid: chunk.invalid(),
                             });
                         }
-                        len = 0;
+
+                        prefix[..rem.len()].copy_from_slice(rem);
+                        len = rem.len();
                     }
                 }
             }
@@ -681,7 +698,7 @@ impl<'a> Decode<'a> {
                 Ok(string) => {
                     string.push_str(valid);
                     if !invalid.is_empty() {
-                        let mut vec = core::mem::take(string).into_bytes();
+                        let mut vec = mem::take(string).into_bytes();
                         vec.extend_from_slice(invalid);
                         buf = Err(vec);
                     }
