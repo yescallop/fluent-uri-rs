@@ -608,17 +608,17 @@ impl<'a> Decode<'a> {
                             split_at = BUF_SIZE;
                         }
 
-                        let (prefix, rem) = buf.split_at_mut(split_at);
-
-                        for chunk in Utf8Chunks::new(prefix) {
+                        for chunk in Utf8Chunks::new(&buf[..split_at]) {
                             handle_chunk(DecodedUtf8Chunk::Decoded {
                                 valid: chunk.valid(),
                                 invalid: chunk.invalid(),
                             });
                         }
 
-                        prefix[..rem.len()].copy_from_slice(rem);
-                        len = rem.len();
+                        for i in split_at..BUF_SIZE {
+                            buf[i - split_at] = buf[i];
+                        }
+                        len = BUF_SIZE - split_at;
                     }
                 }
             }
