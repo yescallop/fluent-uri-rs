@@ -155,9 +155,10 @@ const TOP100_PATH: &str = concat!(
 fn bench_top100(c: &mut Criterion) {
     let top100 = fs::read_to_string(TOP100_PATH).unwrap();
     let lines = top100.lines().collect::<Vec<&str>>();
+    let total_bytes = lines.iter().map(|s| s.len() as u64).sum();
 
     let mut group = c.benchmark_group("parse-top100");
-    group.throughput(Throughput::Elements(lines.len() as u64));
+    group.throughput(Throughput::Bytes(total_bytes));
     group.bench_function("fluent-uri", |b| {
         b.iter(|| {
             for &line in &lines {
@@ -182,7 +183,7 @@ fn bench_top100(c: &mut Criterion) {
     group.finish();
 
     let mut group = c.benchmark_group("parse-iri-top100");
-    group.throughput(Throughput::Elements(lines.len() as u64));
+    group.throughput(Throughput::Bytes(total_bytes));
     group.bench_function("fluent-uri", |b| {
         b.iter(|| {
             for &line in &lines {
@@ -214,7 +215,7 @@ fn bench_top100(c: &mut Criterion) {
     group.finish();
 
     let mut group = c.benchmark_group("parse-normalize-top100");
-    group.throughput(Throughput::Elements(lines.len() as u64));
+    group.throughput(Throughput::Bytes(total_bytes));
     group.bench_function("fluent-uri", |b| {
         b.iter(|| {
             for &line in &lines {
@@ -250,7 +251,7 @@ fn bench_top100(c: &mut Criterion) {
     group.finish();
 
     let mut group = c.benchmark_group("parse-iri-normalize-top100");
-    group.throughput(Throughput::Elements(lines.len() as u64));
+    group.throughput(Throughput::Bytes(total_bytes));
     group.bench_function("fluent-uri", |b| {
         b.iter(|| {
             for &line in &lines {
