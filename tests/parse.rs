@@ -303,11 +303,11 @@ fn parse_error_uri_ref() {
     fail("%", 1, UnexpectedCharOrEnd);
 
     // Non-decimal port
-    fail("http://example.com:80ab", 21, UnexpectedCharOrEnd);
+    fail("http://example.com:80ab", 23, UnexpectedCharOrEnd);
     fail("http://user@example.com:80ab", 26, UnexpectedCharOrEnd);
 
     // Multiple colons in authority
-    fail("http://user:pass:example.com/", 16, UnexpectedCharOrEnd);
+    fail("http://user:pass:example.com/", 28, UnexpectedCharOrEnd);
 
     // Unclosed bracket
     fail("https://[::1/", 12, UnexpectedCharOrEnd);

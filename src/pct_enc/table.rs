@@ -7,9 +7,9 @@
 
 use crate::{pct_enc, utf8};
 
-const MASK_PCT_ENCODED: u64 = 1;
-const MASK_UCSCHAR: u64 = 2;
-const MASK_IPRIVATE: u64 = 4;
+const MASK_PCT_ENCODED: u64 = 1 << b'%';
+const MASK_UCSCHAR: u64 = 1;
+const MASK_IPRIVATE: u64 = 2;
 const MASK_UNENCODED_ASCII: u64 = !(MASK_PCT_ENCODED | MASK_UCSCHAR | MASK_IPRIVATE);
 
 const fn is_ucschar(x: u32) -> bool {
@@ -31,14 +31,14 @@ impl Table {
     ///
     /// # Panics
     ///
-    /// Panics if any of the bytes is not ASCII or equals `0`, `1`, `2`, or `b'%'`.
+    /// Panics if any of the bytes is not ASCII or equals `0`, `1`, or `b'%'`.
     #[must_use]
     pub const fn new(mut bytes: &[u8]) -> Self {
         let mut table = 0;
         while let [cur, rem @ ..] = bytes {
             assert!(
-                !matches!(cur, 0 | 1 | 2 | b'%' | 128..),
-                "cannot allow non-ASCII byte, 0, 1, 2, or %"
+                !matches!(cur, 0 | 1 | b'%' | 128..),
+                "cannot allow non-ASCII byte, 0, 1, or %"
             );
             table |= 1u128.wrapping_shl(*cur as u32);
             bytes = rem;

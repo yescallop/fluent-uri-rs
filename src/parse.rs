@@ -1,9 +1,10 @@
 use crate::{
     imp::{AuthMeta, Constraints, HostMeta, Meta},
-    pct_enc::{self, table::*, Table},
+    pct_enc::{self, encoder::*, Encoder},
     utf8,
 };
 use core::{
+    marker::PhantomData,
     num::NonZeroUsize,
     ops::{Deref, DerefMut},
     str,
@@ -110,7 +111,7 @@ impl DerefMut for Parser<'_> {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum PathKind {
     General,
     AbEmpty,
@@ -152,15 +153,8 @@ impl<'a> Reader<'a> {
         debug_assert!(self.pos <= self.len());
     }
 
-    // Returns `true` iff any byte is read.
-    fn read(&mut self, table: Table) -> Result<bool> {
-        let start = self.pos;
-        self.read_with(table, |_, _| {})?;
-        Ok(self.pos > start)
-    }
-
     #[cold]
-    fn invalid_pct(&self) -> Result<()> {
+    fn invalid_pct(&self) -> Result<bool> {
         let mut i = self.pos + 1;
         if let Some(&x) = self.bytes.get(i) {
             if pct_enc::is_hexdig(x) {
@@ -170,7 +164,18 @@ impl<'a> Reader<'a> {
         err!(i, UnexpectedCharOrEnd);
     }
 
-    fn read_with(&mut self, table: Table, mut f: impl FnMut(usize, u32)) -> Result<()> {
+    #[inline(always)]
+    fn read<E: Encoder>(&mut self) -> Result<bool> {
+        struct Helper<E: Encoder> {
+            _marker: PhantomData<E>,
+        }
+
+        impl<E: Encoder> Helper<E> {
+            const ALLOWS_PCT_ENCODED: bool = E::TABLE.allows_pct_encoded();
+            const ALLOWS_NON_ASCII: bool = E::TABLE.allows_non_ascii();
+        }
+
+        let start = self.pos;
         let mut i = self.pos;
 
         macro_rules! do_loop {
@@ -187,40 +192,34 @@ impl<'a> Reader<'a> {
                         i += 3;
                     } else if $allow_non_ascii {
                         let (x, len) = utf8::next_code_point(self.bytes, i);
-                        if !table.allows_code_point(x) {
+                        if !E::TABLE.allows_code_point(x) {
                             break;
                         }
-                        f(i, x);
                         i += len;
                     } else {
-                        if !table.allows_ascii(x) {
+                        if !E::TABLE.allows_ascii(x) {
                             break;
                         }
-                        f(i, x as u32);
                         i += 1;
                     }
                 }
             };
         }
 
-        // This expansion alone doesn't help much, but combined with
-        // `#[inline(always)]` on `utf8::next_code_point`,
-        // it improves performance significantly for non-ASCII case.
-        if table.allows_pct_encoded() {
-            if table.allows_non_ascii() {
+        if Helper::<E>::ALLOWS_PCT_ENCODED {
+            if Helper::<E>::ALLOWS_NON_ASCII {
                 do_loop!(true, true);
             } else {
                 do_loop!(true, false);
             }
-        } else if table.allows_non_ascii() {
-            do_loop!(false, true);
         } else {
+            assert!(!Helper::<E>::ALLOWS_NON_ASCII);
             do_loop!(false, false);
         }
 
         // INVARIANT: `i` is non-decreasing.
         self.pos = i;
-        Ok(())
+        Ok(self.pos > start)
     }
 
     fn read_str(&mut self, s: &str) -> bool {
@@ -411,7 +410,7 @@ impl<'a> Reader<'a> {
         if let Some(b'v' | b'V') = self.peek(0) {
             // INVARIANT: Skipping "v" or "V" is fine.
             self.skip(1);
-            if self.read(HEXDIG)? && self.read_str(".") && self.read(IPV_FUTURE)? {
+            if self.read::<Hexdig>()? && self.read_str(".") && self.read::<IpvFuture>()? {
                 return Ok(());
             }
         }
@@ -436,23 +435,25 @@ pub(crate) fn parse_v6(bytes: &[u8]) -> [u16; 8] {
 }
 
 impl Parser<'_> {
-    fn select<T>(&self, for_uri: T, for_iri: T) -> T {
+    #[inline(always)]
+    fn select_read<U: Encoder, I: Encoder>(&mut self) -> Result<bool> {
         if self.constraints.ascii_only {
-            for_uri
+            self.read::<U>()
         } else {
-            for_iri
+            self.read::<I>()
         }
     }
 
     fn read_v4_or_reg_name(&mut self) -> Result<HostMeta> {
-        let reg_name_table = self.select(REG_NAME, IREG_NAME);
-        Ok(match (self.read_v4(), self.read(reg_name_table)?) {
-            (Some(_addr), false) => HostMeta::Ipv4(
-                #[cfg(feature = "net")]
-                _addr.into(),
-            ),
-            _ => HostMeta::RegName,
-        })
+        Ok(
+            match (self.read_v4(), self.select_read::<RegName, IRegName>()?) {
+                (Some(_addr), false) => HostMeta::Ipv4(
+                    #[cfg(feature = "net")]
+                    _addr.into(),
+                ),
+                _ => HostMeta::RegName,
+            },
+        )
     }
 
     fn read_host(&mut self) -> Result<HostMeta> {
@@ -463,7 +464,7 @@ impl Parser<'_> {
     }
 
     fn parse_from_scheme(&mut self) -> Result<()> {
-        self.read(SCHEME)?;
+        self.read::<Scheme>()?;
 
         if self.peek(0) == Some(b':') {
             // Scheme starts with a letter.
@@ -493,110 +494,78 @@ impl Parser<'_> {
     }
 
     fn parse_from_authority(&mut self) -> Result<()> {
-        let host;
+        // We first try to read host and port, noting that
+        // a reg-name or IPv4address can also be part of userinfo.
+        let host_start = self.pos;
+        let host_meta = self.read_host()?;
 
-        let mut colon_cnt = 0;
-        let mut colon_idx = 0;
+        let mut auth_meta = AuthMeta {
+            host_bounds: (host_start, self.pos),
+            host_meta,
+        };
 
-        let auth_start = self.pos;
+        self.read_port();
 
-        let userinfo_table = self.select(USERINFO, IUSERINFO);
-        // `userinfo_table` contains userinfo, registered name, ':', and port.
-        self.read_with(userinfo_table, |i, x| {
-            if x == ':' as u32 {
-                colon_cnt += 1;
-                colon_idx = i;
-            }
-        })?;
+        if let HostMeta::Ipv4(..) | HostMeta::RegName = host_meta {
+            let userinfo_read = self.select_read::<Userinfo, IUserinfo>()?;
 
-        if self.peek(0) == Some(b'@') {
-            // Userinfo present.
-            // INVARIANT: Skipping "@" is fine.
-            self.skip(1);
+            if self.peek(0) == Some(b'@') {
+                // Userinfo present.
+                // INVARIANT: Skipping "@" is fine.
+                self.skip(1);
 
-            let host_start = self.pos;
-            let meta = self.read_host()?;
-            host = (host_start, self.pos, meta);
+                let host_start = self.pos;
+                let host_meta = self.read_host()?;
 
-            self.read_port();
-        } else if self.pos == auth_start {
-            // Nothing read. We're now at the start of an IP literal or the path.
-            if let Some(meta) = self.read_ip_literal()? {
-                host = (auth_start, self.pos, meta);
+                auth_meta = AuthMeta {
+                    host_bounds: (host_start, self.pos),
+                    host_meta,
+                };
+
                 self.read_port();
-            } else {
-                // Empty authority.
-                host = (self.pos, self.pos, HostMeta::RegName);
+            } else if userinfo_read {
+                err!(self.pos, UnexpectedCharOrEnd);
             }
-        } else {
-            // The whole authority read. Try to parse the host and port.
-            let host_end = match colon_cnt {
-                // All host.
-                0 => self.pos,
-                // Host and port.
-                1 => {
-                    for i in colon_idx + 1..self.pos {
-                        if !self.bytes[i].is_ascii_digit() {
-                            err!(i, UnexpectedCharOrEnd);
-                        }
-                    }
-                    colon_idx
-                }
-                // Multiple colons.
-                _ => err!(colon_idx, UnexpectedCharOrEnd),
-            };
-
-            let meta = parse_v4_or_reg_name(&self.bytes[auth_start..host_end]);
-            host = (auth_start, host_end, meta);
         }
 
-        self.out.auth_meta = Some(AuthMeta {
-            host_bounds: (host.0, host.1),
-            host_meta: host.2,
-        });
+        self.out.auth_meta = Some(auth_meta);
         self.parse_from_path(PathKind::AbEmpty)
     }
 
     fn parse_from_path(&mut self, kind: PathKind) -> Result<()> {
-        let path_table = self.select(PATH, IPATH);
-        self.out.path_bounds = match kind {
-            PathKind::General => {
-                let start = self.pos;
-                self.read(path_table)?;
-                (start, self.pos)
-            }
-            PathKind::AbEmpty => {
-                let start = self.pos;
-                // Either empty or starting with '/'.
-                if self.read(path_table)? && self.bytes[start] != b'/' {
-                    err!(start, UnexpectedCharOrEnd);
-                }
-                (start, self.pos)
-            }
+        let path_start;
+
+        match kind {
+            PathKind::General | PathKind::AbEmpty => path_start = self.pos,
             PathKind::ContinuedNoScheme => {
-                let segment_table = self.select(SEGMENT_NZ_NC, ISEGMENT_NZ_NC);
-                self.read(segment_table)?;
+                path_start = 0;
+
+                self.select_read::<SegmentNzNc, ISegmentNzNc>()?;
 
                 if self.peek(0) == Some(b':') {
                     // In a relative reference, the first path
                     // segment cannot contain a colon character.
                     err!(self.pos, UnexpectedCharOrEnd);
                 }
-
-                self.read(path_table)?;
-                (0, self.pos)
             }
         };
 
+        if self.select_read::<Path, IPath>()?
+            && kind == PathKind::AbEmpty
+            && self.bytes[path_start] != b'/'
+        {
+            err!(path_start, UnexpectedCharOrEnd);
+        }
+
+        self.out.path_bounds = (path_start, self.pos);
+
         if self.read_str("?") {
-            let query_table = self.select(QUERY, IQUERY);
-            self.read(query_table)?;
+            self.select_read::<Query, IQuery>()?;
             self.out.query_end = NonZeroUsize::new(self.pos);
         }
 
         if self.read_str("#") {
-            let fragment_table = self.select(FRAGMENT, IFRAGMENT);
-            self.read(fragment_table)?;
+            self.select_read::<Fragment, IFragment>()?;
         }
 
         if self.has_remaining() {

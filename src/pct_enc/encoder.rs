@@ -122,3 +122,35 @@ pub struct IData(());
 impl Encoder for IData {
     const TABLE: Table = UNRESERVED.or_pct_encoded().or_ucschar();
 }
+
+// The following are used only in the parser.
+
+pub(crate) struct Hexdig;
+
+impl Encoder for Hexdig {
+    const TABLE: Table = HEXDIG;
+}
+
+pub(crate) struct IpvFuture;
+
+impl Encoder for IpvFuture {
+    const TABLE: Table = IPV_FUTURE;
+}
+
+pub(crate) struct Scheme;
+
+impl Encoder for Scheme {
+    const TABLE: Table = SCHEME;
+}
+
+pub(crate) struct SegmentNzNc;
+
+impl Encoder for SegmentNzNc {
+    const TABLE: Table = SEGMENT_NZ_NC;
+}
+
+pub(crate) struct ISegmentNzNc;
+
+impl Encoder for ISegmentNzNc {
+    const TABLE: Table = ISEGMENT_NZ_NC;
+}
