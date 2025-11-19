@@ -1,3 +1,5 @@
+mod ssse3;
+
 use crate::{
     imp::{AuthMeta, Constraints, HostMeta, Meta},
     pct_enc::{self, encoder::*, Encoder},
@@ -197,7 +199,7 @@ impl<'a> Reader<'a> {
                         }
                         i += len;
                     } else {
-                        if !E::TABLE.allows_ascii(x) {
+                        if !E::TABLE.allows_non_pct_ascii(x) {
                             break;
                         }
                         i += 1;
@@ -209,8 +211,13 @@ impl<'a> Reader<'a> {
         if Helper::<E>::ALLOWS_PCT_ENCODED {
             if Helper::<E>::ALLOWS_NON_ASCII {
                 do_loop!(true, true);
-            } else {
+            } else if i + 16 + 2 > self.len() {
                 do_loop!(true, false);
+            } else {
+                match unsafe { ssse3::read(&self.bytes[i..], E::TABLE) } {
+                    Ok(offset) => i += offset,
+                    Err(offset) => err!(i + offset, UnexpectedCharOrEnd),
+                }
             }
         } else {
             assert!(!Helper::<E>::ALLOWS_NON_ASCII);

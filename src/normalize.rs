@@ -282,7 +282,7 @@ fn normalize_estr_ascii(buf: &mut String, s: &str, to_ascii_lowercase: bool) {
                 }
             }
             DecodedChunk::PctDecoded(mut x) => {
-                if Data::TABLE.allows_ascii(x) {
+                if Data::TABLE.allows_non_pct_ascii(x) {
                     if to_ascii_lowercase {
                         x.make_ascii_lowercase();
                     }

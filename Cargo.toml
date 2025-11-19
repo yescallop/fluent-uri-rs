@@ -12,10 +12,11 @@ keywords = ["builder", "parser", "uri", "iri"]
 categories = ["encoding", "parser-implementations"]
 
 [features]
-default = ["std"]
+default = ["std", "simd"]
 std = ["impl-error"]
 impl-error = []
 net = []
+simd = ["std"]
 
 [dependencies]
 borrow-or-share = "0.2"

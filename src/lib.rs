@@ -18,7 +18,7 @@
     clippy::single_match_else,
     clippy::use_self,
 )]
-#![forbid(unsafe_code)]
+#![cfg_attr(not(feature = "simd"), forbid(unsafe_code))]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![no_std]
 

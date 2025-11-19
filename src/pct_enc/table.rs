@@ -7,10 +7,11 @@
 
 use crate::{pct_enc, utf8};
 
-const MASK_PCT_ENCODED: u64 = 1 << b'%';
+const MASK_PCT: u64 = 1 << b'%';
 const MASK_UCSCHAR: u64 = 1;
 const MASK_IPRIVATE: u64 = 2;
-const MASK_UNENCODED_ASCII: u64 = !(MASK_PCT_ENCODED | MASK_UCSCHAR | MASK_IPRIVATE);
+const MASK_NON_PCT_ASCII: u64 = !(MASK_PCT | MASK_UCSCHAR | MASK_IPRIVATE);
+const MASK_ASCII: u64 = !(MASK_UCSCHAR | MASK_IPRIVATE);
 
 const fn is_ucschar(x: u32) -> bool {
     matches!(x, 0xa0..=0xd7ff | 0xf900..=0xfdcf | 0xfdf0..=0xffef)
@@ -58,7 +59,7 @@ impl Table {
     /// Marks this table as allowing percent-encoded octets.
     #[must_use]
     pub const fn or_pct_encoded(self) -> Self {
-        Self(self.0 | MASK_PCT_ENCODED, self.1)
+        Self(self.0 | MASK_PCT, self.1)
     }
 
     /// Marks this table as allowing characters matching the [`ucschar`]
@@ -96,9 +97,24 @@ impl Table {
     }
 
     #[inline]
-    pub(crate) const fn allows_ascii(self, x: u8) -> bool {
+    pub(crate) const fn allows_non_pct_ascii(self, x: u8) -> bool {
         let table = if x < 64 {
-            self.0 & MASK_UNENCODED_ASCII
+            self.0 & MASK_NON_PCT_ASCII
+        } else if x < 128 {
+            self.1
+        } else {
+            0
+        };
+        table & 1u64.wrapping_shl(x as u32) != 0
+    }
+
+    pub(crate) fn ascii_bits(self) -> (u64, u64) {
+        (self.0 & MASK_ASCII, self.1)
+    }
+
+    pub(crate) fn allows_maybe_pct_ascii(self, x: u8) -> bool {
+        let table = if x < 64 {
+            self.0 & MASK_ASCII
         } else if x < 128 {
             self.1
         } else {
@@ -115,7 +131,7 @@ impl Table {
     #[inline]
     pub(crate) const fn allows_code_point(self, x: u32) -> bool {
         if x < 128 {
-            return self.allows_ascii(x as u8);
+            return self.allows_non_pct_ascii(x as u8);
         }
         if self.0 & MASK_UCSCHAR != 0 && is_ucschar(x) {
             return true;
@@ -137,7 +153,7 @@ impl Table {
     #[inline]
     #[must_use]
     pub const fn allows_pct_encoded(self) -> bool {
-        self.0 & MASK_PCT_ENCODED != 0
+        self.0 & MASK_PCT != 0
     }
 
     /// Validates the given string with the table.
@@ -165,7 +181,7 @@ impl Table {
                         }
                         i += len;
                     } else {
-                        if !self.allows_ascii(x) {
+                        if !self.allows_non_pct_ascii(x) {
                             return false;
                         }
                         i += 1;
