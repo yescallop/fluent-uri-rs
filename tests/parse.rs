@@ -249,20 +249,20 @@ fn parse_error_uri() {
     }
 
     // No scheme
-    fail("foo", 3, UnexpectedChar);
+    fail("foo", 3, UnexpectedCharOrEnd);
 
     // Empty scheme
-    fail(":hello", 0, UnexpectedChar);
+    fail(":hello", 0, UnexpectedCharOrEnd);
 
     // Scheme starts with non-letter
-    fail("3ttp://a.com", 0, UnexpectedChar);
+    fail("3ttp://a.com", 0, UnexpectedCharOrEnd);
 
     // Unexpected char in scheme
-    fail("exam=ple:foo", 4, UnexpectedChar);
-    fail("(:", 0, UnexpectedChar);
+    fail("exam=ple:foo", 4, UnexpectedCharOrEnd);
+    fail("(:", 0, UnexpectedCharOrEnd);
 
     // Percent-encoded scheme
-    fail("a%20:foo", 1, UnexpectedChar);
+    fail("a%20:foo", 1, UnexpectedCharOrEnd);
 }
 
 #[track_caller]
@@ -275,64 +275,64 @@ fn fail(input: &str, index: usize, kind: ParseErrorKind) {
 #[test]
 fn parse_error_uri_ref() {
     // Empty scheme
-    fail(":hello", 0, UnexpectedChar);
+    fail(":hello", 0, UnexpectedCharOrEnd);
 
     // Scheme starts with non-letter
-    fail("3ttp://a.com", 0, UnexpectedChar);
+    fail("3ttp://a.com", 0, UnexpectedCharOrEnd);
 
     // After rewriting the parser, the following two cases are interpreted as
     // containing colon in the first path segment of a relative reference.
 
     // Unexpected char in scheme
-    fail("exam=ple:foo", 8, UnexpectedChar);
-    fail("(:", 1, UnexpectedChar);
+    fail("exam=ple:foo", 8, UnexpectedCharOrEnd);
+    fail("(:", 1, UnexpectedCharOrEnd);
 
     // Percent-encoded scheme
-    fail("a%20:foo", 4, UnexpectedChar);
+    fail("a%20:foo", 4, UnexpectedCharOrEnd);
 
     // Unexpected char in path
-    fail("foo\\bar", 3, UnexpectedChar);
+    fail("foo\\bar", 3, UnexpectedCharOrEnd);
 
     // Non-hexadecimal percent-encoded octet
-    fail("foo%xxd", 3, InvalidPctEncodedOctet);
+    fail("foo%xxd", 4, UnexpectedCharOrEnd);
 
     // Incomplete percent-encoded octet
-    fail("text%a", 4, InvalidPctEncodedOctet);
+    fail("text%a", 6, UnexpectedCharOrEnd);
 
     // A single percent
-    fail("%", 0, InvalidPctEncodedOctet);
+    fail("%", 1, UnexpectedCharOrEnd);
 
     // Non-decimal port
-    fail("http://example.com:80ab", 21, UnexpectedChar);
-    fail("http://user@example.com:80ab", 26, UnexpectedChar);
+    fail("http://example.com:80ab", 21, UnexpectedCharOrEnd);
+    fail("http://user@example.com:80ab", 26, UnexpectedCharOrEnd);
 
     // Multiple colons in authority
-    fail("http://user:pass:example.com/", 16, UnexpectedChar);
+    fail("http://user:pass:example.com/", 16, UnexpectedCharOrEnd);
 
     // Unclosed bracket
-    fail("https://[::1/", 12, UnexpectedChar);
+    fail("https://[::1/", 12, UnexpectedCharOrEnd);
 
     // Not port after IP literal
-    fail("https://[::1]wrong", 13, UnexpectedChar);
+    fail("https://[::1]wrong", 13, UnexpectedCharOrEnd);
 
     // IP literal too short
     fail("http://[:]", 8, InvalidIpv6Addr);
-    fail("http://[]", 8, UnexpectedChar);
+    fail("http://[]", 8, UnexpectedCharOrEnd);
 
     // Non-hexadecimal version in IPvFuture
-    fail("http://[vG.addr]", 9, UnexpectedChar);
+    fail("http://[vG.addr]", 9, UnexpectedCharOrEnd);
 
     // Empty version in IPvFuture
-    fail("http://[v.addr]", 9, UnexpectedChar);
+    fail("http://[v.addr]", 9, UnexpectedCharOrEnd);
 
     // Empty address in IPvFuture
-    fail("ftp://[vF.]", 10, UnexpectedChar);
+    fail("ftp://[vF.]", 10, UnexpectedCharOrEnd);
 
     // Percent-encoded address in IPvFuture
-    fail("ftp://[vF.%20]", 10, UnexpectedChar);
+    fail("ftp://[vF.%20]", 10, UnexpectedCharOrEnd);
 
     // With zone identifier
-    fail("ftp://[fe80::abcd%eth0]", 17, UnexpectedChar);
+    fail("ftp://[fe80::abcd%eth0]", 17, UnexpectedCharOrEnd);
 
     // Invalid IPv6 address
     fail("example://[44:55::66::77]", 11, InvalidIpv6Addr);

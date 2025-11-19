@@ -154,7 +154,7 @@ impl Table {
                         }
                         let (hi, lo) = (s[i + 1], s[i + 2]);
 
-                        if !pct_enc::is_valid_octet(hi, lo) {
+                        if !pct_enc::is_hexdig_pair(hi, lo) {
                             return false;
                         }
                         i += 3;

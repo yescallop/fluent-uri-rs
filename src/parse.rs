@@ -12,14 +12,10 @@ use core::{
 /// Detailed cause of a [`ParseError`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ParseErrorKind {
-    /// Invalid percent-encoded octet that is either non-hexadecimal or incomplete.
+    /// Unexpected character or end of input.
     ///
-    /// The error index points to the percent character "%" of the octet.
-    InvalidPctEncodedOctet,
-    /// Unexpected character that is not allowed by the URI/IRI syntax.
-    ///
-    /// The error index points to the first byte of the character.
-    UnexpectedChar,
+    /// The error index points to the first byte of the character or the end of input.
+    UnexpectedCharOrEnd,
     /// Invalid IPv6 address.
     ///
     /// The error index points to the first byte of the address.
@@ -50,14 +46,14 @@ impl ParseError {
 #[cfg(feature = "impl-error")]
 impl crate::Error for ParseError {}
 
-type Result<T> = core::result::Result<T, crate::parse::ParseError>;
+type Result<T> = core::result::Result<T, ParseError>;
 
 /// Returns immediately with an error.
 macro_rules! err {
     ($index:expr, $kind:ident) => {
-        return Err(crate::parse::ParseError {
+        return Err(ParseError {
             index: $index,
-            kind: crate::parse::ParseErrorKind::$kind,
+            kind: ParseErrorKind::$kind,
         })
     };
 }
@@ -163,6 +159,17 @@ impl<'a> Reader<'a> {
         Ok(self.pos > start)
     }
 
+    #[cold]
+    fn invalid_pct(&self) -> Result<()> {
+        let mut i = self.pos + 1;
+        if let Some(&x) = self.bytes.get(i) {
+            if pct_enc::is_hexdig(x) {
+                i += 1;
+            }
+        }
+        err!(i, UnexpectedCharOrEnd);
+    }
+
     fn read_with(&mut self, table: Table, mut f: impl FnMut(usize, u32)) -> Result<()> {
         let mut i = self.pos;
 
@@ -172,10 +179,10 @@ impl<'a> Reader<'a> {
                     let x = self.bytes[i];
                     if $allow_pct_encoded && x == b'%' {
                         let [hi, lo, ..] = self.bytes[i + 1..] else {
-                            err!(i, InvalidPctEncodedOctet);
+                            return self.invalid_pct();
                         };
-                        if !pct_enc::is_valid_octet(hi, lo) {
-                            err!(i, InvalidPctEncodedOctet);
+                        if !pct_enc::is_hexdig_pair(hi, lo) {
+                            return self.invalid_pct();
                         }
                         i += 3;
                     } else if $allow_non_ascii {
@@ -395,7 +402,7 @@ impl<'a> Reader<'a> {
         };
 
         if !self.read_str("]") {
-            err!(self.pos, UnexpectedChar);
+            err!(self.pos, UnexpectedCharOrEnd);
         }
         Ok(Some(meta))
     }
@@ -408,7 +415,7 @@ impl<'a> Reader<'a> {
                 return Ok(());
             }
         }
-        err!(self.pos, UnexpectedChar);
+        err!(self.pos, UnexpectedCharOrEnd);
     }
 }
 
@@ -463,7 +470,7 @@ impl Parser<'_> {
             if self.pos > 0 && self.bytes[0].is_ascii_alphabetic() {
                 self.out.scheme_end = NonZeroUsize::new(self.pos);
             } else {
-                err!(0, UnexpectedChar);
+                err!(0, UnexpectedCharOrEnd);
             }
 
             // INVARIANT: Skipping ":" is fine.
@@ -474,7 +481,7 @@ impl Parser<'_> {
                 self.parse_from_path(PathKind::General)
             };
         } else if self.constraints.scheme_required {
-            err!(self.pos, UnexpectedChar);
+            err!(self.pos, UnexpectedCharOrEnd);
         } else if self.pos == 0 {
             // Nothing read.
             if self.read_str("//") {
@@ -530,13 +537,13 @@ impl Parser<'_> {
                 1 => {
                     for i in colon_idx + 1..self.pos {
                         if !self.bytes[i].is_ascii_digit() {
-                            err!(i, UnexpectedChar);
+                            err!(i, UnexpectedCharOrEnd);
                         }
                     }
                     colon_idx
                 }
                 // Multiple colons.
-                _ => err!(colon_idx, UnexpectedChar),
+                _ => err!(colon_idx, UnexpectedCharOrEnd),
             };
 
             let meta = parse_v4_or_reg_name(&self.bytes[auth_start..host_end]);
@@ -562,7 +569,7 @@ impl Parser<'_> {
                 let start = self.pos;
                 // Either empty or starting with '/'.
                 if self.read(path_table)? && self.bytes[start] != b'/' {
-                    err!(start, UnexpectedChar);
+                    err!(start, UnexpectedCharOrEnd);
                 }
                 (start, self.pos)
             }
@@ -573,7 +580,7 @@ impl Parser<'_> {
                 if self.peek(0) == Some(b':') {
                     // In a relative reference, the first path
                     // segment cannot contain a colon character.
-                    err!(self.pos, UnexpectedChar);
+                    err!(self.pos, UnexpectedCharOrEnd);
                 }
 
                 self.read(path_table)?;
@@ -593,7 +600,7 @@ impl Parser<'_> {
         }
 
         if self.has_remaining() {
-            err!(self.pos, UnexpectedChar);
+            err!(self.pos, UnexpectedCharOrEnd);
         }
         Ok(())
     }

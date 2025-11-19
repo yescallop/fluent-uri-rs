@@ -21,8 +21,7 @@ impl<E: Encoder> Display for EStr<E> {
 impl Display for ParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         let msg = match self.kind {
-            ParseErrorKind::InvalidPctEncodedOctet => "invalid percent-encoded octet at index ",
-            ParseErrorKind::UnexpectedChar => "unexpected character at index ",
+            ParseErrorKind::UnexpectedCharOrEnd => "unexpected character or end of input at index ",
             ParseErrorKind::InvalidIpv6Addr => "invalid IPv6 address at index ",
         };
         write!(f, "{}{}", msg, self.index)
