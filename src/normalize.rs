@@ -224,8 +224,8 @@ pub(crate) fn normalize(
         let mut path_buf = String::with_capacity(path.len());
         normalize_estr(&mut path_buf, path, false, ascii_only);
 
-        let underflow_occurred = resolve::remove_dot_segments(&mut buf, &path_buf, None);
-        if underflow_occurred && !allow_path_underflow {
+        let underflow = resolve::remove_dot_segments(&mut buf, &path_buf, None);
+        if underflow && !allow_path_underflow {
             return Err(NormalizeError::PathUnderflow);
         }
 

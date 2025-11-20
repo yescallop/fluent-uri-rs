@@ -174,9 +174,6 @@ impl Table {
             };
         }
 
-        // This expansion alone doesn't help much, but combined with
-        // `#[inline(always)]` on `utf8::next_code_point`,
-        // it improves performance significantly for non-ASCII case.
         if self.allows_pct_encoded() {
             if self.allows_non_ascii() {
                 do_loop!(true, true);

@@ -227,8 +227,8 @@ pub(crate) fn resolve(
     meta.path_bounds.0 = path_start;
 
     if t_path.0.starts_with('/') {
-        let underflow_occurred = remove_dot_segments(&mut buf, t_path.0, t_path.1);
-        if underflow_occurred && !allow_path_underflow {
+        let underflow = remove_dot_segments(&mut buf, t_path.0, t_path.1);
+        if underflow && !allow_path_underflow {
             return Err(ResolveError::PathUnderflow);
         }
     } else {
