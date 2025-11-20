@@ -30,16 +30,17 @@ pub unsafe fn read(src: &[u8], table: Table) -> Result<usize, usize> {
         let mask_table = _mm_set1_epi64x(0x8040201008040201u64 as _);
         let zero = _mm_setzero_si128();
 
-        while i <= len - 16 - 2 {
-            let chunk = _mm_loadu_si128(ptr.add(i + 2).cast());
-            let chunk_l1 = _mm_loadu_si128(ptr.add(i + 1).cast());
-            let chunk_l2 = _mm_loadu_si128(ptr.add(i).cast());
+        i = 2;
+        while i <= len - 16 {
+            let chunk = _mm_loadu_si128(ptr.add(i).cast());
+            let chunk_left_1 = _mm_loadu_si128(ptr.add(i - 1).cast());
+            let chunk_left_2 = _mm_loadu_si128(ptr.add(i - 2).cast());
 
             // for non-ASCII, this is 0
             let mask_per_byte = _mm_shuffle_epi8(mask_table, chunk);
 
-            let after_pct_1 = _mm_cmpeq_epi8(chunk_l1, pct);
-            let after_pct_2 = _mm_cmpeq_epi8(chunk_l2, pct);
+            let after_pct_1 = _mm_cmpeq_epi8(chunk_left_1, pct);
+            let after_pct_2 = _mm_cmpeq_epi8(chunk_left_2, pct);
             let after_pct = _mm_or_si128(after_pct_1, after_pct_2);
 
             let word_shr_3 = _mm_srli_epi16::<3>(chunk);
@@ -57,13 +58,10 @@ pub unsafe fn read(src: &[u8], table: Table) -> Result<usize, usize> {
             let invalid = _mm_cmpeq_epi8(nz_if_valid, zero);
             let invalid = _mm_movemask_epi8(invalid);
 
-            // We have to put it here to avoid a redundant index register.
-            i += 16;
-
             if invalid != 0 {
                 let after_pct = _mm_movemask_epi8(after_pct);
                 let offset = invalid.trailing_zeros();
-                let offset_i = i - 16 + offset as usize + 2;
+                let offset_i = i + offset as usize;
 
                 return if after_pct & (1 << offset) == 0 {
                     Ok(offset_i)
@@ -71,7 +69,9 @@ pub unsafe fn read(src: &[u8], table: Table) -> Result<usize, usize> {
                     Err(offset_i)
                 };
             }
+            i += 16;
         }
+        i -= 2;
     }
 
     while i < len {
