@@ -1,6 +1,6 @@
 use crate::{
     imp::{AuthMeta, Constraints, HostMeta, Meta},
-    pct_enc::{self, encoder::*, Encoder, Table},
+    pct_enc::{self, encoder::*, Encoder},
     utf8,
 };
 use core::{
@@ -166,43 +166,6 @@ impl<'a> Reader<'a> {
 
     // FIXME: This makes things faster but causes significant bloat.
     #[inline(always)]
-    fn read_generic<const ALLOW_PCT_ENCODED: bool, const ALLOW_NON_ASCII: bool>(
-        &mut self,
-        table: Table,
-    ) -> Result<bool> {
-        let start = self.pos;
-        let mut i = self.pos;
-
-        while i < self.len() {
-            let x = self.bytes[i];
-            if ALLOW_PCT_ENCODED && x == b'%' {
-                let [hi, lo, ..] = self.bytes[i + 1..] else {
-                    return self.invalid_pct();
-                };
-                if !pct_enc::is_hexdig_pair(hi, lo) {
-                    return self.invalid_pct();
-                }
-                i += 3;
-            } else if ALLOW_NON_ASCII {
-                let (x, len) = utf8::next_code_point(self.bytes, i);
-                if !table.allows_code_point(x) {
-                    break;
-                }
-                i += len;
-            } else {
-                if !table.allows_ascii(x) {
-                    break;
-                }
-                i += 1;
-            }
-        }
-
-        // INVARIANT: `i` is non-decreasing.
-        self.pos = i;
-        Ok(self.pos > start)
-    }
-
-    #[inline(always)]
     fn read<E: Encoder>(&mut self) -> Result<bool> {
         struct Helper<E: Encoder> {
             _marker: PhantomData<E>,
@@ -213,16 +176,36 @@ impl<'a> Reader<'a> {
             const ALLOWS_NON_ASCII: bool = E::TABLE.allows_non_ascii();
         }
 
-        if Helper::<E>::ALLOWS_PCT_ENCODED {
-            if Helper::<E>::ALLOWS_NON_ASCII {
-                self.read_generic::<true, true>(E::TABLE)
+        let start = self.pos;
+        let mut i = self.pos;
+
+        while i < self.len() {
+            let x = self.bytes[i];
+            if Helper::<E>::ALLOWS_PCT_ENCODED && x == b'%' {
+                let [hi, lo, ..] = self.bytes[i + 1..] else {
+                    return self.invalid_pct();
+                };
+                if !pct_enc::is_hexdig_pair(hi, lo) {
+                    return self.invalid_pct();
+                }
+                i += 3;
+            } else if Helper::<E>::ALLOWS_NON_ASCII {
+                let (x, len) = utf8::next_code_point(self.bytes, i);
+                if !E::TABLE.allows_code_point(x) {
+                    break;
+                }
+                i += len;
             } else {
-                self.read_generic::<true, false>(E::TABLE)
+                if !E::TABLE.allows_ascii(x) {
+                    break;
+                }
+                i += 1;
             }
-        } else {
-            assert!(!Helper::<E>::ALLOWS_NON_ASCII);
-            self.read_generic::<false, false>(E::TABLE)
         }
+
+        // INVARIANT: `i` is non-decreasing.
+        self.pos = i;
+        Ok(self.pos > start)
     }
 
     fn read_str(&mut self, s: &str) -> bool {
