@@ -4,7 +4,6 @@ use crate::{
     utf8,
 };
 use core::{
-    marker::PhantomData,
     num::NonZeroUsize,
     ops::{Deref, DerefMut},
     str,
