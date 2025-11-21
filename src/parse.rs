@@ -167,21 +167,12 @@ impl<'a> Reader<'a> {
     // FIXME: This makes things faster but causes significant bloat.
     #[inline(always)]
     fn read<E: Encoder>(&mut self) -> Result<bool> {
-        struct Helper<E: Encoder> {
-            _marker: PhantomData<E>,
-        }
-
-        impl<E: Encoder> Helper<E> {
-            const ALLOWS_PCT_ENCODED: bool = E::TABLE.allows_pct_encoded();
-            const ALLOWS_NON_ASCII: bool = E::TABLE.allows_non_ascii();
-        }
-
         let start = self.pos;
         let mut i = self.pos;
 
         while i < self.len() {
             let x = self.bytes[i];
-            if Helper::<E>::ALLOWS_PCT_ENCODED && x == b'%' {
+            if E::TABLE.allows_pct_encoded() && x == b'%' {
                 let [hi, lo, ..] = self.bytes[i + 1..] else {
                     return self.invalid_pct();
                 };
@@ -189,7 +180,7 @@ impl<'a> Reader<'a> {
                     return self.invalid_pct();
                 }
                 i += 3;
-            } else if Helper::<E>::ALLOWS_NON_ASCII {
+            } else if E::TABLE.allows_non_ascii() {
                 let (x, len) = utf8::next_code_point(self.bytes, i);
                 if !E::TABLE.allows_code_point(x) {
                     break;
