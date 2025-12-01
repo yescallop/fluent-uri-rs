@@ -230,7 +230,7 @@ pub const PCHAR: Table = UNRESERVED.or(SUB_DELIMS).or(new(b":@")).or_pct_encoded
 pub const QUERY: Table = PCHAR.or(new(b"/?"));
 
 /// `fragment = *( pchar / "/" / "?" )`
-pub const FRAGMENT: Table = QUERY;
+pub const FRAGMENT: Table = QUERY.or(new(b"#"));
 
 /// `unreserved = ALPHA / DIGIT / "-" / "." / "_" / "~"`
 pub const UNRESERVED: Table = ALPHA.or(DIGIT).or(new(b"-._~"));
