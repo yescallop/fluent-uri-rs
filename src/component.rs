@@ -148,7 +148,7 @@ struct AuthorityInner<'a> {
 impl<'a> AuthorityInner<'a> {
     fn userinfo(&self) -> Option<&'a EStr<IUserinfo>> {
         let host_start = self.meta.host_bounds.0;
-        (host_start != 0).then(|| EStr::new_validated(&self.val[..host_start - 1]))
+        (host_start > 0).then(|| EStr::new_validated(&self.val[..host_start - 1]))
     }
 
     fn host(&self) -> &'a str {
@@ -158,7 +158,7 @@ impl<'a> AuthorityInner<'a> {
 
     fn port(&self) -> Option<&'a EStr<Port>> {
         let host_end = self.meta.host_bounds.1;
-        (host_end != self.val.len()).then(|| EStr::new_validated(&self.val[host_end + 1..]))
+        (host_end < self.val.len()).then(|| EStr::new_validated(&self.val[host_end + 1..]))
     }
 
     fn port_to_u16(&self) -> Result<Option<u16>, ParseIntError> {
@@ -243,7 +243,6 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     /// assert_eq!(auth.as_str(), "user@example.com:8080");
     /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
-    #[inline]
     #[must_use]
     pub fn as_str(&self) -> &'a str {
         self.inner.val
@@ -475,10 +474,9 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     /// let uri = Uri::parse("http://example.com/")?;
     /// assert!(!uri.authority().unwrap().has_userinfo());
     /// # Ok::<_, fluent_uri::ParseError>(())
-    #[inline]
     #[must_use]
     pub fn has_userinfo(&self) -> bool {
-        self.inner.meta.host_bounds.0 != 0
+        self.inner.meta.host_bounds.0 > 0
     }
 
     /// Checks whether a port subcomponent is present.
@@ -500,10 +498,9 @@ impl<'a, UserinfoE: Encoder, RegNameE: Encoder> Authority<'a, UserinfoE, RegName
     /// assert!(!uri.authority().unwrap().has_port());
     /// # Ok::<_, fluent_uri::ParseError>(())
     /// ```
-    #[inline]
     #[must_use]
     pub fn has_port(&self) -> bool {
-        self.inner.meta.host_bounds.1 != self.inner.val.len()
+        self.inner.meta.host_bounds.1 < self.inner.val.len()
     }
 }
 

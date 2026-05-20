@@ -224,7 +224,7 @@ impl<'a> Reader<'a> {
                     i += 1;
                 }
                 Some(Seg::Ellipsis) => {
-                    if ellipsis_idx != 8 {
+                    if ellipsis_idx < 8 {
                         // Multiple ellipses.
                         return None;
                     }
@@ -248,7 +248,7 @@ impl<'a> Reader<'a> {
 
         if ellipsis_idx == 8 {
             // No ellipsis.
-            if i != 8 {
+            if i < 8 {
                 // Too short.
                 return None;
             }
@@ -273,7 +273,7 @@ impl<'a> Reader<'a> {
         }
 
         let first = self.peek(0).unwrap();
-        let mut x = match pct_enc::decode_hexdigit(first) {
+        let mut x = match pct_enc::decode_hexdig(first) {
             Some(v) => v as u16,
             _ => {
                 return colon.then(|| {
@@ -295,7 +295,7 @@ impl<'a> Reader<'a> {
                 self.skip(i);
                 return None;
             };
-            match pct_enc::decode_hexdigit(b) {
+            match pct_enc::decode_hexdig(b) {
                 Some(v) => {
                     x = (x << 4) | v as u16;
                     i += 1;
@@ -421,15 +421,14 @@ impl Parser<'_> {
     }
 
     fn read_v4_or_reg_name(&mut self) -> Result<HostMeta> {
-        Ok(
-            match (self.read_v4(), self.select_read::<RegName, IRegName>()?) {
-                (Some(_addr), false) => HostMeta::Ipv4(
-                    #[cfg(feature = "net")]
-                    _addr.into(),
-                ),
-                _ => HostMeta::RegName,
-            },
-        )
+        let meta = match (self.read_v4(), self.select_read::<RegName, IRegName>()?) {
+            (Some(_addr), false) => HostMeta::Ipv4(
+                #[cfg(feature = "net")]
+                _addr.into(),
+            ),
+            _ => HostMeta::RegName,
+        };
+        Ok(meta)
     }
 
     fn read_host(&mut self) -> Result<HostMeta> {

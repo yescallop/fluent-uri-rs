@@ -182,7 +182,6 @@ pub(crate) fn normalize(
             HostMeta::IpvFuture => {
                 let start = buf.len();
                 buf.push_str(auth.host());
-
                 buf[start..].make_ascii_lowercase();
             }
             HostMeta::RegName => {
@@ -275,10 +274,10 @@ fn normalize_estr_ascii(buf: &mut String, s: &str, to_ascii_lowercase: bool) {
     for chunk in Decode::new(s) {
         match chunk {
             DecodedChunk::Unencoded(s) => {
-                let i = buf.len();
+                let start = buf.len();
                 buf.push_str(s);
                 if to_ascii_lowercase {
-                    buf[i..].make_ascii_lowercase();
+                    buf[start..].make_ascii_lowercase();
                 }
             }
             DecodedChunk::PctDecoded(mut x) => {
@@ -300,20 +299,20 @@ fn normalize_estr_utf8(buf: &mut String, s: &str, to_ascii_lowercase: bool) {
         #[inline(always)]
         |chunk| match chunk {
             DecodedUtf8Chunk::Unencoded(s) => {
-                let i = buf.len();
+                let start = buf.len();
                 buf.push_str(s);
                 if to_ascii_lowercase {
-                    buf[i..].make_ascii_lowercase();
+                    buf[start..].make_ascii_lowercase();
                 }
             }
             DecodedUtf8Chunk::Decoded { valid, invalid } => {
                 for chunk in Encode::new(IData::TABLE, valid) {
                     match chunk {
                         EncodedChunk::Unencoded(s) => {
-                            let i = buf.len();
+                            let start = buf.len();
                             buf.push_str(s);
                             if to_ascii_lowercase {
-                                buf[i..].make_ascii_lowercase();
+                                buf[start..].make_ascii_lowercase();
                             }
                         }
                         EncodedChunk::PctEncoded(s) => buf.push_str(s),

@@ -1019,7 +1019,7 @@ impl<'v, 'm> RmrRef<'v, 'm> {
 
     fn fragment_start(self) -> Option<usize> {
         Some(self.meta.query_or_path_end())
-            .filter(|&i| i != self.val.len())
+            .filter(|&i| i < self.val.len())
             .map(|i| i + 1)
     }
 
@@ -1067,7 +1067,7 @@ impl<'v, 'm> RmrRef<'v, 'm> {
 
     #[inline]
     pub fn has_fragment(self) -> bool {
-        self.meta.query_or_path_end() != self.val.len()
+        self.meta.query_or_path_end() < self.val.len()
     }
 
     pub fn ensure_has_scheme(self) -> Result<(), ConvertError> {

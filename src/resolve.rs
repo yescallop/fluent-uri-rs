@@ -298,7 +298,8 @@ pub(crate) fn remove_dot_segments(buf: &mut String, abs: &str, rel: Option<&str>
             if end == len {
                 break;
             }
-            start = end + 1; // Skip '/'.
+            // Skip '/'.
+            start = end + 1;
         }
     }
     underflow

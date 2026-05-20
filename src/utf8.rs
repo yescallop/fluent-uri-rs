@@ -90,12 +90,8 @@ impl<'a> Iterator for Utf8Chunks<'a> {
             Err(e) => {
                 let (valid, after_valid) = self.source.split_at(e.valid_up_to());
 
-                let (invalid, rem) = if let Some(len) = e.error_len() {
-                    let (invalid, rem) = after_valid.split_at(len);
-                    (invalid, rem)
-                } else {
-                    (after_valid, &[][..])
-                };
+                let len = e.error_len().unwrap_or(after_valid.len());
+                let (invalid, rem) = after_valid.split_at(len);
                 self.source = rem;
 
                 Some(Utf8Chunk {

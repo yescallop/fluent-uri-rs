@@ -483,7 +483,7 @@ fn decode_octet(hi: u8, lo: u8) -> u8 {
     OCTET_TABLE_HI[hi as usize] | OCTET_TABLE_LO[lo as usize]
 }
 
-pub(crate) fn decode_hexdigit(x: u8) -> Option<u8> {
+pub(crate) fn decode_hexdig(x: u8) -> Option<u8> {
     Some(OCTET_TABLE_LO[x as usize]).filter(|&v| v < 128)
 }
 
@@ -641,7 +641,9 @@ impl<'a> Decode<'a> {
     }
 
     fn borrow_all_or_prep_buf(&mut self) -> Result<&'a str, String> {
-        if let Some(s) = self.next_if_unencoded() {
+        if self.source.is_empty() {
+            Ok("")
+        } else if let Some(s) = self.next_if_unencoded() {
             if self.source.is_empty() {
                 return Ok(s);
             }
@@ -658,10 +660,6 @@ impl<'a> Decode<'a> {
     /// This method allocates only when the slice contains any percent-encoded octet.
     #[must_use]
     pub fn to_bytes(mut self) -> Cow<'a, [u8]> {
-        if self.source.is_empty() {
-            return Cow::Borrowed(&[]);
-        }
-
         let mut buf = match self.borrow_all_or_prep_buf() {
             Ok(s) => return Cow::Borrowed(s.as_bytes()),
             Err(buf) => buf.into_bytes(),
@@ -684,10 +682,6 @@ impl<'a> Decode<'a> {
     ///
     /// Returns `Err` containing the decoded bytes if they are not valid UTF-8.
     pub fn to_string(mut self) -> Result<Cow<'a, str>, Vec<u8>> {
-        if self.source.is_empty() {
-            return Ok(Cow::Borrowed(""));
-        }
-
         let mut buf = match self.borrow_all_or_prep_buf() {
             Ok(s) => return Ok(Cow::Borrowed(s)),
             Err(buf) => Ok::<_, Vec<u8>>(buf),
@@ -728,10 +722,6 @@ impl<'a> Decode<'a> {
     /// This method allocates only when the slice contains any percent-encoded octet.
     #[must_use]
     pub fn to_string_lossy(mut self) -> Cow<'a, str> {
-        if self.source.is_empty() {
-            return Cow::Borrowed("");
-        }
-
         let mut buf = match self.borrow_all_or_prep_buf() {
             Ok(s) => return Cow::Borrowed(s),
             Err(buf) => buf,
