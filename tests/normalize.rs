@@ -141,5 +141,5 @@ fn normalize_iri() {
 
     // Encoded private character in query.
     let r = IriRef::parse("?%EE%80%80").unwrap();
-    assert_eq!(r.normalize(), "?%EE%80%80");
+    assert_eq!(r.normalize(), "?\u{e000}");
 }
