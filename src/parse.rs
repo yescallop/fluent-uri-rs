@@ -58,13 +58,13 @@ macro_rules! err {
     };
 }
 
-pub(crate) fn parse(bytes: &[u8], constraints: Constraints) -> Result<Meta> {
+pub(crate) fn parse(bytes: &[u8], constraints: Constraints, lax: bool) -> Result<Meta> {
     let mut parser = Parser {
         constraints,
         reader: Reader::new(bytes),
         out: Meta::default(),
     };
-    parser.parse_from_scheme()?;
+    parser.parse_from_scheme(lax)?;
     Ok(parser.out)
 }
 
@@ -438,7 +438,7 @@ impl Parser<'_> {
         }
     }
 
-    fn parse_from_scheme(&mut self) -> Result<()> {
+    fn parse_from_scheme(&mut self, lax: bool) -> Result<()> {
         self.read::<Scheme>()?;
 
         if self.peek(0) == Some(b':') {
@@ -452,23 +452,23 @@ impl Parser<'_> {
             // INVARIANT: Skipping ":" is fine.
             self.skip(1);
             return if self.read_str("//") {
-                self.parse_from_authority()
+                self.parse_from_authority(lax)
             } else {
-                self.parse_from_path(PathKind::General)
+                self.parse_from_path(PathKind::General, lax)
             };
         } else if self.constraints.scheme_required {
             err!(self.pos, UnexpectedCharOrEnd);
         } else if self.pos == 0 {
             // Nothing read.
             if self.read_str("//") {
-                return self.parse_from_authority();
+                return self.parse_from_authority(lax);
             }
         }
         // Scheme chars are valid for path.
-        self.parse_from_path(PathKind::ContinuedNoScheme)
+        self.parse_from_path(PathKind::ContinuedNoScheme, lax)
     }
 
-    fn parse_from_authority(&mut self) -> Result<()> {
+    fn parse_from_authority(&mut self, lax: bool) -> Result<()> {
         // We first try to read host and port, noting that
         // a reg-name or IPv4address can also be part of userinfo.
         let host_start = self.pos;
@@ -504,10 +504,10 @@ impl Parser<'_> {
         }
 
         self.out.auth_meta = Some(auth_meta);
-        self.parse_from_path(PathKind::AbEmpty)
+        self.parse_from_path(PathKind::AbEmpty, lax)
     }
 
-    fn parse_from_path(&mut self, kind: PathKind) -> Result<()> {
+    fn parse_from_path(&mut self, kind: PathKind, lax: bool) -> Result<()> {
         let path_start;
 
         match kind {
@@ -540,7 +540,11 @@ impl Parser<'_> {
         }
 
         if self.read_str("#") {
-            self.select_read::<Fragment, IFragment>()?;
+            if lax {
+                self.select_read::<FragmentLax, IFragmentLax>()?;
+            } else {
+                self.select_read::<Fragment, IFragment>()?;
+            }
         }
 
         if self.has_remaining() {

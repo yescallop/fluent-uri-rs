@@ -71,6 +71,7 @@ pub trait Parse {
     type Err;
 
     fn parse<R: RiMaybeRef<Val = Self::Val>>(self) -> Result<R, Self::Err>;
+    fn parse_lax<R: RiMaybeRef<Val = Self::Val>>(self) -> Result<R, Self::Err>;
 }
 
 impl<'a> Parse for &'a str {
@@ -78,7 +79,10 @@ impl<'a> Parse for &'a str {
     type Err = ParseError;
 
     fn parse<R: RiMaybeRef<Val = Self::Val>>(self) -> Result<R, Self::Err> {
-        parse::parse(self.as_bytes(), R::CONSTRAINTS).map(|meta| R::new(self, meta))
+        parse::parse(self.as_bytes(), R::CONSTRAINTS, false).map(|meta| R::new(self, meta))
+    }
+    fn parse_lax<R: RiMaybeRef<Val = Self::Val>>(self) -> Result<R, Self::Err> {
+        parse::parse(self.as_bytes(), R::CONSTRAINTS, true).map(|meta| R::new(self, meta))
     }
 }
 
@@ -87,7 +91,13 @@ impl Parse for String {
     type Err = (ParseError, Self);
 
     fn parse<R: RiMaybeRef<Val = Self::Val>>(self) -> Result<R, Self::Err> {
-        match parse::parse(self.as_bytes(), R::CONSTRAINTS) {
+        match parse::parse(self.as_bytes(), R::CONSTRAINTS, false) {
+            Ok(meta) => Ok(R::new(self, meta)),
+            Err(e) => Err((e, self)),
+        }
+    }
+    fn parse_lax<R: RiMaybeRef<Val = Self::Val>>(self) -> Result<R, Self::Err> {
+        match parse::parse(self.as_bytes(), R::CONSTRAINTS, true) {
             Ok(meta) => Ok(R::new(self, meta)),
             Err(e) => Err((e, self)),
         }
@@ -316,6 +326,19 @@ macro_rules! ri_maybe_ref {
                 I: Parse<Val = T>,
             {
                 input.parse()
+            }
+            ///
+            /// # Errors
+            ///
+            /// Returns `Err` if the string does not match the
+            #[doc = concat!("[`", $abnf, "`][abnf] ABNF rule from RFC ", $rfc, ".")]
+            ///
+            #[doc = concat!("[abnf]: ", $abnf_link)]
+            pub fn parse_lax<I>(input: I) -> Result<Self, I::Err>
+            where
+                I: Parse<Val = T>,
+            {
+                input.parse_lax()
             }
         }
 

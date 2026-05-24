@@ -237,6 +237,14 @@ fn parse_relative() {
     assert_eq!(r.fragment(), Some(EStr::new_or_panic("fragment")));
 }
 
+#[test]
+fn parse_tolerance() {
+    let r = Uri::parse_lax("term://~/code/typos-lsp//59317:/bin/zsh;#toggleterm#1").unwrap();
+    assert_eq!(r.scheme().as_str(), "term");
+    assert_eq!(r.path().as_str(), "/code/typos-lsp//59317:/bin/zsh;");
+    assert_eq!(r.fragment().unwrap().as_str(), "toggleterm#1");
+}
+
 use ParseErrorKind::*;
 
 #[test]

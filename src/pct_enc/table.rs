@@ -232,6 +232,8 @@ pub const QUERY: Table = PCHAR.or(new(b"/?"));
 /// `fragment = *( pchar / "/" / "?" )`
 pub const FRAGMENT: Table = QUERY;
 
+pub const FRAGMENT_LAX: Table = FRAGMENT.or(new(b"#"));
+
 /// `unreserved = ALPHA / DIGIT / "-" / "." / "_" / "~"`
 pub const UNRESERVED: Table = ALPHA.or(DIGIT).or(new(b"-._~"));
 
@@ -253,3 +255,4 @@ pub const IPATH: Table = PATH.or_ucschar();
 pub const ISEGMENT_NZ_NC: Table = SEGMENT_NZ_NC.or_ucschar();
 pub const IQUERY: Table = QUERY.or_ucschar().or_iprivate();
 pub const IFRAGMENT: Table = FRAGMENT.or_ucschar();
+pub const IFRAGMENT_LAX: Table = FRAGMENT_LAX.or_ucschar();

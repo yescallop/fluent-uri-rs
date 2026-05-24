@@ -93,6 +93,14 @@ impl Encoder for Fragment {
     const TABLE: Table = FRAGMENT;
 }
 
+/// An encoder for URI fragment.
+#[derive(Clone, Copy)]
+pub struct FragmentLax(());
+
+impl Encoder for FragmentLax {
+    const TABLE: Table = FRAGMENT_LAX;
+}
+
 /// An encoder for IRI fragment.
 #[derive(Clone, Copy)]
 pub struct IFragment(());
@@ -101,6 +109,13 @@ impl Encoder for IFragment {
     const TABLE: Table = IFRAGMENT;
 }
 
+/// An encoder for IRI fragment. Lax version
+#[derive(Clone, Copy)]
+pub struct IFragmentLax(());
+
+impl Encoder for IFragmentLax {
+    const TABLE: Table = IFRAGMENT_LAX;
+}
 /// An encoder for URI data which preserves only [unreserved] characters
 /// and encodes the others.
 ///
